@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ─── Design Tokens ─────────────────────────────────────────────────────── */
+:root {
+  /* Cozy warm palette */
+  --cozy-cream:    #faf7f2;
+  --cozy-warm:     #f5ede0;
+  --cozy-amber:    #e8a87c;
+  --cozy-rust:     #c4704a;
+  --cozy-bark:     #7a4f3a;
+  --cozy-night:    #1a1410;
+  --cozy-charcoal: #2d2420;
+  --cozy-muted:    #8a7060;
+  --cozy-gold:     #f0c060;
+  --cozy-glow:     rgba(240, 192, 96, 0.25);
+
+  --radius-card: 24px;
+  --radius-btn:  14px;
+
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  background-color: var(--cozy-cream);
+  color: var(--cozy-night);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Utility classes ─────────────────────────────────────────────────────── */
+.cozy-glass {
+  background: rgba(250, 247, 242, 0.72);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(232, 168, 124, 0.22);
+}
+
+.cozy-glass-dark {
+  background: rgba(26, 20, 16, 0.72);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cozy-shadow {
+  box-shadow:
+    0 2px 8px rgba(122, 79, 58, 0.08),
+    0 8px 32px rgba(122, 79, 58, 0.12);
+}
+
+.cozy-shadow-lg {
+  box-shadow:
+    0 4px 16px rgba(122, 79, 58, 0.10),
+    0 20px 60px rgba(122, 79, 58, 0.18);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--cozy-rust), var(--cozy-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Card swipe animations ──────────────────────────────────────────────── */
+@keyframes cardEnter {
+  from { transform: scale(0.94) translateY(12px); opacity: 0; }
+  to   { transform: scale(1)    translateY(0);    opacity: 1; }
+}
+
+@keyframes cheerPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  70%  { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pointsBounce {
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-4px); }
+  100% { transform: translateY(0); }
+}
+
+.card-enter {
+  animation: cardEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.cheer-pop {
+  animation: cheerPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.points-bounce {
+  animation: pointsBounce 0.5s ease-in-out;
+}
+
+/* ─── Swipe card stack ───────────────────────────────────────────────────── */
+.card-stack {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 560px;
+}
+
+.swipe-card {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  will-change: transform;
+  transition: box-shadow 0.2s ease;
+}
+
+.swipe-card:active { cursor: grabbing; }
+
+/* ─── Toggle pill ────────────────────────────────────────────────────────── */
+.toggle-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  background: var(--cozy-warm);
+  padding: 4px;
+  gap: 4px;
+}
+
+.toggle-option {
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--cozy-muted);
+}
+
+.toggle-option.active {
+  background: white;
+  color: var(--cozy-rust);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+
+/* ─── Upload zone ────────────────────────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed rgba(196, 112, 74, 0.35);
+  border-radius: var(--radius-card);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+  border-color: var(--cozy-amber);
+  background: rgba(232, 168, 124, 0.06);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(122, 79, 58, 0.25);
+  border-radius: 99px;
+}

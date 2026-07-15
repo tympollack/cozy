@@ -1,0 +1,37 @@
+{
+  "name": "Cozy — Share Your Space",
+  "short_name": "Cozy",
+  "description": "A positivity-only community for sharing and celebrating cozy living spaces.",
+  "start_url": "/feed",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf7f2",
+  "theme_color": "#e8a87c",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Feed",
+      "url": "/feed",
+      "description": "See the latest cozy spaces"
+    },
+    {
+      "name": "Upload Photo",
+      "url": "/camera",
+      "description": "Share your space and earn points"
+    }
+  ]
+}
