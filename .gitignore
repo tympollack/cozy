@@ -26,6 +26,7 @@
 /public/worker-*.js
 /public/fallback-*.js
 
+
 # misc
 .DS_Store
 *.pem
