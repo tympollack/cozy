@@ -25,7 +25,10 @@ export async function placeSticker(
   postId: string,
   stickerUrl: string,
   cost: number,
-  decayRate: number
+  decayRate: number,
+  xPercent: number = 50,
+  yPercent: number = 50,
+  rotationDegrees: number = 0
 ): Promise<StickerActionResult> {
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -39,11 +42,14 @@ export async function placeSticker(
   }
 
   const { data: stickerId, error } = await supabase.schema('cozy').rpc('place_sticker', {
-    p_user_id:     user.id,
-    p_post_id:     postId,
-    p_sticker_url: stickerUrl,
-    p_cost:        cost,
-    p_decay_rate:  decayRate,
+    p_user_id:          user.id,
+    p_post_id:          postId,
+    p_sticker_url:      stickerUrl,
+    p_cost:             cost,
+    p_decay_rate:       decayRate,
+    p_x_percent:        xPercent,
+    p_y_percent:        yPercent,
+    p_rotation_degrees: rotationDegrees,
   });
 
   if (error) {
