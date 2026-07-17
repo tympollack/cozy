@@ -7,6 +7,19 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type PrivacyTier = 'random' | 'geofenced';
 
+/** A single sticker attached to a post, as returned by fetch_feed. */
+export interface PostSticker {
+  id: string;
+  sticker_url: string;
+  cost: number;
+  /** Fraction of opacity lost per day (e.g. 0.05 = 5%/day). */
+  decay_rate_per_day: number;
+  placed_at: string;
+  /** Reset to NOW() on every Re-Up — the decay baseline. */
+  last_reup_at: string;
+  placed_by_user_id: string;
+}
+
 /** Shape of a single post returned by the feed action (privacy-safe). */
 export interface FeedPost {
   id: string;
@@ -18,6 +31,10 @@ export interface FeedPost {
   cheer_count: number;
   /** Whether the current user has already cheered this post. */
   has_cheered: boolean;
+  /** True if the post owner has been flagged by moderation. */
+  is_toxic: boolean;
+  /** Stickers currently attached to this post. */
+  stickers: PostSticker[];
   created_at: string;
 }
 
@@ -39,6 +56,8 @@ interface CozyState {
   removeFromFeed: (id: string) => void;
   setFeedCursor: (cursor: string | null) => void;
   markCheered: (postId: string) => void;
+  /** Optimistically update a single sticker's last_reup_at after a re-up. */
+  updateStickerReup: (postId: string, stickerId: string, newReupAt: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +94,21 @@ export const useCozyStore = create<CozyState>()(
           feed: s.feed.map((p) =>
             p.id === postId
               ? { ...p, has_cheered: true, cheer_count: p.cheer_count + 1 }
+              : p
+          ),
+        })),
+      updateStickerReup: (postId, stickerId, newReupAt) =>
+        set((s) => ({
+          feed: s.feed.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  stickers: p.stickers.map((st) =>
+                    st.id === stickerId
+                      ? { ...st, last_reup_at: newReupAt }
+                      : st
+                  ),
+                }
               : p
           ),
         })),

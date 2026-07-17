@@ -41,7 +41,7 @@ export async function getFeed(cursor?: string): Promise<FeedPayload> {
 
   const service = createServiceClient();
 
-  const { data, error } = await service.rpc('fetch_feed', {
+  const { data, error } = await service.schema('cozy').rpc('fetch_feed', {
     p_user_id: user.id,
     p_limit: 20,
     p_cursor: cursor ?? null,
@@ -120,7 +120,7 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
 
     // --- Insert into DB via RPC (awards 10 points) ---
     const service = createServiceClient();
-    const { data: postId, error: rpcError } = await service.rpc('upload_post', {
+    const { data: postId, error: rpcError } = await service.schema('cozy').rpc('upload_post', {
       p_user_id: user.id,
       p_light_img_url: lightUrl,
       p_dark_img_url: darkUrl,
