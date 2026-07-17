@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Camera } from 'lucide-react';
+import { Home, Camera, User } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
 import { createServerClient } from '@/lib/supabase';
 
@@ -48,9 +48,21 @@ export async function Navbar() {
           </Link>
 
           {user ? (
-            <PointsBadge />
+            <>
+              <Link
+                href="/profile"
+                id="nav-profile"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
+                  text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
+                aria-label="My Spaces"
+              >
+                <User size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">Me</span>
+              </Link>
+              <PointsBadge />
+            </>
           ) : (
-            <a 
+            <a
               href="https://hub.sunshade.icu/login"
               className="ml-2 text-sm font-700 bg-[--cozy-bark] text-white px-4 py-1.5 rounded-full hover:scale-105 transition-transform"
             >

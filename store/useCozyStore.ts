@@ -18,6 +18,12 @@ export interface PostSticker {
   /** Reset to NOW() on every Re-Up — the decay baseline. */
   last_reup_at: string;
   placed_by_user_id: string;
+  /** Horizontal center position as % of the post container width. */
+  x_percent: number;
+  /** Vertical center position as % of the post container height. */
+  y_percent: number;
+  /** CSS rotation in degrees. */
+  rotation_degrees: number;
 }
 
 /** Shape of a single post returned by the feed action (privacy-safe). */
@@ -42,6 +48,9 @@ export interface FeedPost {
 // Store shape
 // ---------------------------------------------------------------------------
 
+/** A user's own post as returned by get_user_posts. */
+export type UserPost = Omit<FeedPost, 'has_cheered' | 'is_toxic'>;
+
 interface CozyState {
   // --- Economy ---
   points: number;
@@ -58,6 +67,10 @@ interface CozyState {
   markCheered: (postId: string) => void;
   /** Optimistically update a single sticker's last_reup_at after a re-up. */
   updateStickerReup: (postId: string, stickerId: string, newReupAt: string) => void;
+
+  // --- Profile ---
+  userPosts: UserPost[];
+  setUserPosts: (posts: UserPost[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +125,10 @@ export const useCozyStore = create<CozyState>()(
               : p
           ),
         })),
+
+      // --- Profile ---
+      userPosts: [],
+      setUserPosts: (posts) => set({ userPosts: posts }),
     }),
     {
       name: 'cozy-store',

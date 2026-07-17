@@ -27,13 +27,9 @@ interface PostCardProps {
 interface StickerLayerProps {
   sticker: PostSticker;
   postId: string;
-  /** x position (left %) within the card */
-  left: number;
-  /** y position (top %) within the card */
-  top: number;
 }
 
-function StickerLayer({ sticker, postId, left, top }: StickerLayerProps) {
+function StickerLayer({ sticker, postId }: StickerLayerProps) {
   const { setPoints, updateStickerReup } = useCozyStore();
   const [isPending, startTransition] = useTransition();
   const [flashKey, setFlashKey] = useState(0);
@@ -66,7 +62,11 @@ function StickerLayer({ sticker, postId, left, top }: StickerLayerProps) {
   return (
     <div
       className="absolute"
-      style={{ left: `${left}%`, top: `${top}%`, transform: 'translate(-50%, -50%)' }}
+      style={{
+        left: `${sticker.x_percent}%`,
+        top: `${sticker.y_percent}%`,
+        transform: `translate(-50%, -50%) rotate(${sticker.rotation_degrees}deg)`,
+      }}
     >
       {/* Sticker image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -107,15 +107,6 @@ function StickerLayer({ sticker, postId, left, top }: StickerLayerProps) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Deterministic sticker positions (avoids hydration mismatch from Math.random)
-// Positions are distributed across the card in a pleasing grid pattern.
-// ---------------------------------------------------------------------------
-const STICKER_POSITIONS: [number, number][] = [
-  [20, 30], [75, 25], [50, 60], [15, 65], [80, 70],
-  [35, 45], [65, 35], [25, 80], [70, 80], [50, 20],
-];
 
 // ---------------------------------------------------------------------------
 // PostCard
@@ -172,20 +163,14 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
         {/* ── Sticker layer ─────────────────────────────────────────── */}
         {post.stickers.length > 0 && (
           <div className="absolute inset-0 pointer-events-none z-20">
-            {post.stickers.map((sticker, i) => {
-              const [left, top] = STICKER_POSITIONS[i % STICKER_POSITIONS.length];
-              return (
-                // pointer-events-auto on the wrapper so Re-Up buttons are clickable
-                <div key={sticker.id} className="pointer-events-auto">
-                  <StickerLayer
-                    sticker={sticker}
-                    postId={post.id}
-                    left={left}
-                    top={top}
-                  />
-                </div>
-              );
-            })}
+            {post.stickers.map((sticker) => (
+              <div key={sticker.id} className="pointer-events-auto">
+                <StickerLayer
+                  sticker={sticker}
+                  postId={post.id}
+                />
+              </div>
+            ))}
           </div>
         )}
 

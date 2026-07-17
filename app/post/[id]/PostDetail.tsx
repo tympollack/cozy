@@ -1,0 +1,214 @@
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { Sun, Moon, MapPin, Heart, Sparkles, ArrowLeft } from 'lucide-react';
+import { getOptimizedImageUrl } from '@/lib/cloudflare';
+import { calcStickerOpacity } from '@/lib/stickerMath';
+import { StickerDrawer, STICKER_CATALOG } from '@/components/StickerDrawer';
+import { DraggableSticker } from '@/components/DraggableSticker';
+import { useCozyStore } from '@/store/useCozyStore';
+import type { UserPost, PostSticker } from '@/store/useCozyStore';
+import type { StickerCatalogItem } from '@/components/StickerDrawer';
+
+interface PostDetailProps {
+  post: UserPost;
+  currentUserId: string | null;
+}
+
+export function PostDetail({ post, currentUserId }: PostDetailProps) {
+  const router = useRouter();
+  const { points } = useCozyStore();
+
+  const [showDark, setShowDark] = useState(!post.light_img_url);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingSticker, setPendingSticker] = useState<StickerCatalogItem | null>(null);
+  const [localStickers, setLocalStickers] = useState<PostSticker[]>(
+    post.stickers as PostSticker[]
+  );
+
+  // Ref for the photo container — used by DraggableSticker for boundary + coordinate math
+  const photoRef = useRef<HTMLDivElement>(null);
+
+  const activeUrl = showDark
+    ? (post.dark_img_url || post.light_img_url)
+    : (post.light_img_url || post.dark_img_url);
+
+  const isOwner = currentUserId === post.user_id;
+
+  const handleStickerSelect = useCallback((sticker: StickerCatalogItem) => {
+    setDrawerOpen(false);
+    setPendingSticker(sticker);
+  }, []);
+
+  const handleStickerConfirm = useCallback(
+    (newSticker: {
+      sticker_url: string;
+      x_percent: number;
+      y_percent: number;
+      rotation_degrees: number;
+      cost: number;
+      decay_rate_per_day: number;
+    }) => {
+      // Optimistically add the new sticker to the local state
+      const optimistic: PostSticker = {
+        id: `optimistic-${Date.now()}`,
+        sticker_url: newSticker.sticker_url,
+        cost: newSticker.cost,
+        decay_rate_per_day: newSticker.decay_rate_per_day,
+        placed_at: new Date().toISOString(),
+        last_reup_at: new Date().toISOString(),
+        placed_by_user_id: currentUserId ?? '',
+        x_percent: newSticker.x_percent,
+        y_percent: newSticker.y_percent,
+        rotation_degrees: newSticker.rotation_degrees,
+      };
+      setLocalStickers((prev) => [...prev, optimistic]);
+      setPendingSticker(null);
+    },
+    [currentUserId]
+  );
+
+  return (
+    <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+      {/* Back nav */}
+      <button
+        onClick={() => router.back()}
+        className="flex items-center gap-2 text-sm font-600 text-[--cozy-bark]
+          hover:text-[--cozy-rust] transition-colors"
+        aria-label="Go back"
+      >
+        <ArrowLeft size={16} />
+        Back
+      </button>
+
+      {/* Photo container */}
+      <div
+        ref={photoRef}
+        className="relative w-full rounded-3xl overflow-hidden cozy-shadow-lg bg-[--cozy-warm]"
+        style={{ aspectRatio: '3/4' }}
+      >
+        {/* Main photo */}
+        {activeUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={getOptimizedImageUrl(activeUrl, 800)}
+            alt={showDark ? 'Night-time room' : 'Day-time room'}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+
+        {/* Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+        {/* Placed stickers */}
+        {localStickers.map((sticker) => {
+          const opacity = Math.max(calcStickerOpacity(sticker.last_reup_at, sticker.decay_rate_per_day), 0.2);
+          return (
+            <div
+              key={sticker.id}
+              className="absolute pointer-events-none select-none"
+              style={{
+                left: `${sticker.x_percent}%`,
+                top: `${sticker.y_percent}%`,
+                transform: `translate(-50%, -50%) rotate(${sticker.rotation_degrees}deg)`,
+                opacity,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={sticker.sticker_url}
+                alt="Sticker"
+                className="w-14 h-14 object-contain drop-shadow-lg"
+                loading="lazy"
+              />
+            </div>
+          );
+        })}
+
+        {/* Active drag sticker */}
+        {pendingSticker && (
+          <DraggableSticker
+            sticker={pendingSticker}
+            postId={post.id}
+            containerRef={photoRef}
+            onConfirm={handleStickerConfirm}
+            onCancel={() => setPendingSticker(null)}
+          />
+        )}
+
+        {/* Day/Night toggle */}
+        {post.light_img_url && post.dark_img_url && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 toggle-pill cozy-shadow z-30">
+            <button
+              className={`toggle-option ${!showDark ? 'active' : ''}`}
+              onClick={() => setShowDark(false)}
+              aria-pressed={!showDark}
+              aria-label="View daytime photo"
+            >
+              <Sun size={14} className="inline mr-1" />
+              Light
+            </button>
+            <button
+              className={`toggle-option ${showDark ? 'active' : ''}`}
+              onClick={() => setShowDark(true)}
+              aria-pressed={showDark}
+              aria-label="View night-time photo"
+            >
+              <Moon size={14} className="inline mr-1" />
+              Dark
+            </button>
+          </div>
+        )}
+
+        {/* Decorate button — always visible for authenticated users */}
+        {currentUserId && !pendingSticker && (
+          <button
+            id="post-decorate-btn"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Add a sticker decoration"
+            className="absolute bottom-4 right-4 z-30
+              flex items-center gap-1.5 px-4 py-2.5 rounded-full
+              font-700 text-sm text-[--cozy-bark] bg-white/90 backdrop-blur-sm
+              cozy-shadow hover:scale-105 active:scale-95 transition-transform"
+          >
+            <Sparkles size={15} className="text-[--cozy-gold]" />
+            Decorate
+          </button>
+        )}
+      </div>
+
+      {/* Meta row */}
+      <div className="flex items-center justify-between px-1">
+        {post.obfuscated_location_hash ? (
+          <div className="flex items-center gap-1.5 text-sm text-[--cozy-muted]">
+            <MapPin size={14} className="text-[--cozy-amber]" />
+            <span className="font-mono text-xs">{post.obfuscated_location_hash}</span>
+          </div>
+        ) : (
+          <div />
+        )}
+
+        <div className="flex items-center gap-1.5 text-sm text-[--cozy-muted]">
+          <Heart size={14} className="text-rose-400 fill-rose-400" />
+          <span className="font-600">{post.cheer_count}</span>
+          <span>cheers</span>
+        </div>
+      </div>
+
+      {/* Sticker count */}
+      {localStickers.length > 0 && (
+        <p className="text-xs text-[--cozy-muted] px-1">
+          {localStickers.length} sticker{localStickers.length !== 1 ? 's' : ''} decorating this space
+        </p>
+      )}
+
+      {/* Sticker Drawer */}
+      <StickerDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onSelect={handleStickerSelect}
+      />
+    </div>
+  );
+}
