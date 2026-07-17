@@ -38,8 +38,7 @@ export async function placeSticker(
     return { success: false, error: 'Invalid sticker parameters.' };
   }
 
-  const service = createServiceClient();
-  const { data: stickerId, error } = await service.schema('cozy').rpc('place_sticker', {
+  const { data: stickerId, error } = await supabase.schema('cozy').rpc('place_sticker', {
     p_user_id:     user.id,
     p_post_id:     postId,
     p_sticker_url: stickerUrl,
@@ -82,8 +81,7 @@ export async function reupSticker(
     return { success: false, error: 'Invalid Re-Up cost.' };
   }
 
-  const service = createServiceClient();
-  const { data: newPoints, error } = await service.schema('cozy').rpc('reup_sticker', {
+  const { data: newPoints, error } = await supabase.schema('cozy').rpc('reup_sticker', {
     p_user_id:         user.id,
     p_sticker_id:      stickerId,
     p_discounted_cost: discountedCost,

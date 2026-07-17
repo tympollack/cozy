@@ -39,9 +39,7 @@ export async function getFeed(cursor?: string): Promise<FeedPayload> {
     console.error('[getFeed] Auth error:', authError.message);
   }
 
-  const service = createServiceClient();
-
-  const { data, error } = await service.schema('cozy').rpc('fetch_feed', {
+  const { data, error } = await supabase.schema('cozy').rpc('fetch_feed', {
     p_user_id: user?.id ?? null,
     p_limit: 20,
     p_cursor: cursor ?? null,
@@ -120,8 +118,7 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
     }
 
     // --- Insert into DB via RPC (awards 10 points) ---
-    const service = createServiceClient();
-    const { data: postId, error: rpcError } = await service.schema('cozy').rpc('upload_post', {
+    const { data: postId, error: rpcError } = await supabase.schema('cozy').rpc('upload_post', {
       p_user_id: user.id,
       p_light_img_url: lightUrl,
       p_dark_img_url: darkUrl,
@@ -130,7 +127,7 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
 
     if (rpcError) {
       console.error('[uploadPost] RPC error:', rpcError.message);
-      return { success: false, error: 'Failed to save your post. Please try again.' };
+      return { success: false, error: `RPC Error: ${rpcError.message}` };
     }
 
     return { success: true, postId: postId as string };

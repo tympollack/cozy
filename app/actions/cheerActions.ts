@@ -27,9 +27,7 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
     return { success: false, error: 'Authentication required.' };
   }
 
-  const service = createServiceClient();
-
-  const { data: newPoints, error } = await service.schema('cozy').rpc('cheer_post', {
+  const { data: newPoints, error } = await supabase.schema('cozy').rpc('cheer_post', {
     p_post_id: postId,
     p_user_id: user.id,
   });
