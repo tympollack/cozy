@@ -15,5 +15,8 @@ export function createBrowserClient() {
     );
   }
 
-  return createClient(url, key, { auth: { persistSession: true } });
+  return createClient(url, key, {
+    auth: { persistSession: true },
+    cookieOptions: { domain: '.sunshade.icu' },
+  });
 }

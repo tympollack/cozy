@@ -13,7 +13,7 @@ export default async function FeedPage() {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  // We no longer redirect to login here; anonymous browsing is allowed.
 
   // Fetch first page server-side for instant paint
   const { posts, nextCursor } = await getFeed();
@@ -30,7 +30,7 @@ export default async function FeedPage() {
         </p>
       </div>
 
-      <FeedSwiper initialPosts={posts} initialCursor={nextCursor} />
+      <FeedSwiper initialPosts={posts} initialCursor={nextCursor} isAuthenticated={!!user} />
     </div>
   );
 }

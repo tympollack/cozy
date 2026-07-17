@@ -35,14 +35,14 @@ export async function getFeed(cursor?: string): Promise<FeedPayload> {
   const supabase = await createServerClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { posts: [], nextCursor: null };
+  if (authError) {
+    console.error('[getFeed] Auth error:', authError.message);
   }
 
   const service = createServiceClient();
 
   const { data, error } = await service.schema('cozy').rpc('fetch_feed', {
-    p_user_id: user.id,
+    p_user_id: user?.id ?? null,
     p_limit: 20,
     p_cursor: cursor ?? null,
   });
@@ -136,6 +136,7 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
     return { success: true, postId: postId as string };
   } catch (err) {
     console.error('[uploadPost] Upload error:', err);
-    return { success: false, error: 'Upload failed. Please check your connection.' };
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: `Upload failed: ${msg}` };
   }
 }
