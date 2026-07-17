@@ -57,6 +57,10 @@ interface CozyState {
   addPoints: (n: number) => void;
   setPoints: (n: number) => void;
 
+  // --- Onboarding ---
+  hasSeenOnboarding: boolean;
+  completeOnboarding: () => void;
+
   // --- Feed ---
   feed: FeedPost[];
   feedCursor: string | null;
@@ -86,6 +90,10 @@ export const useCozyStore = create<CozyState>()(
       points: 0,
       addPoints: (n) => set((s) => ({ points: s.points + n })),
       setPoints: (n) => set({ points: n }),
+
+      // --- Onboarding ---
+      hasSeenOnboarding: false,
+      completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
       // --- Feed ---
       feed: [],
@@ -133,8 +141,11 @@ export const useCozyStore = create<CozyState>()(
     {
       name: 'cozy-store',
       storage: createJSONStorage(() => localStorage),
-      // Only persist the economy — not the feed (it should re-fetch fresh)
-      partialize: (state) => ({ points: state.points }),
+      // Only persist the economy and onboarding state — not the feed (it should re-fetch fresh)
+      partialize: (state) => ({ 
+        points: state.points,
+        hasSeenOnboarding: state.hasSeenOnboarding
+      }),
     }
   )
 );
