@@ -84,8 +84,8 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
   const lightFile = formData.get('light') as File | null;
   const darkFile = formData.get('dark') as File | null;
 
-  if (!lightFile || !darkFile) {
-    return { success: false, error: 'Both a Light and Dark photo are required.' };
+  if (!lightFile && !darkFile) {
+    return { success: false, error: 'Either a Light or Dark photo is required.' };
   }
 
   // --- Privacy: compute geohash, discard raw coords ---
@@ -105,18 +105,19 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
 
   // --- Upload images to R2 ---
   try {
-    const [lightBuffer, darkBuffer] = await Promise.all([
-      lightFile.arrayBuffer().then(Buffer.from),
-      darkFile.arrayBuffer().then(Buffer.from),
-    ]);
+    let lightUrl: string | null = null;
+    if (lightFile) {
+      const lightBuffer = Buffer.from(await lightFile.arrayBuffer());
+      const lightKey = generateR2Key(user.id, 'light', lightFile.type);
+      lightUrl = await uploadToR2(lightBuffer, lightKey, lightFile.type);
+    }
 
-    const lightKey = generateR2Key(user.id, 'light', lightFile.type);
-    const darkKey = generateR2Key(user.id, 'dark', darkFile.type);
-
-    const [lightUrl, darkUrl] = await Promise.all([
-      uploadToR2(lightBuffer, lightKey, lightFile.type),
-      uploadToR2(darkBuffer, darkKey, darkFile.type),
-    ]);
+    let darkUrl: string | null = null;
+    if (darkFile) {
+      const darkBuffer = Buffer.from(await darkFile.arrayBuffer());
+      const darkKey = generateR2Key(user.id, 'dark', darkFile.type);
+      darkUrl = await uploadToR2(darkBuffer, darkKey, darkFile.type);
+    }
 
     // --- Insert into DB via RPC (awards 10 points) ---
     const service = createServiceClient();
