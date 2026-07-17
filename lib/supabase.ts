@@ -41,6 +41,7 @@ export async function createServerClient() {
     requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
     requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     {
+      cookieOptions: { domain: '.sunshade.icu' },
       cookies: {
         getAll() {
           return cookieStore.getAll();

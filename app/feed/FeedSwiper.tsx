@@ -11,12 +11,13 @@ import { Home, RefreshCw } from 'lucide-react';
 interface FeedSwiperProps {
   initialPosts: FeedPost[];
   initialCursor: string | null;
+  isAuthenticated?: boolean;
 }
 
 const CARD_OFFSET = 12;  // px between stacked cards
 const CARD_SCALE  = 0.04; // scale decrement per depth level
 
-export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
+export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = false }: FeedSwiperProps) {
   const { appendFeed, setFeedCursor, feed, feedCursor, removeFromFeed, setPoints, addPoints } =
     useCozyStore();
 
@@ -88,6 +89,27 @@ export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
     }
     setIsDragging(false);
   }, [isDragging, dragX, dismiss]);
+
+  // --- Empty state & Auth gating ---
+  const hitAuthLimit = !isAuthenticated && currentIndex >= 7;
+
+  if (hitAuthLimit) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full max-w-sm mt-12 px-6 text-center">
+        <Home className="w-12 h-12 text-[--cozy-bark] mb-4 opacity-50" />
+        <h2 className="text-xl font-800 text-[--cozy-bark] mb-2">Sign in to see more</h2>
+        <p className="text-[--cozy-muted] mb-8">
+          Join Cozy to keep swiping, share your own space, and cheer on others!
+        </p>
+        <a 
+          href="https://hub.sunshade.icu/login"
+          className="bg-[--cozy-bark] text-white px-8 py-3 rounded-full font-700 shadow-md hover:scale-105 transition-transform"
+        >
+          Sign in with Sunshade Hub
+        </a>
+      </div>
+    );
+  }
 
   // --- Cheer handler ---
   const handleCheer = useCallback(async (postId: string) => {

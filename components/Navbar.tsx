@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import { Home, Camera } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
+import { createServerClient } from '@/lib/supabase';
 
-export function Navbar() {
+export async function Navbar() {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <header className="fixed top-0 inset-x-0 z-50 cozy-glass border-b border-amber-100/60">
       <nav
@@ -33,7 +37,7 @@ export function Navbar() {
           </Link>
 
           <Link
-            href="/camera"
+            href={user ? "/camera" : "https://hub.sunshade.icu/login"}
             id="nav-camera"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
               text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
@@ -43,7 +47,16 @@ export function Navbar() {
             <span className="hidden sm:inline">Upload</span>
           </Link>
 
-          <PointsBadge />
+          {user ? (
+            <PointsBadge />
+          ) : (
+            <a 
+              href="https://hub.sunshade.icu/login"
+              className="ml-2 text-sm font-700 bg-[--cozy-bark] text-white px-4 py-1.5 rounded-full hover:scale-105 transition-transform"
+            >
+              Sign In
+            </a>
+          )}
         </div>
       </nav>
     </header>
