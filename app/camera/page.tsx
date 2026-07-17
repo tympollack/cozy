@@ -168,7 +168,7 @@ export default function CameraPage() {
                     className={`upload-zone w-full aspect-[3/4] flex flex-col items-center justify-center
                       rounded-2xl overflow-hidden relative transition-all duration-200
                       ${isActive ? 'ring-2 ring-[--cozy-amber] ring-offset-2' : ''}
-                      ${slot.preview ? 'border-transparent' : 'bg-white/50'}
+                      ${slot.preview ? 'border-transparent' : 'bg-stone-50/50 shadow-inner'}
                     `}
                   >
                     {slot.preview ? (
@@ -247,11 +247,10 @@ export default function CameraPage() {
             type="submit"
             disabled={!anyReady || isUploading}
             className={`w-full flex items-center justify-center gap-2 py-4 px-6
-              rounded-2xl font-700 text-base text-white
-              bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
-              hover:opacity-90 active:scale-[0.98]
-              disabled:!bg-none disabled:bg-[--cozy-sand] disabled:text-[--cozy-muted] disabled:cursor-not-allowed disabled:shadow-none
-              transition-all duration-200 cozy-shadow-lg`}
+              rounded-2xl text-base bg-stone-800 hover:bg-stone-900 text-amber-50 font-semibold shadow-md
+              active:scale-[0.98]
+              disabled:!bg-none disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed disabled:shadow-none
+              transition-all duration-200`}
           >
             {isUploading ? (
               <>
