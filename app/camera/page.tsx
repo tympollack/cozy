@@ -69,14 +69,14 @@ export default function CameraPage() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!lightSlot.file || !darkSlot.file) return;
+      if (!lightSlot.file && !darkSlot.file) return;
 
       setSubmitState('uploading');
       setErrorMsg('');
 
       const formData = new FormData();
-      formData.append('light', lightSlot.file);
-      formData.append('dark', darkSlot.file);
+      if (lightSlot.file) formData.append('light', lightSlot.file);
+      if (darkSlot.file) formData.append('dark', darkSlot.file);
       if (location) {
         formData.append('lat', String(location.lat));
         formData.append('lng', String(location.lng));
@@ -85,7 +85,7 @@ export default function CameraPage() {
       startTransition(async () => {
         const result = await uploadPost(formData);
         if (result.success) {
-          addPoints(10); // Optimistic — award 10 points client-side
+          addPoints(lightSlot.file && darkSlot.file ? 50 : 20); // Optimistic points
           setSubmitState('success');
           setTimeout(() => router.push('/feed'), 2000);
         } else {
@@ -97,7 +97,7 @@ export default function CameraPage() {
     [lightSlot, darkSlot, location, addPoints, router]
   );
 
-  const bothReady = !!lightSlot.file && !!darkSlot.file;
+  const anyReady = !!lightSlot.file || !!darkSlot.file;
   const isUploading = submitState === 'uploading' || isPending;
 
   if (submitState === 'success') {
@@ -108,7 +108,7 @@ export default function CameraPage() {
         <div className="text-center space-y-4">
           <CheckCircle size={64} className="mx-auto text-green-500" aria-hidden="true" />
           <h2 className="text-2xl font-800 text-[--cozy-bark]">Your space is live! 🏡</h2>
-          <p className="text-[--cozy-muted]">You earned +10 points. Redirecting to feed…</p>
+          <p className="text-[--cozy-muted]">You earned +{lightSlot.file && darkSlot.file ? 50 : 20} points. Redirecting to feed…</p>
         </div>
       </div>
     );
@@ -124,8 +124,8 @@ export default function CameraPage() {
         <div className="text-center">
           <h1 className="text-2xl font-800 text-[--cozy-bark]">Share Your Space</h1>
           <p className="text-sm text-[--cozy-muted] mt-1">
-            Both a <span className="font-600 text-amber-600">Light</span> and{' '}
-            <span className="font-600 text-indigo-600">Dark</span> photo are required.
+            Share a <span className="font-600 text-amber-600">Light</span> and/or{' '}
+            <span className="font-600 text-indigo-600">Dark</span> photo of your space.
           </p>
         </div>
 
@@ -245,12 +245,12 @@ export default function CameraPage() {
           <button
             id="camera-submit-btn"
             type="submit"
-            disabled={!bothReady || isUploading}
+            disabled={!anyReady || isUploading}
             className={`w-full flex items-center justify-center gap-2 py-4 px-6
               rounded-2xl font-700 text-base text-white
               bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
               hover:opacity-90 active:scale-[0.98]
-              disabled:opacity-40 disabled:cursor-not-allowed
+              disabled:!bg-none disabled:bg-[--cozy-sand] disabled:text-[--cozy-muted] disabled:cursor-not-allowed disabled:shadow-none
               transition-all duration-200 cozy-shadow-lg`}
           >
             {isUploading ? (
@@ -267,18 +267,14 @@ export default function CameraPage() {
             )}
           </button>
 
-          {!bothReady && (
+          {!anyReady && (
             <p className="text-center text-xs text-[--cozy-muted]" aria-live="polite">
-              {!lightSlot.file && !darkSlot.file
-                ? 'Tap each slot above to add your photos'
-                : !lightSlot.file
-                ? '☀️ Still need a Light Mode photo'
-                : '🌙 Still need a Dark Mode photo'}
+              Tap a slot above to add a photo
             </p>
           )}
 
           <p className="text-center text-xs text-[--cozy-muted]">
-            Earn <strong>+10 points</strong> for sharing your space ✨
+            Earn <strong>+20 points</strong> for one, or <strong>+50 points</strong> for both ✨
           </p>
         </form>
       </div>

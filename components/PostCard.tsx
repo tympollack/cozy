@@ -122,12 +122,12 @@ const STICKER_POSITIONS: [number, number][] = [
 // ---------------------------------------------------------------------------
 
 export function PostCard({ post, onCheer, style, className = '' }: PostCardProps) {
-  const [showDark, setShowDark] = useState(false);
+  const [showDark, setShowDark] = useState(!post.light_img_url);
   const [cheering, setCheering] = useState(false);
   const [cheered, setCheered] = useState(post.has_cheered);
   const [cheerCount, setCheerCount] = useState(post.cheer_count);
 
-  const activeUrl = showDark ? post.dark_img_url : post.light_img_url;
+  const activeUrl = showDark ? (post.dark_img_url || post.light_img_url) : (post.light_img_url || post.dark_img_url);
 
   const handleCheer = useCallback(async () => {
     if (cheered || cheering) return;
@@ -152,14 +152,16 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
       <div className="relative w-full h-full">
 
         {/* ── Main photo ───────────────────────────────────────────── */}
-        <img
-          src={getOptimizedImageUrl(activeUrl, 800)}
-          alt={showDark ? 'Night time room photo' : 'Day time room photo'}
-          loading="lazy"
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
-            ${post.is_toxic ? 'toxic-image' : ''}
-          `}
-        />
+        {activeUrl && (
+          <img
+            src={getOptimizedImageUrl(activeUrl, 800)}
+            alt={showDark ? 'Night time room photo' : 'Day time room photo'}
+            loading="lazy"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
+              ${post.is_toxic ? 'toxic-image' : ''}
+            `}
+          />
+        )}
 
         {/* ── Grumpy Cloud (toxic users only) ──────────────────────── */}
         {post.is_toxic && <GrumpyCloudOverlay />}
@@ -188,28 +190,30 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
         )}
 
         {/* ── Day/Night toggle ─────────────────────────────────────── */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 toggle-pill cozy-shadow z-30">
-          <button
-            id="card-light-btn"
-            className={`toggle-option ${!showDark ? 'active' : ''}`}
-            onClick={() => setShowDark(false)}
-            aria-pressed={!showDark}
-            aria-label="View daytime photo"
-          >
-            <Sun size={14} className="inline mr-1" />
-            Light
-          </button>
-          <button
-            id="card-dark-btn"
-            className={`toggle-option ${showDark ? 'active' : ''}`}
-            onClick={() => setShowDark(true)}
-            aria-pressed={showDark}
-            aria-label="View night-time photo"
-          >
-            <Moon size={14} className="inline mr-1" />
-            Dark
-          </button>
-        </div>
+        {post.light_img_url && post.dark_img_url && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 toggle-pill cozy-shadow z-30">
+            <button
+              id="card-light-btn"
+              className={`toggle-option ${!showDark ? 'active' : ''}`}
+              onClick={() => setShowDark(false)}
+              aria-pressed={!showDark}
+              aria-label="View daytime photo"
+            >
+              <Sun size={14} className="inline mr-1" />
+              Light
+            </button>
+            <button
+              id="card-dark-btn"
+              className={`toggle-option ${showDark ? 'active' : ''}`}
+              onClick={() => setShowDark(true)}
+              aria-pressed={showDark}
+              aria-label="View night-time photo"
+            >
+              <Moon size={14} className="inline mr-1" />
+              Dark
+            </button>
+          </div>
+        )}
 
         {/* ── Bottom bar ───────────────────────────────────────────── */}
         <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between z-30">
