@@ -3,6 +3,7 @@
 import { useCozyStore } from '@/store/useCozyStore';
 import { Star } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { AnimatedCounter } from './AnimatedCounter';
 
 export function PointsBadge() {
   const points = useCozyStore((s) => s.points);
@@ -30,7 +31,7 @@ export function PointsBadge() {
         aria-hidden="true"
       />
       <span className="text-sm font-700 text-gradient tabular-nums">
-        {points.toLocaleString()}
+        <AnimatedCounter value={points} />
       </span>
     </div>
   );

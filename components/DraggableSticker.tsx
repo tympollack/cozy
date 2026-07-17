@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
-import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useAnimation, PanInfo } from 'framer-motion';
 import { Check, RotateCw } from 'lucide-react';
 import { placeSticker } from '@/app/actions/stickerActions';
 import { useCozyStore } from '@/store/useCozyStore';
@@ -35,9 +35,9 @@ export function DraggableSticker({
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // framer-motion values for drag position (starts centered)
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  const controls = useAnimation();
 
   // ----- Rotation handle via onPan -----
   const handleRotatePan = useCallback((_e: PointerEvent, info: PanInfo) => {
@@ -50,6 +50,12 @@ export function DraggableSticker({
     if (!containerRef.current || !stickerRef.current || isPending) return;
     setIsPending(true);
     setError(null);
+
+    // Plop animation before saving
+    await controls.start({
+      scale: [1, 1.25, 1],
+      transition: { type: 'spring', stiffness: 500, damping: 15, duration: 0.3 }
+    });
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const stickerRect = stickerRef.current.getBoundingClientRect();
@@ -99,6 +105,7 @@ export function DraggableSticker({
       {/* Draggable sticker */}
       <motion.div
         ref={stickerRef}
+        animate={controls}
         drag
         dragConstraints={containerRef}
         dragElastic={0.08}

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sun, Moon, MapPin, Heart, Sparkles, ArrowLeft } from 'lucide-react';
+import { Sun, Moon, MapPin, Heart, Sparkles, ArrowLeft, GripVertical } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { calcStickerOpacity } from '@/lib/stickerMath';
 import { StickerDrawer, STICKER_CATALOG } from '@/components/StickerDrawer';
@@ -26,6 +27,16 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [localStickers, setLocalStickers] = useState<PostSticker[]>(
     post.stickers as PostSticker[]
   );
+
+  const [sliderPos, setSliderPos] = useState(50);
+  const handleDrag = useCallback((_e: any, info: any) => {
+    if (!photoRef.current) return;
+    const { width } = photoRef.current.getBoundingClientRect();
+    setSliderPos((prev) => {
+      const deltaPercent = (info.delta.x / width) * 100;
+      return Math.min(100, Math.max(0, prev + deltaPercent));
+    });
+  }, []);
 
   // Ref for the photo container — used by DraggableSticker for boundary + coordinate math
   const photoRef = useRef<HTMLDivElement>(null);
@@ -88,9 +99,32 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         className="relative w-full rounded-3xl overflow-hidden cozy-shadow-lg bg-[--cozy-warm]"
         style={{ aspectRatio: '3/4' }}
       >
-        {/* Main photo */}
-        {activeUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
+        {/* Main photo(s) */}
+        {post.light_img_url && post.dark_img_url ? (
+          <>
+            <img
+              src={getOptimizedImageUrl(post.dark_img_url, 800)}
+              alt="Night-time room"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <img
+              src={getOptimizedImageUrl(post.light_img_url, 800)}
+              alt="Day-time room"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+            />
+            <motion.div
+              onPan={handleDrag}
+              className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
+              style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
+            >
+              <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
+              <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
+                <GripVertical size={16} className="text-white drop-shadow-md" />
+              </div>
+            </motion.div>
+          </>
+        ) : activeUrl && (
           <img
             src={getOptimizedImageUrl(activeUrl, 800)}
             alt={showDark ? 'Night-time room' : 'Day-time room'}
@@ -137,29 +171,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
           />
         )}
 
-        {/* Day/Night toggle */}
-        {post.light_img_url && post.dark_img_url && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 toggle-pill cozy-shadow z-30">
-            <button
-              className={`toggle-option ${!showDark ? 'active' : ''}`}
-              onClick={() => setShowDark(false)}
-              aria-pressed={!showDark}
-              aria-label="View daytime photo"
-            >
-              <Sun size={14} className="inline mr-1" />
-              Light
-            </button>
-            <button
-              className={`toggle-option ${showDark ? 'active' : ''}`}
-              onClick={() => setShowDark(true)}
-              aria-pressed={showDark}
-              aria-label="View night-time photo"
-            >
-              <Moon size={14} className="inline mr-1" />
-              Dark
-            </button>
-          </div>
-        )}
+
 
         {/* Decorate button — always visible for authenticated users */}
         {currentUserId && !pendingSticker && (
@@ -169,8 +181,8 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             aria-label="Add a sticker decoration"
             className="absolute bottom-4 right-4 z-30
               flex items-center gap-1.5 px-4 py-2.5 rounded-full
-              font-700 text-sm text-[--cozy-bark] bg-white/90 backdrop-blur-sm
-              cozy-shadow hover:scale-105 active:scale-95 transition-transform"
+              font-700 text-sm text-white/90 backdrop-blur-md bg-white/20 border border-white/20
+              shadow-lg hover:scale-105 active:scale-95 transition-transform"
           >
             <Sparkles size={15} className="text-[--cozy-gold]" />
             Decorate
