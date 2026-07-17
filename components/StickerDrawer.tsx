@@ -122,7 +122,7 @@ export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps)
         aria-modal="true"
         aria-label="Sticker marketplace"
         className={`fixed bottom-0 inset-x-0 z-50 rounded-t-3xl
-          bg-[--cozy-cream] cozy-shadow-lg
+          backdrop-blur-md bg-white/20 dark:bg-black/40 border-t border-white/20 shadow-lg
           transition-transform duration-400 ease-out
           ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
         style={{ maxHeight: '80dvh' }}

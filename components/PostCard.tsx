@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
-import { Sun, Moon, Heart, MapPin, RefreshCw } from 'lucide-react';
+import { useState, useCallback, useTransition, useRef } from 'react';
+import { Sun, Moon, Heart, MapPin, RefreshCw, GripVertical } from 'lucide-react';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { ParticleBurst } from './ParticleBurst';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { GrumpyCloudOverlay } from '@/components/GrumpyCloudOverlay';
 import { reupSticker } from '@/app/actions/stickerActions';
@@ -95,9 +97,9 @@ function StickerLayer({ sticker, postId }: StickerLayerProps) {
           className="absolute -bottom-6 left-1/2 -translate-x-1/2
             flex items-center gap-1 px-2 py-0.5 rounded-full
             text-[10px] font-700 whitespace-nowrap
-            bg-black/60 text-white/90 backdrop-blur-sm
-            hover:bg-black/80 active:scale-95
-            transition-all duration-150 cozy-shadow
+            backdrop-blur-md bg-white/20 dark:bg-black/40 border border-white/20 text-white/90
+            hover:bg-black/60 active:scale-95
+            transition-all duration-150 shadow-lg
             disabled:opacity-50"
         >
           <RefreshCw size={8} className={isPending ? 'animate-spin' : ''} aria-hidden="true" />
@@ -135,15 +137,52 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
     }
   }, [cheered, cheering, onCheer]);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sliderPos, setSliderPos] = useState(50);
+
+  const handleDrag = useCallback((_e: any, info: any) => {
+    if (!containerRef.current) return;
+    const { width } = containerRef.current.getBoundingClientRect();
+    setSliderPos((prev) => {
+      const deltaPercent = (info.delta.x / width) * 100;
+      return Math.min(100, Math.max(0, prev + deltaPercent));
+    });
+  }, []);
+
   return (
     <div
+      ref={containerRef}
       style={style}
       className={`swipe-card cozy-shadow-lg bg-white ${className}`}
     >
       <div className="relative w-full h-full">
 
-        {/* ── Main photo ───────────────────────────────────────────── */}
-        {activeUrl && (
+        {/* ── Main photo(s) ───────────────────────────────────────────── */}
+        {post.light_img_url && post.dark_img_url ? (
+          <>
+            <img
+              src={getOptimizedImageUrl(post.dark_img_url, 800)}
+              alt="Night time room photo"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <img
+              src={getOptimizedImageUrl(post.light_img_url, 800)}
+              alt="Day time room photo"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+            />
+            <motion.div
+              onPan={handleDrag}
+              className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
+              style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
+            >
+              <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
+              <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
+                <GripVertical size={16} className="text-white drop-shadow-md" />
+              </div>
+            </motion.div>
+          </>
+        ) : activeUrl && (
           <img
             src={getOptimizedImageUrl(activeUrl, 800)}
             alt={showDark ? 'Night time room photo' : 'Day time room photo'}
@@ -174,37 +213,13 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
           </div>
         )}
 
-        {/* ── Day/Night toggle ─────────────────────────────────────── */}
-        {post.light_img_url && post.dark_img_url && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 toggle-pill cozy-shadow z-30">
-            <button
-              id="card-light-btn"
-              className={`toggle-option ${!showDark ? 'active' : ''}`}
-              onClick={() => setShowDark(false)}
-              aria-pressed={!showDark}
-              aria-label="View daytime photo"
-            >
-              <Sun size={14} className="inline mr-1" />
-              Light
-            </button>
-            <button
-              id="card-dark-btn"
-              className={`toggle-option ${showDark ? 'active' : ''}`}
-              onClick={() => setShowDark(true)}
-              aria-pressed={showDark}
-              aria-label="View night-time photo"
-            >
-              <Moon size={14} className="inline mr-1" />
-              Dark
-            </button>
-          </div>
-        )}
+
 
         {/* ── Bottom bar ───────────────────────────────────────────── */}
         <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between z-30">
           {/* Location hash pill */}
           {post.obfuscated_location_hash && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full cozy-glass-dark">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md bg-white/20 dark:bg-black/40 border border-white/20 shadow-lg">
               <MapPin size={12} className="text-amber-300" aria-hidden="true" />
               <span className="text-xs font-500 text-white/90 font-mono">
                 {post.obfuscated_location_hash}
@@ -214,33 +229,36 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
 
           {/* Toxic warning pill (replaces location pill slot when toxic) */}
           {post.is_toxic && !post.obfuscated_location_hash && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-700/80 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md bg-gray-900/60 border border-white/20 shadow-lg">
               <span className="text-xs font-600 text-gray-300">☁️ Grumpy post</span>
             </div>
           )}
 
           {/* Cheer button */}
-          <button
-            id={`cheer-btn-${post.id}`}
-            onClick={handleCheer}
-            disabled={cheered || cheering}
-            aria-label={cheered ? 'Already cheered' : 'Cheer this home'}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-600 text-sm
-              transition-all duration-200 cozy-shadow
-              ${cheered
-                ? 'bg-rose-500 text-white cursor-default'
-                : 'bg-white text-[--cozy-rust] hover:bg-rose-50 active:scale-95'
-              }
-              ${cheering ? 'cheer-pop' : ''}
-            `}
-          >
-            <Heart
-              size={16}
-              className={cheered ? 'fill-white' : 'fill-transparent'}
-              aria-hidden="true"
-            />
-            <span className="tabular-nums">{cheerCount}</span>
-          </button>
+          <div className="relative">
+            <motion.button
+              id={`cheer-btn-${post.id}`}
+              onClick={handleCheer}
+              whileTap={{ scale: 0.9 }}
+              disabled={cheered || cheering}
+              aria-label={cheered ? 'Already cheered' : 'Cheer this home'}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-600 text-sm
+                transition-colors duration-200 shadow-lg relative z-10
+                ${cheered
+                  ? 'bg-rose-500 text-white cursor-default'
+                  : 'bg-white text-[--cozy-rust] hover:bg-rose-50'
+                }
+              `}
+            >
+              <Heart
+                size={16}
+                className={cheered ? 'fill-white' : 'fill-transparent'}
+                aria-hidden="true"
+              />
+              <span className="tabular-nums">{cheerCount}</span>
+            </motion.button>
+            {cheering && <ParticleBurst />}
+          </div>
         </div>
 
       </div>
