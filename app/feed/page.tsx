@@ -19,7 +19,7 @@ export default async function FeedPage() {
   const { posts, nextCursor } = await getFeed();
 
   return (
-    <div className="min-h-screen flex flex-col items-center px-4 py-8"
+    <div className="flex-1 relative overflow-hidden w-full flex flex-col items-center px-4 pt-6 pb-6"
       style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
     >
       {/* Heading */}

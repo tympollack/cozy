@@ -163,12 +163,12 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
             <img
               src={getOptimizedImageUrl(post.dark_img_url, 800)}
               alt="Night time room photo"
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
             />
             <img
               src={getOptimizedImageUrl(post.light_img_url, 800)}
               alt="Day time room photo"
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
               style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
             />
             <motion.div
@@ -187,7 +187,7 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
             src={getOptimizedImageUrl(activeUrl, 800)}
             alt={showDark ? 'Night time room photo' : 'Day time room photo'}
             loading="lazy"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
+            className={`absolute inset-0 w-full h-full object-cover rounded-2xl transition-opacity duration-500
               ${post.is_toxic ? 'toxic-image' : ''}
             `}
           />

@@ -8,7 +8,7 @@ export async function Navbar() {
   const { data: { user } } = await supabase.auth.getUser();
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/20 dark:bg-black/40 border-b border-white/20 shadow-lg">
+    <header className="fixed top-0 inset-x-0 z-50 shrink-0 backdrop-blur-md bg-white/20 dark:bg-black/40 border-b border-white/20 shadow-lg">
       <nav
         className="mx-auto max-w-lg px-4 h-14 flex items-center justify-between"
         aria-label="Main navigation"

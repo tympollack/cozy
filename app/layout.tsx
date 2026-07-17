@@ -36,9 +36,9 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className="min-h-screen" style={{ background: 'var(--cozy-cream)' }}>
+      <body className="h-[100dvh] w-full flex flex-col overflow-hidden" style={{ background: 'var(--cozy-cream)' }}>
         <Navbar />
-        <main className="pt-14 min-h-screen">{children}</main>
+        <main className="flex-1 flex flex-col relative overflow-hidden w-full pt-14">{children}</main>
       </body>
     </html>
   );
