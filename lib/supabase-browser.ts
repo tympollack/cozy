@@ -3,7 +3,7 @@
  * Uses the anon key and is subject to RLS policies.
  * Import this ONLY from 'use client' components.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr';
 
 export function createBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,8 +15,7 @@ export function createBrowserClient() {
     );
   }
 
-  return createClient(url, key, {
-    auth: { persistSession: true },
+  return createSSRBrowserClient(url, key, {
     cookieOptions: { domain: '.sunshade.icu' },
   });
 }
