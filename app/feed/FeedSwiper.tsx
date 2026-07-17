@@ -163,7 +163,7 @@ export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = fals
   }
 
   return (
-    <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
+    <div className="w-full max-w-lg mx-auto flex-1 flex flex-col items-center justify-center gap-6 overflow-hidden w-full relative">
       {/* Card stack */}
       <div
         id="feed-card-stack"
@@ -189,7 +189,7 @@ export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = fals
                 transition: isDragging && isTop ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1)',
               }}
               onPointerDown={isTop ? onPointerDown : undefined}
-              className={`swipe-card ${isTop ? 'card-enter' : ''}`}
+              className={`swipe-card absolute inset-0 m-auto ${isTop ? 'card-enter' : ''}`}
               aria-hidden={!isTop}
             >
               <PostCard
