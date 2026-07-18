@@ -42,6 +42,8 @@ export interface FeedPost {
   /** Stickers currently attached to this post. */
   stickers: PostSticker[];
   created_at: string;
+  claimed_by_user_id?: string | null;
+  verification_status?: string;
 }
 
 // ---------------------------------------------------------------------------

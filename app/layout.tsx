@@ -26,6 +26,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
+import { ThemeProvider } from '@/components/ThemeProvider';
 import { OnboardingCarousel } from '@/components/OnboardingCarousel';
 
 export default function RootLayout({
@@ -34,14 +35,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className="h-[100dvh] w-full flex flex-col overflow-hidden" style={{ background: 'var(--cozy-cream)' }}>
-        <Navbar />
-        <main className="flex-1 flex flex-col relative overflow-hidden w-full pt-14">{children}</main>
-        <OnboardingCarousel />
+      <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-cream)] dark:bg-zinc-950 transition-colors duration-300">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Navbar />
+          <main className="flex-1 flex flex-col relative overflow-hidden w-full pt-14">{children}</main>
+          <OnboardingCarousel />
+        </ThemeProvider>
       </body>
     </html>
   );
