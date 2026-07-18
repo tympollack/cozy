@@ -10,6 +10,7 @@ import { reupSticker } from '@/app/actions/stickerActions';
 import { calcStickerOpacity, calcReupCost } from '@/lib/stickerMath';
 import { useCozyStore } from '@/store/useCozyStore';
 import type { FeedPost, PostSticker } from '@/store/useCozyStore';
+import { ShoppableImage } from '@/components/ShoppableImage';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -158,40 +159,42 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
       <div className="relative w-full h-full">
 
         {/* ── Main photo(s) ───────────────────────────────────────────── */}
-        {post.light_img_url && post.dark_img_url ? (
-          <>
+        <ShoppableImage itemPins={post.item_pins}>
+          {post.light_img_url && post.dark_img_url ? (
+            <>
+              <img
+                src={getOptimizedImageUrl(post.dark_img_url, 800)}
+                alt="Night time room photo"
+                className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+              />
+              <img
+                src={getOptimizedImageUrl(post.light_img_url, 800)}
+                alt="Day time room photo"
+                className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+              />
+              <motion.div
+                onPan={handleDrag}
+                className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
+                style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
+              >
+                <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
+                <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
+                  <GripVertical size={16} className="text-white drop-shadow-md" />
+                </div>
+              </motion.div>
+            </>
+          ) : activeUrl && (
             <img
-              src={getOptimizedImageUrl(post.dark_img_url, 800)}
-              alt="Night time room photo"
-              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+              src={getOptimizedImageUrl(activeUrl, 800)}
+              alt={showDark ? 'Night time room photo' : 'Day time room photo'}
+              loading="lazy"
+              className={`absolute inset-0 w-full h-full object-cover rounded-2xl transition-opacity duration-500
+                ${post.is_toxic ? 'toxic-image' : ''}
+              `}
             />
-            <img
-              src={getOptimizedImageUrl(post.light_img_url, 800)}
-              alt="Day time room photo"
-              className="absolute inset-0 w-full h-full object-cover rounded-2xl"
-              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-            />
-            <motion.div
-              onPan={handleDrag}
-              className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
-              style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
-            >
-              <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
-              <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
-                <GripVertical size={16} className="text-white drop-shadow-md" />
-              </div>
-            </motion.div>
-          </>
-        ) : activeUrl && (
-          <img
-            src={getOptimizedImageUrl(activeUrl, 800)}
-            alt={showDark ? 'Night time room photo' : 'Day time room photo'}
-            loading="lazy"
-            className={`absolute inset-0 w-full h-full object-cover rounded-2xl transition-opacity duration-500
-              ${post.is_toxic ? 'toxic-image' : ''}
-            `}
-          />
-        )}
+          )}
+        </ShoppableImage>
 
         {/* ── Grumpy Cloud (toxic users only) ──────────────────────── */}
         {post.is_toxic && <GrumpyCloudOverlay />}
