@@ -15,7 +15,9 @@ import { CommentBox } from '@/components/CommentBox';
 import { getComments, type Comment } from '@/app/actions/commentActions';
 import { useEffect } from 'react';
 import { ClaimHouseModal } from '@/components/ClaimHouseModal';
-import { Home } from 'lucide-react';
+import { Home, Tag } from 'lucide-react';
+import { ShoppableImage } from '@/components/ShoppableImage';
+import { PinDropZone } from '@/components/PinDropZone';
 
 interface PostDetailProps {
   post: UserPost;
@@ -36,6 +38,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [isTagging, setIsTagging] = useState(false);
 
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
@@ -119,38 +122,40 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         className="relative w-full rounded-3xl overflow-hidden cozy-shadow-lg bg-[--cozy-warm]"
         style={{ aspectRatio: '3/4' }}
       >
-        {/* Main photo(s) */}
-        {post.light_img_url && post.dark_img_url ? (
-          <>
+        <ShoppableImage itemPins={post.item_pins}>
+          {/* Main photo(s) */}
+          {post.light_img_url && post.dark_img_url ? (
+            <>
+              <img
+                src={getOptimizedImageUrl(post.dark_img_url, 800)}
+                alt="Night-time room"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <img
+                src={getOptimizedImageUrl(post.light_img_url, 800)}
+                alt="Day-time room"
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+              />
+              <motion.div
+                onPan={handleDrag}
+                className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
+                style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
+              >
+                <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
+                <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
+                  <GripVertical size={16} className="text-white drop-shadow-md" />
+                </div>
+              </motion.div>
+            </>
+          ) : activeUrl && (
             <img
-              src={getOptimizedImageUrl(post.dark_img_url, 800)}
-              alt="Night-time room"
+              src={getOptimizedImageUrl(activeUrl, 800)}
+              alt={showDark ? 'Night-time room' : 'Day-time room'}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <img
-              src={getOptimizedImageUrl(post.light_img_url, 800)}
-              alt="Day-time room"
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-            />
-            <motion.div
-              onPan={handleDrag}
-              className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
-              style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
-            >
-              <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
-              <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
-                <GripVertical size={16} className="text-white drop-shadow-md" />
-              </div>
-            </motion.div>
-          </>
-        ) : activeUrl && (
-          <img
-            src={getOptimizedImageUrl(activeUrl, 800)}
-            alt={showDark ? 'Night-time room' : 'Day-time room'}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
+          )}
+        </ShoppableImage>
 
         {/* Gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
@@ -194,7 +199,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
 
 
         {/* Decorate button — always visible for authenticated users */}
-        {currentUserId && !pendingSticker && (
+        {currentUserId && !pendingSticker && !isTagging && (
           <button
             id="post-decorate-btn"
             onClick={() => setDrawerOpen(true)}
@@ -210,7 +215,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         )}
 
         {/* Claim This Space button */}
-        {!post.claimed_by_user_id && currentUserId && !pendingSticker && (
+        {!post.claimed_by_user_id && currentUserId && !pendingSticker && !isTagging && (
           <button
             onClick={() => setShowClaimModal(true)}
             aria-label="Claim this space"
@@ -222,6 +227,35 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             <Home size={15} className="text-white" />
             Claim Space
           </button>
+        )}
+
+        {/* Tag Item button */}
+        {isOwner && !pendingSticker && !isTagging && (
+          <button
+            onClick={() => setIsTagging(true)}
+            aria-label="Tag an item"
+            className="absolute top-4 left-4 z-30
+              flex items-center gap-1.5 px-4 py-2.5 rounded-full
+              font-700 text-sm text-white/90 backdrop-blur-md bg-indigo-600/60 border border-white/20
+              shadow-lg hover:scale-105 active:scale-95 transition-transform"
+          >
+            <Tag size={15} className="text-white" />
+            Tag Item
+          </button>
+        )}
+
+        {/* Pin Drop Zone Overlay */}
+        {isTagging && (
+          <PinDropZone 
+            postId={post.id} 
+            onCancel={() => setIsTagging(false)} 
+            onSuccess={() => {
+              setIsTagging(false);
+              // In a real app we might mutate the SWR cache or push optimistically
+              // For now, we rely on a page refresh or soft reload to show the new pin
+              window.location.reload();
+            }} 
+          />
         )}
       </div>
 

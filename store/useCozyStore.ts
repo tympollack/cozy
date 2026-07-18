@@ -26,6 +26,15 @@ export interface PostSticker {
   rotation_degrees: number;
 }
 
+export interface ItemPin {
+  id: string;
+  user_id: string;
+  x_percent: number;
+  y_percent: number;
+  title: string;
+  url: string;
+}
+
 /** Shape of a single post returned by the feed action (privacy-safe). */
 export interface FeedPost {
   id: string;
@@ -41,6 +50,8 @@ export interface FeedPost {
   is_toxic: boolean;
   /** Stickers currently attached to this post. */
   stickers: PostSticker[];
+  /** Pins currently attached to this post. */
+  item_pins: ItemPin[];
   created_at: string;
   claimed_by_user_id?: string | null;
   verification_status?: string;
