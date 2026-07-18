@@ -98,7 +98,6 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       // Precision 4 → ~45km × 45km cell
       obfuscatedHash = encodeGeohash(lat, lng, 4);
     }
-    // lat/lng are NOT stored — only the hash is forwarded
   }
 
   // --- Upload images to R2 ---
@@ -117,12 +116,14 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       darkUrl = await uploadToR2(darkBuffer, darkKey, darkFile.type);
     }
 
-    // --- Insert into DB via RPC (awards 10 points) ---
+    // --- Insert into DB via RPC (awards 10 points and stores exact coords in vault) ---
     const { data: postId, error: rpcError } = await supabase.schema('cozy').rpc('upload_post', {
       p_user_id: user.id,
       p_light_img_url: lightUrl,
       p_dark_img_url: darkUrl,
       p_obfuscated_location_hash: obfuscatedHash,
+      p_exact_lat: latRaw ? parseFloat(latRaw.toString()) : null,
+      p_exact_lng: lngRaw ? parseFloat(lngRaw.toString()) : null,
     });
 
     if (rpcError) {

@@ -14,6 +14,8 @@ import type { StickerCatalogItem } from '@/components/StickerDrawer';
 import { CommentBox } from '@/components/CommentBox';
 import { getComments, type Comment } from '@/app/actions/commentActions';
 import { useEffect } from 'react';
+import { ClaimHouseModal } from '@/components/ClaimHouseModal';
+import { Home } from 'lucide-react';
 
 interface PostDetailProps {
   post: UserPost;
@@ -33,6 +35,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
+  const [showClaimModal, setShowClaimModal] = useState(false);
 
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
@@ -205,6 +208,21 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             Decorate
           </button>
         )}
+
+        {/* Claim This Space button */}
+        {!post.claimed_by_user_id && currentUserId && !pendingSticker && (
+          <button
+            onClick={() => setShowClaimModal(true)}
+            aria-label="Claim this space"
+            className="absolute top-4 right-4 z-30
+              flex items-center gap-1.5 px-4 py-2.5 rounded-full
+              font-700 text-sm text-white/90 backdrop-blur-md bg-zinc-900/40 border border-white/20
+              shadow-lg hover:scale-105 active:scale-95 transition-transform"
+          >
+            <Home size={15} className="text-white" />
+            Claim Space
+          </button>
+        )}
       </div>
 
       {/* Meta row */}
@@ -266,6 +284,14 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         onClose={() => setDrawerOpen(false)}
         onSelect={handleStickerSelect}
       />
+
+      {/* Claim House Modal */}
+      {showClaimModal && (
+        <ClaimHouseModal 
+          postId={post.id} 
+          onClose={() => setShowClaimModal(false)} 
+        />
+      )}
     </div>
   );
 }
