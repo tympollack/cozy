@@ -11,6 +11,9 @@ import { DraggableSticker } from '@/components/DraggableSticker';
 import { useCozyStore } from '@/store/useCozyStore';
 import type { UserPost, PostSticker } from '@/store/useCozyStore';
 import type { StickerCatalogItem } from '@/components/StickerDrawer';
+import { CommentBox } from '@/components/CommentBox';
+import { getComments, type Comment } from '@/app/actions/commentActions';
+import { useEffect } from 'react';
 
 interface PostDetailProps {
   post: UserPost;
@@ -27,6 +30,20 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [localStickers, setLocalStickers] = useState<PostSticker[]>(
     post.stickers as PostSticker[]
   );
+  
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(true);
+
+  const fetchComments = useCallback(async () => {
+    setLoadingComments(true);
+    const data = await getComments(post.id);
+    setComments(data);
+    setLoadingComments(false);
+  }, [post.id]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const [sliderPos, setSliderPos] = useState(50);
   const handleDrag = useCallback((_e: any, info: any) => {
@@ -214,6 +231,34 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
           {localStickers.length} sticker{localStickers.length !== 1 ? 's' : ''} decorating this space
         </p>
       )}
+
+      {/* Comments Section */}
+      <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4 px-1">Comments</h3>
+        
+        {loadingComments ? (
+          <div className="text-sm text-zinc-500 px-1">Loading comments...</div>
+        ) : comments.length === 0 ? (
+          <div className="text-sm text-zinc-500 px-1">No comments yet. Be the first to leave a positive tip!</div>
+        ) : (
+          <div className="space-y-4 px-1">
+            {comments.map((comment) => (
+              <div key={comment.id} className={`flex flex-col gap-1 ${comment.is_toxic ? 'opacity-70' : ''}`}>
+                <div className="text-sm text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-2xl rounded-tl-sm">
+                  {comment.text}
+                </div>
+                {comment.is_toxic && (
+                  <span className="text-[10px] text-red-500 font-semibold px-2">☁️ Grumpy Cloud Warning Applied</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <CommentBox postId={post.id} onCommentAdded={fetchComments} />
+        </div>
+      </div>
 
       {/* Sticker Drawer */}
       <StickerDrawer
