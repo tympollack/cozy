@@ -29,6 +29,7 @@ export default function CameraPage() {
   const [activeMode, setActiveMode] = useState<Mode>('light');
   const [lightSlot, setLightSlot] = useState<PhotoSlot>(EMPTY_SLOT);
   const [darkSlot, setDarkSlot] = useState<PhotoSlot>(EMPTY_SLOT);
+  const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locLoading, setLocLoading] = useState(false);
