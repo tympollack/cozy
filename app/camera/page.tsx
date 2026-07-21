@@ -9,6 +9,7 @@ import {
 import { CameraToggle } from './CameraToggle';
 import { uploadPost } from '@/app/actions/postActions';
 import { useCozyStore } from '@/store/useCozyStore';
+import { processImageFile } from '@/lib/imageUtils';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -32,6 +33,7 @@ export default function CameraPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locLoading, setLocLoading] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
 
   const lightInputRef = useRef<HTMLInputElement>(null);
   const darkInputRef = useRef<HTMLInputElement>(null);
@@ -42,11 +44,17 @@ export default function CameraPage() {
 
   // --- File selection ---
   const handleFileChange = useCallback(
-    (mode: Mode, file: File | null) => {
+    async (mode: Mode, file: File | null) => {
       if (!file) return;
-      const preview = URL.createObjectURL(file);
-      const setter = mode === 'light' ? setLightSlot : setDarkSlot;
-      setter({ file, preview });
+      setIsProcessingFile(true);
+      try {
+        const processedFile = await processImageFile(file);
+        const preview = URL.createObjectURL(processedFile);
+        const setter = mode === 'light' ? setLightSlot : setDarkSlot;
+        setter({ file: processedFile, preview });
+      } finally {
+        setIsProcessingFile(false);
+      }
     },
     []
   );
@@ -245,7 +253,7 @@ export default function CameraPage() {
           <button
             id="camera-submit-btn"
             type="submit"
-            disabled={!anyReady || isUploading}
+            disabled={!anyReady || isUploading || isProcessingFile}
             className={`w-full flex items-center justify-center gap-2 py-4 px-6
               rounded-2xl text-base bg-stone-800 hover:bg-stone-900 text-amber-50 font-semibold shadow-md
               active:scale-[0.98]
@@ -256,6 +264,11 @@ export default function CameraPage() {
               <>
                 <Loader size={18} className="animate-spin" aria-hidden="true" />
                 Uploading your space…
+              </>
+            ) : isProcessingFile ? (
+              <>
+                <Loader size={18} className="animate-spin" aria-hidden="true" />
+                Processing image...
               </>
             ) : (
               <>

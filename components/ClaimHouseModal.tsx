@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { MapPin, Camera, Mail, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { verifyProximity, submitInteriorProof, triggerPostcard } from '@/app/actions/claimActions';
 import { uploadToR2 } from '@/lib/r2'; // Assuming we have a client-side upload or we send formData to a server action.
+import { processImageFile } from '@/lib/imageUtils';
 // Actually, uploading from client usually requires a signed URL or passing FormData to a server action.
 // Since we don't have a specific `uploadInteriorProof` server action defined that takes FormData,
 // I'll create one or assume we send FormData to a new action, or just mock the upload for now since the prompt says:
@@ -61,6 +62,8 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
     setErrorMsg('');
 
     try {
+      const processedFile = await processImageFile(file);
+      
       // Create FormData to send to a generic upload or dedicated action.
       // Since we don't have a specific interior upload action built, we'll simulate the upload URL 
       // and call our submitInteriorProof action.
