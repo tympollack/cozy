@@ -13,6 +13,11 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '15mb',
+    },
+  },
   // Opt into webpack bundler so next-pwa's webpack plugin works correctly.
   // Remove this line if/when you migrate to a Turbopack-compatible PWA plugin.
   turbopack: {},
