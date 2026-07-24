@@ -7,6 +7,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type PrivacyTier = 'random' | 'geofenced';
 
+/** Canonical vibe statuses — mirrors the DB CHECK constraint. */
+export type VibeStatus = 'sunshine' | 'neutral' | 'raincloud';
+
 /** A single sticker attached to a post, as returned by fetch_feed. */
 export interface PostSticker {
   id: string;
@@ -88,6 +91,39 @@ interface CozyState {
   // --- Profile ---
   userPosts: UserPost[];
   setUserPosts: (posts: UserPost[]) => void;
+
+  // --- Groups ---
+  /** UUID of the group (pool) this user currently belongs to. Null for solo users. */
+  groupId: string | null;
+  /**
+   * Emotional status for the Vibe Check mechanic.
+   * Mirrors the DB CHECK constraint: 'sunshine' | 'neutral' | 'raincloud'.
+   */
+  vibeStatus: VibeStatus;
+  /**
+   * The group's shared pooled_points balance.
+   * Null when the user has no group (solo).
+   */
+  groupPoints: number | null;
+  setGroupId: (id: string | null) => void;
+  setVibeStatus: (status: VibeStatus) => void;
+  setGroupPoints: (n: number | null) => void;
+  /** Optimistically increment the group pool after a co-op bonus cheer. */
+  addGroupPoints: (n: number) => void;
+
+  // --- Group notifications ---
+  /**
+   * Per-group notification opt-in map.
+   * Key: group UUID — Value: true (enabled) | false (muted).
+   * Groups absent from the map default to enabled (opt-out model).
+   */
+  groupNotifications: Record<string, boolean>;
+  /** Toggle notifications on/off for a specific group. */
+  toggleGroupNotifications: (groupId: string) => void;
+  /** Returns whether notifications are enabled for a group (defaults to true). */
+  isGroupNotificationsEnabled: (groupId: string) => boolean;
+  /** Remove a group's notification preference (e.g. after leaving the group). */
+  clearGroupNotificationPref: (groupId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +134,7 @@ interface CozyState {
 
 export const useCozyStore = create<CozyState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // --- Economy ---
       points: 0,
       addPoints: (n) => set((s) => ({ points: s.points + n })),
@@ -150,14 +186,53 @@ export const useCozyStore = create<CozyState>()(
       // --- Profile ---
       userPosts: [],
       setUserPosts: (posts) => set({ userPosts: posts }),
+
+      // --- Groups ---
+      groupId: null,
+      vibeStatus: 'neutral',
+      groupPoints: null,
+      setGroupId: (id) => set({ groupId: id }),
+      setVibeStatus: (status) => set({ vibeStatus: status }),
+      setGroupPoints: (n) => set({ groupPoints: n }),
+      addGroupPoints: (n) =>
+        set((s) => ({
+          // Guard: if the user is solo (groupPoints is null), the co-op
+          // bonus should never be dispatched, but we protect defensively.
+          groupPoints: s.groupPoints !== null ? s.groupPoints + n : null,
+        })),
+
+      // --- Group notifications ---
+      groupNotifications: {},
+      toggleGroupNotifications: (groupId) =>
+        set((s) => ({
+          groupNotifications: {
+            ...s.groupNotifications,
+            // Absent keys default to true (enabled), so first toggle → false (muted).
+            [groupId]: !(s.groupNotifications[groupId] ?? true),
+          },
+        })),
+      isGroupNotificationsEnabled: (groupId) =>
+        // Read current state without subscribing — safe to call outside React.
+        get().groupNotifications[groupId] ?? true,
+      clearGroupNotificationPref: (groupId) =>
+        set((s) => {
+          const next = { ...s.groupNotifications };
+          delete next[groupId];
+          return { groupNotifications: next };
+        }),
     }),
     {
       name: 'cozy-store',
       storage: createJSONStorage(() => localStorage),
-      // Only persist the economy and onboarding state — not the feed (it should re-fetch fresh)
-      partialize: (state) => ({ 
+      // Persist economy, onboarding, group, and notification prefs.
+      // Feed is intentionally excluded — it must re-fetch fresh on mount.
+      partialize: (state) => ({
         points: state.points,
-        hasSeenOnboarding: state.hasSeenOnboarding
+        hasSeenOnboarding: state.hasSeenOnboarding,
+        groupId: state.groupId,
+        vibeStatus: state.vibeStatus,
+        groupPoints: state.groupPoints,
+        groupNotifications: state.groupNotifications,
       }),
     }
   )

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sun, Moon, MapPin, Heart, Sparkles, ArrowLeft, GripVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -13,7 +13,6 @@ import type { UserPost, PostSticker } from '@/store/useCozyStore';
 import type { StickerCatalogItem } from '@/components/StickerDrawer';
 import { CommentBox } from '@/components/CommentBox';
 import { getComments, type Comment } from '@/app/actions/commentActions';
-import { useEffect } from 'react';
 import { ClaimHouseModal } from '@/components/ClaimHouseModal';
 import { Home, Tag } from 'lucide-react';
 import { ShoppableImage } from '@/components/ShoppableImage';
@@ -39,6 +38,12 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [loadingComments, setLoadingComments] = useState(true);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [isTagging, setIsTagging] = useState(false);
+  // Optimistic pin list — starts from SSR data, updated when the user adds/removes pins
+  const [localPins, setLocalPins] = useState(post.item_pins ?? []);
+
+  useEffect(() => {
+    setLocalPins(post.item_pins ?? []);
+  }, [post.item_pins]);
 
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
@@ -122,7 +127,9 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         className="relative w-full rounded-3xl overflow-hidden cozy-shadow-lg bg-[--cozy-warm]"
         style={{ aspectRatio: '3/4' }}
       >
-        <ShoppableImage itemPins={post.item_pins}>
+        <ShoppableImage itemPins={localPins} currentUserId={currentUserId}
+          onPinDeleted={(id) => setLocalPins((prev) => prev.filter((p) => p.id !== id))}
+        >
           {/* Main photo(s) */}
           {post.light_img_url && post.dark_img_url ? (
             <>
@@ -244,17 +251,22 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
           </button>
         )}
 
-        {/* Pin Drop Zone Overlay */}
         {isTagging && (
-          <PinDropZone 
-            postId={post.id} 
-            onCancel={() => setIsTagging(false)} 
-            onSuccess={() => {
+          <PinDropZone
+            postId={post.id}
+            onCancel={() => setIsTagging(false)}
+            onSuccess={(pinId) => {
+              // Optimistically add a placeholder pin so the dot appears instantly.
+              // x/y are unknown from the server response here — we reload only the
+              // pins by re-using what the form captured via localPins state.
+              // A lightweight approach: just close the tagging mode; the pin was
+              // confirmed via the server action so it's persisted. We do a soft
+              // router refresh to hydrate the true record from the DB.
               setIsTagging(false);
-              // In a real app we might mutate the SWR cache or push optimistically
-              // For now, we rely on a page refresh or soft reload to show the new pin
-              window.location.reload();
-            }} 
+              // Next.js 16 App Router: router.refresh() re-runs the Server Component
+              // without a full page navigation, preserving scroll position.
+              router.refresh();
+            }}
           />
         )}
       </div>
