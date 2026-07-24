@@ -9,16 +9,16 @@ import { createServerClient } from '@/lib/supabase';
 /**
  * Shape returned by the updated cozy.cheer_post RPC.
  * The RPC now returns a composite cozy.cheer_result record so both the
- * personal and household balances can be synced in a single round-trip.
+ * personal and group balances can be synced in a single round-trip.
  */
 interface CheerRpcResult {
   /** The cheering user's new cozy.users.points balance. */
   personal_points: number;
   /**
-   * The household's new cozy.households.pooled_points balance.
-   * NULL when the cheering user has no household_id (solo user).
+   * The group's new cozy.groups.pooled_points balance.
+   * NULL when the cheering user has no group_id (solo user).
    */
-  household_points: number | null;
+  group_points: number | null;
 }
 
 export interface CheerResult {
@@ -26,10 +26,10 @@ export interface CheerResult {
   /** New personal point balance for the cheering user. */
   newPoints?: number;
   /**
-   * New pooled_points balance for the user's household.
-   * Null when the user is not in a household.
+   * New pooled_points balance for the user's group.
+   * Null when the user is not in a group.
    */
-  householdPoints?: number | null;
+  groupPoints?: number | null;
   error?: string;
 }
 
@@ -91,6 +91,6 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
   return {
     success: true,
     newPoints: result.personal_points,
-    householdPoints: result.household_points ?? null,
+    groupPoints: result.group_points ?? null,
   };
 }
