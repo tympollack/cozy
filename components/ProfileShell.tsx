@@ -1,10 +1,16 @@
 'use client';
 
 import React, { useState, useTransition, useOptimistic } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Home, X, Check, ArrowRight, LayoutGrid } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
-import { SHELL_DEFINITIONS, getShellDefinition, type ShellSlot } from '@/config/shellDefinitions';
+import {
+  SHELL_DEFINITIONS,
+  getShellDefinition,
+  isSlotInShell,
+  type ShellSlot,
+} from '@/config/shellDefinitions';
 import { ShellNook } from './ShellNook';
 import { updateUserShell, assignPostToSlot, removePostFromSlot } from '@/app/actions/shellActions';
 import type { UserPost } from '@/store/useCozyStore';
@@ -22,6 +28,7 @@ export function ProfileShell({
   isOwner,
   onPostSelect,
 }: ProfileShellProps) {
+  const pathname = usePathname();
   const [shellType, setShellType] = useState(initialShellType);
   const [selectedSlotForAssignment, setSelectedSlotForAssignment] = useState<ShellSlot | null>(null);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
@@ -30,7 +37,7 @@ export function ProfileShell({
   // Optimistic state for posts assignment
   const [optimisticPosts, setOptimisticPosts] = useOptimistic(
     initialPosts,
-    (state, action: { type: 'ASSIGN'; postId: string; slotId: string } | { type: 'UNASSIGN'; postId: string }) => {
+    (state, action: { type: 'ASSIGN'; postId: string; slotId: string } | { type: 'UNASSIGN'; postId: string } | { type: 'SWITCH_THEME'; validSlotIds: string[] }) => {
       if (action.type === 'ASSIGN') {
         return state.map((p) => {
           if (p.shell_slot === action.slotId) {
@@ -45,19 +52,29 @@ export function ProfileShell({
       if (action.type === 'UNASSIGN') {
         return state.map((p) => (p.id === action.postId ? { ...p, shell_slot: null } : p));
       }
+      if (action.type === 'SWITCH_THEME') {
+        return state.map((p) => {
+          if (p.shell_slot && !action.validSlotIds.includes(p.shell_slot)) {
+            return { ...p, shell_slot: null };
+          }
+          return p;
+        });
+      }
       return state;
     }
   );
 
   const currentShell = getShellDefinition(shellType);
 
-  // Unassigned posts for the picker modal
-  const unassignedPosts = optimisticPosts.filter((p) => !p.shell_slot);
+  // A post is only unassigned if it has no shell_slot OR its shell_slot does not belong to currentShell
+  const unassignedPosts = optimisticPosts.filter(
+    (p) => !p.shell_slot || !isSlotInShell(p.shell_slot, currentShell)
+  );
 
-  // Map of slotId -> assigned UserPost
+  // Map of slotId -> assigned UserPost (only for valid slots of the active theme)
   const slottedPostMap = new Map<string, UserPost>();
   optimisticPosts.forEach((p) => {
-    if (p.shell_slot) {
+    if (p.shell_slot && isSlotInShell(p.shell_slot, currentShell)) {
       slottedPostMap.set(p.shell_slot, p);
     }
   });
@@ -66,8 +83,12 @@ export function ProfileShell({
   const handleSelectShellType = (newType: string) => {
     setIsThemeMenuOpen(false);
     setShellType(newType);
+    const targetDef = getShellDefinition(newType);
+    const validSlotIds = targetDef.slots.map((s) => s.id);
+
     startTransition(async () => {
-      await updateUserShell(newType);
+      setOptimisticPosts({ type: 'SWITCH_THEME', validSlotIds });
+      await updateUserShell(newType, pathname);
     });
   };
 
@@ -79,7 +100,7 @@ export function ProfileShell({
 
     startTransition(async () => {
       setOptimisticPosts({ type: 'ASSIGN', postId, slotId });
-      await assignPostToSlot(postId, slotId);
+      await assignPostToSlot(postId, slotId, pathname);
     });
   };
 
@@ -87,7 +108,7 @@ export function ProfileShell({
   const handleUnassignPost = (postId: string) => {
     startTransition(async () => {
       setOptimisticPosts({ type: 'UNASSIGN', postId });
-      await removePostFromSlot(postId);
+      await removePostFromSlot(postId, pathname);
     });
   };
 

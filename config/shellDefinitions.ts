@@ -81,3 +81,11 @@ export function getShellDefinition(shellType?: string | null): ShellDefinition {
   }
   return SHELL_DEFINITIONS[shellType];
 }
+
+/**
+ * Helper to check if a given slot ID belongs to the active shell definition.
+ */
+export function isSlotInShell(slotId: string | null | undefined, shell: ShellDefinition): boolean {
+  if (!slotId) return false;
+  return shell.slots.some((s) => s.id === slotId);
+}

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getUserProfileData } from '@/app/actions/profileActions';
+import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
 import { ProfileGrid } from './ProfileGrid';
 import { Sparkles, Home, Archive } from 'lucide-react';
@@ -21,9 +22,10 @@ export default async function ProfilePage() {
   }
 
   const { posts, shellType, isOwner, error } = await getUserProfileData(user.id);
+  const currentShellDef = getShellDefinition(shellType);
 
-  const slottedPosts = posts.filter((p) => Boolean(p.shell_slot));
-  const unassignedPosts = posts.filter((p) => !p.shell_slot);
+  const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
+  const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
 
   return (
     <div

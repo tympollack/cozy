@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getUserProfileData } from '@/app/actions/profileActions';
+import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
 import { ProfileGrid } from '@/app/profile/ProfileGrid';
 import { Sparkles, Home, Archive } from 'lucide-react';
@@ -26,33 +27,49 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
   const targetUsernameOrId = resolvedParams.username;
 
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
 
   // 1. Resolve user ID if target is UUID or username lookup
-  let targetUserId = targetUsernameOrId;
+  let targetUserId: string | null = null;
 
-  // If target is not a valid UUID format, attempt username lookup in cozy.users
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(targetUsernameOrId)) {
-    const { data: foundUser } = await supabase
+
+  if (uuidRegex.test(targetUsernameOrId)) {
+    // Check if target UUID exists in cozy.users
+    const { data: foundByUuid } = await supabase
+      .schema('cozy')
+      .from('users')
+      .select('id')
+      .eq('id', targetUsernameOrId)
+      .maybeSingle();
+
+    if (foundByUuid) {
+      targetUserId = foundByUuid.id;
+    }
+  } else {
+    // Lookup by display_name
+    const { data: foundByName } = await supabase
       .schema('cozy')
       .from('users')
       .select('id')
       .eq('display_name', targetUsernameOrId)
       .maybeSingle();
 
-    if (foundUser) {
-      targetUserId = foundUser.id;
-    } else if (user) {
-      // Fallback to authenticated user profile if username not found directly
-      targetUserId = user.id;
+    if (foundByName) {
+      targetUserId = foundByName.id;
     }
   }
 
-  const { posts, shellType, isOwner, error } = await getUserProfileData(targetUserId);
+  // 2. If user is not found, trigger 404 (do not silently fallback to logged-in user profile)
+  if (!targetUserId) {
+    notFound();
+  }
 
-  const slottedPosts = posts.filter((p) => Boolean(p.shell_slot));
-  const unassignedPosts = posts.filter((p) => !p.shell_slot);
+  const { posts, shellType, isOwner, error } = await getUserProfileData(targetUserId);
+  const currentShellDef = getShellDefinition(shellType);
+
+  const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
+  const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
 
   return (
     <div

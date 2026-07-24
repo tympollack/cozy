@@ -2,6 +2,7 @@
 
 import { createServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
+import { SHELL_DEFINITIONS } from '@/config/shellDefinitions';
 
 export interface ShellActionResult {
   success: boolean;
@@ -9,9 +10,21 @@ export interface ShellActionResult {
 }
 
 /**
- * Updates the authenticated user's active 2.5D shell theme.
+ * Helper to revalidate both default profile path and custom view path (e.g. /[username]).
  */
-export async function updateUserShell(shellType: string): Promise<ShellActionResult> {
+function revalidateShellPaths(path?: string) {
+  revalidatePath('/profile');
+  if (path && path !== '/profile') {
+    revalidatePath(path);
+  }
+}
+
+/**
+ * Updates the authenticated user's active 2.5D shell theme.
+ * Also clears any previous shell_slot values that are invalid for the new theme
+ * so posts are never orphaned when switching room architectures.
+ */
+export async function updateUserShell(shellType: string, path?: string): Promise<ShellActionResult> {
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -19,6 +32,7 @@ export async function updateUserShell(shellType: string): Promise<ShellActionRes
     return { success: false, error: 'Authentication required.' };
   }
 
+  // 1. Update shell_type in cozy.users
   const { error } = await supabase
     .schema('cozy')
     .from('users')
@@ -30,7 +44,32 @@ export async function updateUserShell(shellType: string): Promise<ShellActionRes
     return { success: false, error: 'Failed to update shell choice.' };
   }
 
-  revalidatePath('/profile');
+  // 2. Clear orphaned slot IDs not present in the new shell theme
+  const targetShellDef = SHELL_DEFINITIONS[shellType] || SHELL_DEFINITIONS.default_dollhouse;
+  const validSlotIds = targetShellDef.slots.map((s) => s.id);
+
+  const { data: userPosts } = await supabase
+    .schema('cozy')
+    .from('posts')
+    .select('id, shell_slot')
+    .eq('user_id', user.id)
+    .not('shell_slot', 'is', null);
+
+  if (userPosts && userPosts.length > 0) {
+    const invalidPostIds = userPosts
+      .filter((p) => p.shell_slot && !validSlotIds.includes(p.shell_slot))
+      .map((p) => p.id);
+
+    if (invalidPostIds.length > 0) {
+      await supabase
+        .schema('cozy')
+        .from('posts')
+        .update({ shell_slot: null })
+        .in('id', invalidPostIds);
+    }
+  }
+
+  revalidateShellPaths(path);
   return { success: true };
 }
 
@@ -38,7 +77,11 @@ export async function updateUserShell(shellType: string): Promise<ShellActionRes
  * Assigns a post owned by the caller to a specific nook (slotId) in their shell.
  * Clears any post previously occupying that slot to maintain a 1:1 slot mapping.
  */
-export async function assignPostToSlot(postId: string, slotId: string): Promise<ShellActionResult> {
+export async function assignPostToSlot(
+  postId: string,
+  slotId: string,
+  path?: string
+): Promise<ShellActionResult> {
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -80,14 +123,17 @@ export async function assignPostToSlot(postId: string, slotId: string): Promise<
     return { success: false, error: 'Failed to assign post to nook.' };
   }
 
-  revalidatePath('/profile');
+  revalidateShellPaths(path);
   return { success: true };
 }
 
 /**
  * Removes a post from its shell nook (resets shell_slot to NULL).
  */
-export async function removePostFromSlot(postId: string): Promise<ShellActionResult> {
+export async function removePostFromSlot(
+  postId: string,
+  path?: string
+): Promise<ShellActionResult> {
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -107,7 +153,7 @@ export async function removePostFromSlot(postId: string): Promise<ShellActionRes
     return { success: false, error: 'Failed to unassign nook.' };
   }
 
-  revalidatePath('/profile');
+  revalidateShellPaths(path);
   return { success: true };
 }
 
@@ -116,7 +162,7 @@ export async function removePostFromSlot(postId: string): Promise<ShellActionRes
  */
 export async function getUserShell(userId?: string): Promise<string> {
   const supabase = await createServerClient();
-  
+
   let targetId = userId;
   if (!targetId) {
     const { data: { user } } = await supabase.auth.getUser();
