@@ -51,13 +51,11 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
     e.stopPropagation();
     setDeleteError(false);
     startTransition(async () => {
-      // Optimistic: close the popover immediately
-      setIsOpen(false);
-      onDeleted(pin.id);
-
       const result = await deleteItemPin(pin.id);
-      if (!result.success) {
-        // Surface error — parent may choose to restore the pin
+      if (result.success) {
+        setIsOpen(false);
+        onDeleted(pin.id);
+      } else {
         setDeleteError(true);
         console.error('[ShoppableImage] deleteItemPin failed:', result.error);
       }
@@ -208,6 +206,10 @@ export function ShoppableImage({
 }: ShoppableImageProps) {
   // Local optimistic list so deletions feel instant without a page reload.
   const [localPins, setLocalPins] = useState<ItemPin[]>(itemPins);
+
+  React.useEffect(() => {
+    setLocalPins(itemPins);
+  }, [itemPins]);
 
   const handlePinDeleted = useCallback((pinId: string) => {
     setLocalPins((prev) => prev.filter((p) => p.id !== pinId));

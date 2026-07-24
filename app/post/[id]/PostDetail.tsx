@@ -41,6 +41,10 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   // Optimistic pin list — starts from SSR data, updated when the user adds/removes pins
   const [localPins, setLocalPins] = useState(post.item_pins ?? []);
 
+  useEffect(() => {
+    setLocalPins(post.item_pins ?? []);
+  }, [post.item_pins]);
+
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
     const data = await getComments(post.id);

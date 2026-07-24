@@ -85,8 +85,12 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
     return { success: false, error: 'Something went wrong. Try again.' };
   }
 
-  // Supabase returns the composite record as a plain object.
-  const result = data as CheerRpcResult;
+  // Supabase returns the composite record as a plain object or array.
+  const result = (Array.isArray(data) ? data[0] : data) as CheerRpcResult;
+  
+  if (!result) {
+    return { success: false, error: 'Unexpected empty response from server.' };
+  }
 
   return {
     success: true,
