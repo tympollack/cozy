@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getUserProfileData } from '@/app/actions/profileActions';
@@ -65,8 +65,29 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
     notFound();
   }
 
+  const currentUserId = currentUser?.id ?? null;
+
+  // 3. Fetch profile data, peer status, and (for owners) pending cards — in parallel
   const { posts, shellType, isOwner, error } = await getUserProfileData(targetUserId);
   const currentShellDef = getShellDefinition(shellType);
+
+  const { getPeerStatus, getPendingCallingCards } = await import(
+    '@/app/actions/peerActions'
+  );
+
+  const [peerStatus, pendingCards] = await Promise.all([
+    // Viewer–target relationship (skip if viewing own profile or logged out)
+    !isOwner && currentUserId
+      ? getPeerStatus(currentUserId, targetUserId)
+      : Promise.resolve('none' as const),
+    // Pending inbox (only relevant for the owner)
+    isOwner && currentUserId
+      ? getPendingCallingCards(currentUserId)
+      : Promise.resolve([]),
+  ]);
+
+  // Convenience boolean for future Nook-gating (obscure private Nooks from non-peers)
+  const isPeer = peerStatus === 'accepted';
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
   const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
@@ -95,11 +116,11 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
             <Link
               href="/camera"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
-                font-700 text-xs text-white bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
-                cozy-shadow hover:scale-105 active:scale-95 transition-transform"
+                font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
+                shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
             >
-              <Sparkles size={14} />
-              New Space
+              <Sparkles size={14} className="fill-stone-900 text-stone-900" />
+              <span>New Space</span>
             </Link>
           )}
         </div>
@@ -131,6 +152,10 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
               initialShellType={shellType}
               posts={posts}
               isOwner={isOwner}
+              peerStatus={peerStatus}
+              pendingCards={pendingCards}
+              recipientId={targetUserId}
+              currentUserId={currentUserId}
             />
 
             {/* Unassigned / Archive Spaces Grid */}

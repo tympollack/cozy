@@ -50,11 +50,11 @@ export default async function ProfilePage() {
           <Link
             href="/camera"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
-              font-700 text-xs text-white bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
-              cozy-shadow hover:scale-105 active:scale-95 transition-transform"
+              font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
+              shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
           >
-            <Sparkles size={14} />
-            New Space
+            <Sparkles size={14} className="fill-stone-900 text-stone-900" />
+            <span>New Space</span>
           </Link>
         </div>
 
