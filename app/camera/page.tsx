@@ -160,7 +160,6 @@ export default function CameraPage() {
                     ref={ref}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     aria-label={`Upload ${label} photo`}
                     className="sr-only"
                     onChange={(e) => handleFileChange(mode, e.target.files?.[0] ?? null)}
