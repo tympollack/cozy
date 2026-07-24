@@ -58,6 +58,7 @@ export interface FeedPost {
   created_at: string;
   claimed_by_user_id?: string | null;
   verification_status?: string;
+  shell_slot?: string | null;
 }
 
 // ---------------------------------------------------------------------------

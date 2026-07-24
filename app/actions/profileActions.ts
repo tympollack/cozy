@@ -8,6 +8,14 @@ export interface UserPostsPayload {
   error?: string;
 }
 
+export interface UserProfilePayload {
+  posts: UserPost[];
+  shellType: string;
+  isOwner: boolean;
+  userId: string | null;
+  error?: string;
+}
+
 export interface SinglePostPayload {
   post: UserPost | null;
   error?: string;
@@ -35,6 +43,66 @@ export async function getUserPosts(): Promise<UserPostsPayload> {
   }
 
   return { posts: (data ?? []) as UserPost[] };
+}
+
+/**
+ * Fetches comprehensive profile payload (shellChoice + posts + owner flag).
+ */
+export async function getUserProfileData(targetUserId?: string): Promise<UserProfilePayload> {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const currentUserId = user?.id ?? null;
+  const activeUserId = targetUserId || currentUserId;
+
+  if (!activeUserId) {
+    return {
+      posts: [],
+      shellType: 'default_dollhouse',
+      isOwner: false,
+      userId: null,
+      error: 'User not found or authentication required.',
+    };
+  }
+
+  const isOwner = currentUserId === activeUserId;
+
+  // 1. Fetch user's shell_type
+  const { data: userData, error: userErr } = await supabase
+    .schema('cozy')
+    .from('users')
+    .select('shell_type')
+    .eq('id', activeUserId)
+    .maybeSingle();
+
+  if (userErr) {
+    console.error('[getUserProfileData] User fetch error:', userErr.message);
+  }
+
+  const shellType = userData?.shell_type || 'default_dollhouse';
+
+  // 2. Fetch user's posts via RPC
+  const { data: postsData, error: postsErr } = await supabase
+    .schema('cozy')
+    .rpc('get_user_posts', { p_user_id: activeUserId });
+
+  if (postsErr) {
+    console.error('[getUserProfileData] Posts RPC error:', postsErr.message);
+    return {
+      posts: [],
+      shellType,
+      isOwner,
+      userId: activeUserId,
+      error: postsErr.message,
+    };
+  }
+
+  return {
+    posts: (postsData ?? []) as UserPost[],
+    shellType,
+    isOwner,
+    userId: activeUserId,
+  };
 }
 
 /**
