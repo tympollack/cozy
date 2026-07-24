@@ -1,187 +1,379 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { motion, useDragControls } from 'framer-motion';
-import { Check, X, Loader2, Tag } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
+import { Check, X, Loader2, Tag, Link, ArrowRight } from 'lucide-react';
 import { createItemPin } from '@/app/actions/pinActions';
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 
 interface PinDropZoneProps {
   postId: string;
   onCancel: () => void;
-  onSuccess: () => void;
+  /** Called after a pin is successfully persisted. Caller decides how to refresh. */
+  onSuccess: (pinId: string) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Step machine
+// ---------------------------------------------------------------------------
+
+type Step = 'drag' | 'form';
+
+// ---------------------------------------------------------------------------
+// PinDropZone
+//
+// Renders an overlay in two phases:
+//   1. "drag"  — a framer-motion draggable reticle locked to the image container.
+//               "Confirm Location" commits the coordinates and advances to step 2.
+//   2. "form"  — a glassmorphism modal (Cozy design language) collects title + URL,
+//               then calls createItemPin and reports success to the parent.
+// ---------------------------------------------------------------------------
+
 export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
+  // ── Refs ────────────────────────────────────────────────────────────────
+  // containerRef: the full overlay div — used as the drag boundary AND for
+  // computing percentage coordinates (matches the photo container exactly
+  // because the overlay is `absolute inset-0`).
   const containerRef = useRef<HTMLDivElement>(null);
-  const reticleRef = useRef<HTMLDivElement>(null);
-  const dragControls = useDragControls();
-  
-  const [step, setStep] = useState<'drag' | 'form'>('drag');
+  const reticleRef   = useRef<HTMLDivElement>(null);
+
+  // ── State ───────────────────────────────────────────────────────────────
+  const [step, setStep]               = useState<Step>('drag');
   const [coordinates, setCoordinates] = useState({ xPercent: 50, yPercent: 50 });
-  const [title, setTitle] = useState('');
-  const [url, setUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [title, setTitle]             = useState('');
+  const [url, setUrl]                 = useState('');
+  const [isLoading, setIsLoading]     = useState(false);
+  const [errorMsg, setErrorMsg]       = useState('');
 
-  const handleConfirmLocation = () => {
+  // framer-motion values for the reticle position.
+  // We use useMotionValue instead of drag state so we can read the committed
+  // pixel offset at any point without causing re-renders on every frame.
+  const reticleX = useMotionValue(0);
+  const reticleY = useMotionValue(0);
+
+  // ── Coordinate math ─────────────────────────────────────────────────────
+  // Identical to DraggableSticker: center of element relative to container,
+  // expressed as a percentage of container dimensions, clamped to [0, 100].
+  const handleConfirmLocation = useCallback(() => {
     if (!containerRef.current || !reticleRef.current) return;
-    
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const reticleRect = reticleRef.current.getBoundingClientRect();
-    
-    // Calculate center of the reticle
-    const reticleCenterX = reticleRect.left + reticleRect.width / 2;
-    const reticleCenterY = reticleRect.top + reticleRect.height / 2;
-    
-    // Convert to percentage relative to container
-    const xPercent = ((reticleCenterX - containerRect.left) / containerRect.width) * 100;
-    const yPercent = ((reticleCenterY - containerRect.top) / containerRect.height) * 100;
-    
-    // Clamp to 0-100 just in case
-    setCoordinates({
-      xPercent: Math.max(0, Math.min(100, xPercent)),
-      yPercent: Math.max(0, Math.min(100, yPercent))
-    });
-    
-    setStep('form');
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const reticleRect   = reticleRef.current.getBoundingClientRect();
+
+    const reticleCenterX = reticleRect.left + reticleRect.width  / 2 - containerRect.left;
+    const reticleCenterY = reticleRect.top  + reticleRect.height / 2 - containerRect.top;
+
+    setCoordinates({
+      xPercent: Math.min(100, Math.max(0, (reticleCenterX / containerRect.width)  * 100)),
+      yPercent: Math.min(100, Math.max(0, (reticleCenterY / containerRect.height) * 100)),
+    });
+
+    setStep('form');
+  }, []);
+
+  // ── Form submit ─────────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !url) {
-      setErrorMsg('Both fields are required.');
+    setErrorMsg('');
+
+    if (!title.trim()) {
+      setErrorMsg('An item title is required.');
       return;
     }
-    
-    // Basic URL cleanup
-    let finalUrl = url.trim();
-    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-      finalUrl = 'https://' + finalUrl;
+    if (!url.trim()) {
+      setErrorMsg('A link URL is required.');
+      return;
     }
 
     setIsLoading(true);
-    setErrorMsg('');
-
     try {
-      const res = await createItemPin(postId, coordinates.xPercent, coordinates.yPercent, title, finalUrl);
-      if (res.success) {
-        onSuccess();
+      const result = await createItemPin(
+        postId,
+        coordinates.xPercent,
+        coordinates.yPercent,
+        title,
+        url
+      );
+
+      if (result.success && result.pinId) {
+        onSuccess(result.pinId);
       } else {
-        setErrorMsg(res.error || 'Failed to create pin.');
+        setErrorMsg(result.error ?? 'Failed to create pin.');
       }
-    } catch (err) {
-      setErrorMsg('An unexpected error occurred.');
+    } catch {
+      setErrorMsg('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [postId, coordinates, title, url, onSuccess]);
 
+  // ── Back to drag step ───────────────────────────────────────────────────
+  const handleBackToDrag = useCallback(() => {
+    setErrorMsg('');
+    setStep('drag');
+  }, []);
+
+  // ────────────────────────────────────────────────────────────────────────
   return (
-    <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
-      
-      {step === 'drag' && (
-        <>
-          {/* Header instructions */}
-          <div className="absolute top-8 px-6 py-3 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md rounded-full shadow-lg border border-white/20 animate-in fade-in slide-in-from-top-4">
-            <p className="font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
-              <Tag className="w-4 h-4" />
-              Drag the reticle to the item
-            </p>
-          </div>
+    <div className="absolute inset-0 z-40 rounded-3xl overflow-hidden">
+      {/* ── Backdrop ──────────────────────────────────────────────────── */}
+      <motion.div
+        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      />
 
-          {/* Draggable Area */}
-          <div ref={containerRef} className="relative w-full h-full">
+      {/* ── STEP 1: Drag ─────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {step === 'drag' && (
+          <motion.div
+            key="drag-step"
+            className="absolute inset-0 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.97 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Instruction pill */}
             <motion.div
-              ref={reticleRef}
-              drag
-              dragControls={dragControls}
-              dragMomentum={false}
-              dragElastic={0}
-              dragConstraints={containerRef}
-              className="absolute left-1/2 top-1/2 -ml-6 -mt-6 w-12 h-12 cursor-grab active:cursor-grabbing flex items-center justify-center"
+              className="absolute top-5 left-1/2 -translate-x-1/2 z-50
+                flex items-center gap-2 px-4 py-2.5 rounded-full
+                bg-[--cozy-bark]/80 backdrop-blur-md border border-white/20 shadow-xl"
+              initial={{ y: -16, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 400, damping: 28 }}
             >
-              <div className="w-full h-full rounded-full border-2 border-white border-dashed bg-white/20 backdrop-blur-sm shadow-[0_0_15px_rgba(0,0,0,0.5)] flex items-center justify-center animate-pulse">
-                <div className="w-2 h-2 bg-white rounded-full" />
-              </div>
+              <Tag size={13} className="text-[--cozy-gold]" />
+              <span className="text-xs font-700 text-white/90 tracking-wide">
+                Drag the reticle to the item
+              </span>
             </motion.div>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="absolute bottom-8 flex gap-4 animate-in fade-in slide-in-from-bottom-4">
-            <button
-              onClick={onCancel}
-              className="w-14 h-14 bg-red-500/90 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
-              aria-label="Cancel"
+            {/* Drag area — sized to fill the overlay so constraints are the full image */}
+            <div ref={containerRef} className="absolute inset-0">
+              <motion.div
+                ref={reticleRef}
+                drag
+                dragMomentum={false}
+                dragElastic={0}
+                dragConstraints={containerRef}
+                style={{ x: reticleX, y: reticleY, touchAction: 'none' }}
+                /* Start centered */
+                className="absolute left-1/2 top-1/2 -ml-6 -mt-6 w-12 h-12
+                  cursor-grab active:cursor-grabbing"
+                whileDrag={{ scale: 1.12 }}
+              >
+                {/* Outer pulse ring */}
+                <div className="absolute inset-0 rounded-full border-2 border-[--cozy-gold]/70
+                  animate-ping opacity-60" />
+                {/* Crosshair body */}
+                <div className="relative w-full h-full rounded-full
+                  border-2 border-dashed border-white/80
+                  bg-white/15 backdrop-blur-sm
+                  shadow-[0_0_20px_rgba(0,0,0,0.45)]
+                  flex items-center justify-center">
+                  {/* Centre dot */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-[--cozy-gold] shadow-[0_0_8px_rgba(240,192,96,0.8)]" />
+                  {/* Crosshair lines */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-full h-px bg-white/40" />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="h-full w-px bg-white/40" />
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Action bar */}
+            <motion.div
+              className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3"
+              initial={{ y: 16, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.15, type: 'spring', stiffness: 400, damping: 28 }}
             >
-              <X size={24} />
-            </button>
-            <button
-              onClick={handleConfirmLocation}
-              className="w-14 h-14 bg-green-500/90 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 transition-colors"
-              aria-label="Confirm Location"
+              <button
+                onClick={onCancel}
+                aria-label="Cancel tagging"
+                className="w-12 h-12 rounded-full flex items-center justify-center
+                  bg-black/50 backdrop-blur-md border border-white/15 shadow-lg
+                  text-white/90 hover:bg-red-500/80 active:scale-90
+                  transition-all duration-150"
+              >
+                <X size={18} />
+              </button>
+
+              <button
+                onClick={handleConfirmLocation}
+                aria-label="Confirm pin location"
+                className="flex items-center gap-2 px-5 py-3 rounded-full font-700 text-sm
+                  bg-[--cozy-gold] text-[--cozy-bark]
+                  shadow-[0_4px_20px_rgba(240,192,96,0.45)]
+                  hover:scale-105 active:scale-95 transition-transform duration-150"
+              >
+                <Check size={16} />
+                Confirm Location
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* ── STEP 2: Form ───────────────────────────────────────────── */}
+        {step === 'form' && (
+          <motion.div
+            key="form-step"
+            className="absolute inset-0 flex items-center justify-center p-5"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+          >
+            <div
+              className="w-full max-w-sm rounded-3xl p-6 shadow-2xl
+                cozy-glass border border-[--cozy-amber]/25"
+              style={{ maxWidth: '340px' }}
             >
-              <Check size={24} />
-            </button>
-          </div>
-        </>
-      )}
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[--cozy-amber]/20 flex items-center justify-center">
+                    <Tag size={15} className="text-[--cozy-rust]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-800 text-[--cozy-night] leading-tight">
+                      Tag an Item
+                    </h3>
+                    <p className="text-[11px] text-[--cozy-muted] font-500">
+                      Pin is placed ✓
+                    </p>
+                  </div>
+                </div>
 
-      {step === 'form' && (
-        <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl p-6 rounded-3xl w-[90%] max-w-sm shadow-2xl border border-zinc-200/50 dark:border-zinc-700/50 animate-in zoom-in-95 duration-200">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-              <Tag className="w-5 h-5 text-indigo-500" />
-              Item Details
-            </h3>
-            <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
-              <X size={20} />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {errorMsg && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-xl">
-                {errorMsg}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleBackToDrag}
+                    aria-label="Reposition pin"
+                    className="w-8 h-8 rounded-full text-[--cozy-muted]
+                      hover:bg-[--cozy-warm] hover:text-[--cozy-rust]
+                      flex items-center justify-center transition-colors"
+                    title="Move pin"
+                  >
+                    <Tag size={14} />
+                  </button>
+                  <button
+                    onClick={onCancel}
+                    aria-label="Close modal"
+                    className="w-8 h-8 rounded-full text-[--cozy-muted]
+                      hover:bg-[--cozy-warm] hover:text-[--cozy-bark]
+                      flex items-center justify-center transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
-            )}
-            
-            <div>
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                Item Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Herman Miller Chair"
-                className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                autoFocus
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                Link URL
-              </label>
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="e.g., https://amazon.com/..."
-                className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-              />
-            </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50"
-            >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Pin'}
-            </button>
-          </form>
-        </div>
-      )}
+              {/* Error banner */}
+              <AnimatePresence>
+                {errorMsg && (
+                  <motion.div
+                    className="mb-4 px-3.5 py-2.5 rounded-xl
+                      bg-red-50 border border-red-200/60 text-red-600 text-xs font-600"
+                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  >
+                    {errorMsg}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Title field */}
+                <div>
+                  <label
+                    htmlFor="pin-title"
+                    className="block text-xs font-700 text-[--cozy-bark] mb-1.5 tracking-wide uppercase"
+                  >
+                    Item Title
+                  </label>
+                  <input
+                    id="pin-title"
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g., Herman Miller Aeron Chair"
+                    maxLength={120}
+                    autoFocus
+                    className="w-full bg-white/70 border border-[--cozy-amber]/30
+                      rounded-2xl px-4 py-3 text-sm text-[--cozy-night]
+                      placeholder:text-[--cozy-muted]/60
+                      focus:outline-none focus:ring-2 focus:ring-[--cozy-amber]/50
+                      focus:border-[--cozy-amber] transition-all duration-150"
+                  />
+                </div>
+
+                {/* URL field */}
+                <div>
+                  <label
+                    htmlFor="pin-url"
+                    className="block text-xs font-700 text-[--cozy-bark] mb-1.5 tracking-wide uppercase"
+                  >
+                    Shop Link
+                  </label>
+                  <div className="relative">
+                    <Link
+                      size={14}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[--cozy-muted]/60 pointer-events-none"
+                    />
+                    <input
+                      id="pin-url"
+                      type="text"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="amazon.com/dp/..."
+                      className="w-full bg-white/70 border border-[--cozy-amber]/30
+                        rounded-2xl pl-9 pr-4 py-3 text-sm text-[--cozy-night]
+                        placeholder:text-[--cozy-muted]/60
+                        focus:outline-none focus:ring-2 focus:ring-[--cozy-amber]/50
+                        focus:border-[--cozy-amber] transition-all duration-150"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-[--cozy-muted] px-1">
+                    https:// will be added automatically if omitted.
+                  </p>
+                </div>
+
+                {/* Submit */}
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full mt-2 flex items-center justify-center gap-2
+                    px-5 py-3.5 rounded-2xl font-800 text-sm
+                    bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
+                    text-white shadow-[0_4px_20px_rgba(196,112,74,0.40)]
+                    hover:shadow-[0_6px_28px_rgba(196,112,74,0.55)]
+                    hover:scale-[1.02] active:scale-[0.98]
+                    transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? (
+                    <Loader2 size={17} className="animate-spin" />
+                  ) : (
+                    <>
+                      Save Pin
+                      <ArrowRight size={15} />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

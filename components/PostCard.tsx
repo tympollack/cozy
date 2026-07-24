@@ -19,6 +19,8 @@ import { ShoppableImage } from '@/components/ShoppableImage';
 interface PostCardProps {
   post: FeedPost;
   onCheer: () => Promise<void>;
+  /** The authenticated user's ID — enables pin delete on owned posts in the feed. */
+  currentUserId?: string | null;
   style?: React.CSSProperties;
   className?: string;
 }
@@ -115,7 +117,7 @@ function StickerLayer({ sticker, postId }: StickerLayerProps) {
 // PostCard
 // ---------------------------------------------------------------------------
 
-export function PostCard({ post, onCheer, style, className = '' }: PostCardProps) {
+export function PostCard({ post, onCheer, currentUserId, style, className = '' }: PostCardProps) {
   const [showDark, setShowDark] = useState(!post.light_img_url);
   const [cheering, setCheering] = useState(false);
   const [cheered, setCheered] = useState(post.has_cheered);
@@ -159,7 +161,7 @@ export function PostCard({ post, onCheer, style, className = '' }: PostCardProps
       <div className="relative w-full h-full">
 
         {/* ── Main photo(s) ───────────────────────────────────────────── */}
-        <ShoppableImage itemPins={post.item_pins}>
+        <ShoppableImage itemPins={post.item_pins} currentUserId={currentUserId ?? null}>
           {post.light_img_url && post.dark_img_url ? (
             <>
               <img

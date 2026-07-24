@@ -1,39 +1,80 @@
 'use server';
 
-import { createServerClient, createServiceClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape returned by the updated cozy.cheer_post RPC.
+ * The RPC now returns a composite cozy.cheer_result record so both the
+ * personal and household balances can be synced in a single round-trip.
+ */
+interface CheerRpcResult {
+  /** The cheering user's new cozy.users.points balance. */
+  personal_points: number;
+  /**
+   * The household's new cozy.households.pooled_points balance.
+   * NULL when the cheering user has no household_id (solo user).
+   */
+  household_points: number | null;
+}
 
 export interface CheerResult {
   success: boolean;
+  /** New personal point balance for the cheering user. */
   newPoints?: number;
+  /**
+   * New pooled_points balance for the user's household.
+   * Null when the user is not in a household.
+   */
+  householdPoints?: number | null;
   error?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Server Action
+// ---------------------------------------------------------------------------
 
 /**
  * Awards a "Cheer" to a post.
  *
- * Atomically:
+ * Atomically (via cozy.cheer_post RPC):
  *  - Inserts a record into cozy.cheers (UNIQUE constraint prevents double-cheers).
  *  - Increments cozy.posts.cheer_count.
  *  - Awards +1 point to the post owner.
- *  - Awards +1 point to the cheering user (returned for Zustand sync).
+ *  - Awards +1 personal point to the cheering user.
+ *  - Co-op Bonus: if the cheering user belongs to a household, additionally
+ *    credits +1 point to cozy.households.pooled_points (no personal points
+ *    are deducted — this is a net bonus that incentivises household membership).
+ *
+ * Returns both the new personal balance and the new household pool balance
+ * so Zustand can update both slices in one action dispatch.
  *
  * Self-cheering is rejected by the RPC.
  */
 export async function cheerPost(postId: string): Promise<CheerResult> {
   const supabase = await createServerClient();
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
   if (authError || !user) {
     return { success: false, error: 'Authentication required.' };
   }
 
-  const { data: newPoints, error } = await supabase.schema('cozy').rpc('cheer_post', {
+  // The RPC returns a cozy.cheer_result composite, which Supabase surfaces
+  // as a single plain object (not an array) when called via .rpc().
+  const { data, error } = await supabase.schema('cozy').rpc('cheer_post', {
     p_post_id: postId,
     p_user_id: user.id,
   });
 
   if (error) {
-    // Surface friendly messages for known constraint errors
+    // Surface friendly messages for known constraint errors.
     if (error.message.includes('unique') || error.message.includes('uq_cozy_cheer')) {
       return { success: false, error: 'Already cheered!' };
     }
@@ -44,5 +85,12 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
     return { success: false, error: 'Something went wrong. Try again.' };
   }
 
-  return { success: true, newPoints: newPoints as number };
+  // Supabase returns the composite record as a plain object.
+  const result = data as CheerRpcResult;
+
+  return {
+    success: true,
+    newPoints: result.personal_points,
+    householdPoints: result.household_points ?? null,
+  };
 }
