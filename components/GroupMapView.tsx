@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
-import { GROUP_TYPE_META } from '@/app/actions/groupActions';
+import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 
 // ---------------------------------------------------------------------------
 // Isometric grid layout helpers

@@ -3,8 +3,9 @@
 import { useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, TrendingUp, Sparkles, ChevronRight, ArrowUpCircle, X } from 'lucide-react';
-import { contributeToGroup, upgradeGroupTier, GROUP_TYPE_META } from '@/app/actions/groupActions';
+import { contributeToGroup, upgradeGroupTier } from '@/app/actions/groupActions';
 import type { GroupRow } from '@/app/actions/groupActions';
+import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 
 // ---------------------------------------------------------------------------

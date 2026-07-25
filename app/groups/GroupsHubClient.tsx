@@ -13,8 +13,9 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { createGroup, joinGroup, GROUP_TYPE_META } from '@/app/actions/groupActions';
+import { createGroup, joinGroup } from '@/app/actions/groupActions';
 import type { MyGroupEntry } from '@/app/actions/groupActions';
+import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 
 const GROUP_TYPES = Object.entries(GROUP_TYPE_META).filter(
   ([type]) => ['household', 'building', 'neighborhood', 'village', 'town', 'city', 'island', 'space_station'].includes(type)
