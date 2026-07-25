@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
+import { revalidatePath } from 'next/cache';
 import { uploadToR2, generateR2Key } from '@/lib/r2';
 import { encodeGeohash } from '@/lib/geohash';
 import type { FeedPost } from '@/store/useCozyStore';
@@ -137,4 +138,34 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return { success: false, error: `Upload failed: ${msg}` };
   }
+}
+
+/**
+ * Deletes a post owned by the authenticated caller.
+ */
+export async function deletePost(postId: string, path?: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const { error } = await supabase
+    .schema('cozy')
+    .from('posts')
+    .delete()
+    .eq('id', postId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('[deletePost] Error:', error.message);
+    return { success: false, error: 'Failed to delete space.' };
+  }
+
+  revalidatePath('/profile');
+  if (path && path !== '/profile') {
+    revalidatePath(path);
+  }
+  return { success: true };
 }

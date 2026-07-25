@@ -14,12 +14,22 @@ import {
 import { ShellNook } from './ShellNook';
 import { updateUserShell, assignPostToSlot, removePostFromSlot } from '@/app/actions/shellActions';
 import type { UserPost } from '@/store/useCozyStore';
+import { DollhouseMailbox } from './DollhouseMailbox';
+import type { PeerStatus, PendingCard } from '@/app/actions/peerActions';
 
 interface ProfileShellProps {
   initialShellType: string;
   posts: UserPost[];
   isOwner: boolean;
   onPostSelect?: (post: UserPost) => void;
+  /** Peer relationship from the viewer's perspective. */
+  peerStatus?: PeerStatus;
+  /** Pending Calling Cards in the owner's inbox (owner view only). */
+  pendingCards?: PendingCard[];
+  /** Profile owner's ID — used by the mailbox to send a card. */
+  recipientId?: string;
+  /** Authenticated user's ID — null when logged out. */
+  currentUserId?: string | null;
 }
 
 export function ProfileShell({
@@ -27,6 +37,10 @@ export function ProfileShell({
   posts: initialPosts,
   isOwner,
   onPostSelect,
+  peerStatus = 'none',
+  pendingCards = [],
+  recipientId = '',
+  currentUserId = null,
 }: ProfileShellProps) {
   const pathname = usePathname();
   const [shellType, setShellType] = useState(initialShellType);
@@ -206,6 +220,22 @@ export function ProfileShell({
           </div>
           {/* Vertical divider */}
           <div className="absolute inset-y-4 left-1/2 w-0.5 bg-gradient-to-b from-transparent via-white/20 to-transparent -translate-x-1/2" />
+        </div>
+
+        {/* ── Dollhouse Mailbox (bottom-left) ── */}
+        <div
+          className="absolute bottom-3 left-3 z-20"
+          style={{ filter: 'drop-shadow(0 4px 8px rgba(122,79,58,0.25))' }}
+        >
+          {recipientId ? (
+            <DollhouseMailbox
+              isOwner={isOwner}
+              peerStatus={peerStatus}
+              pendingCards={pendingCards}
+              recipientId={recipientId}
+              currentUserId={currentUserId}
+            />
+          ) : null}
         </div>
 
         {/* Render Shell Nooks */}

@@ -89,20 +89,21 @@ export async function assignPostToSlot(
     return { success: false, error: 'Authentication required.' };
   }
 
-  // 1. Verify post ownership
-  const { data: post, error: fetchErr } = await supabase
-    .schema('cozy')
-    .from('posts')
-    .select('id')
-    .eq('id', postId)
-    .eq('user_id', user.id)
-    .maybeSingle();
+  // 1. Try atomic RPC first (SECURITY DEFINER / bypasses client RLS constraints)
+  const { error: rpcErr } = await supabase.schema('cozy').rpc('assign_post_slot', {
+    p_post_id: postId,
+    p_slot_id: slotId,
+  });
 
-  if (fetchErr || !post) {
-    return { success: false, error: 'Post not found or not owned by you.' };
+  if (!rpcErr) {
+    revalidateShellPaths(path);
+    return { success: true };
   }
 
-  // 2. Clear any existing post in this slot for this user
+  console.warn('[assignPostToSlot] RPC assign_post_slot failed/fallback:', rpcErr.message);
+
+  // 2. Fallback: Direct table updates
+  // Clear existing occupant of slotId
   await supabase
     .schema('cozy')
     .from('posts')
@@ -110,7 +111,7 @@ export async function assignPostToSlot(
     .eq('user_id', user.id)
     .eq('shell_slot', slotId);
 
-  // 3. Assign target post to the slot
+  // Assign slot to target post
   const { error: updateErr } = await supabase
     .schema('cozy')
     .from('posts')
@@ -119,7 +120,7 @@ export async function assignPostToSlot(
     .eq('user_id', user.id);
 
   if (updateErr) {
-    console.error('[assignPostToSlot] Error:', updateErr.message);
+    console.error('[assignPostToSlot] Table update Error:', updateErr.message);
     return { success: false, error: 'Failed to assign post to nook.' };
   }
 
@@ -141,6 +142,18 @@ export async function removePostFromSlot(
     return { success: false, error: 'Authentication required.' };
   }
 
+  // Try RPC first
+  const { error: rpcErr } = await supabase.schema('cozy').rpc('assign_post_slot', {
+    p_post_id: postId,
+    p_slot_id: null,
+  });
+
+  if (!rpcErr) {
+    revalidateShellPaths(path);
+    return { success: true };
+  }
+
+  // Fallback
   const { error } = await supabase
     .schema('cozy')
     .from('posts')
