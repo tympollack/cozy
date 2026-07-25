@@ -8,17 +8,24 @@ import { createServerClient } from '@/lib/supabase';
 
 /**
  * Shape returned by the updated cozy.cheer_post RPC.
- * The RPC now returns a composite cozy.cheer_result record so both the
- * personal and group balances can be synced in a single round-trip.
+ *
+ * Migration 20260724000004_polymorphic_peer_groups.sql changed the v1
+ * composite type cozy.cheer_result from:
+ *   (personal_points INT, group_points INT)
+ * to:
+ *   (personal_points INT, groups_updated INT)
+ *
+ * groups_updated is now an INTEGER COUNT of how many of the post author's
+ * active groups received a pooled_points cascade — NOT a balance.
  */
 interface CheerRpcResult {
   /** The cheering user's new cozy.users.points balance. */
   personal_points: number;
   /**
-   * The group's new cozy.groups.pooled_points balance.
-   * NULL when the cheering user has no group_id (solo user).
+   * Number of groups that received a cascading +1 to pooled_points.
+   * 0 when the post author belongs to no groups.
    */
-  group_points: number | null;
+  groups_updated: number;
 }
 
 export interface CheerResult {
@@ -26,8 +33,14 @@ export interface CheerResult {
   /** New personal point balance for the cheering user. */
   newPoints?: number;
   /**
-   * New pooled_points balance for the user's group.
-   * Null when the user is not in a group.
+   * Number of groups that received a cascading point bonus.
+   * 0 when the post author is not in any group.
+   */
+  groupsUpdated?: number;
+  /**
+   * @deprecated Use `groupsUpdated` instead.
+   * Backward-compat alias kept so existing client code doesn't break.
+   * Will be removed in a future cleanup pass.
    */
   groupPoints?: number | null;
   error?: string;
@@ -92,9 +105,13 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
     return { success: false, error: 'Unexpected empty response from server.' };
   }
 
+  const groupsUpdated = result.groups_updated ?? 0;
+
   return {
     success: true,
     newPoints: result.personal_points,
-    groupPoints: result.group_points ?? null,
+    groupsUpdated,
+    // Backward-compat alias (deprecated — remove when all callers migrate)
+    groupPoints: groupsUpdated > 0 ? groupsUpdated : null,
   };
 }
