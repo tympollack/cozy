@@ -96,7 +96,7 @@ export async function createGroup(
 
   if (insertError || !group) {
     console.error('[createGroup] Insert error:', insertError?.message);
-    return { success: false, error: 'Failed to create group. Please try again.' };
+    return { success: false, error: `Failed to create group: ${insertError?.message || 'Please try again.'}` };
   }
 
   // Add creator as admin
@@ -109,7 +109,7 @@ export async function createGroup(
     console.error('[createGroup] Member insert error:', memberError.message);
     // Rollback the group — best effort
     await service.schema('cozy').from('groups').delete().eq('id', group.id);
-    return { success: false, error: 'Failed to add you to the group. Please try again.' };
+    return { success: false, error: `Failed to add you to the group: ${memberError.message}` };
   }
 
   revalidatePath('/groups');
@@ -271,14 +271,6 @@ export async function upgradeGroupTier(
 //
 // Transfers `points` from the authenticated user's personal balance into the
 // group's pooled_points bank.
-//
-// Calls cozy.contribute_points(p_user_id, p_group_id, p_points) RPC which
-// atomically:
-//   - Verifies the user is a group member
-//   - Verifies the user has >= points
-//   - Deducts points from cozy.users.points
-//   - Credits points to cozy.groups.pooled_points
-//   - Returns (new_personal_points INT, new_pooled_points INT)
 // ---------------------------------------------------------------------------
 
 export interface ContributeResult {
@@ -339,10 +331,7 @@ export async function contributeToGroup(
 }
 
 // ---------------------------------------------------------------------------
-// getMyGroups  (server helper — not a mutation action)
-//
-// Returns all groups the authenticated user belongs to, with member counts.
-// Called by the Groups Hub server component.
+// getMyGroups (server helper)
 // ---------------------------------------------------------------------------
 
 export async function getMyGroups(): Promise<MyGroupEntry[]> {
@@ -354,34 +343,34 @@ export async function getMyGroups(): Promise<MyGroupEntry[]> {
 
   if (!user) return [];
 
-  // Fetch memberships + group rows (RLS ensures only own groups are visible)
-  const { data, error } = await supabase
+  const service = createServiceClient();
+
+  // 1. Fetch user's group memberships
+  const { data: memberships, error: memberError } = await service
     .schema('cozy')
     .from('group_members')
-    .select(`
-      role,
-      group:group_id (
-        id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at
-      )
-    `)
+    .select('group_id, role')
     .eq('user_id', user.id);
 
-  if (error) {
-    console.error('[getMyGroups] Query error:', error.message);
+  if (memberError || !memberships || memberships.length === 0) {
+    if (memberError) console.error('[getMyGroups] Memberships query error:', memberError.message);
     return [];
   }
 
-  if (!data || data.length === 0) return [];
+  // 2. Fetch groups
+  const groupIds = memberships.map((m) => m.group_id);
+  const { data: groups, error: groupsError } = await service
+    .schema('cozy')
+    .from('groups')
+    .select('id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at')
+    .in('id', groupIds);
 
-  // Supabase infers nested FK joins as arrays — cast through unknown to the
-  // actual runtime shape (many-to-one join returns a plain object, not array).
-  type RawMembership = { role: 'admin' | 'member'; group: GroupRow };
-  const rows = data as unknown as RawMembership[];
+  if (groupsError || !groups) {
+    console.error('[getMyGroups] Groups query error:', groupsError?.message);
+    return [];
+  }
 
-  // Fetch member counts for each group (service client — no per-user RLS)
-  const service = createServiceClient();
-  const groupIds = rows.map((row) => row.group.id);
-
+  // 3. Fetch member counts for each group
   const { data: memberCounts } = await service
     .schema('cozy')
     .from('group_members')
@@ -393,18 +382,24 @@ export async function getMyGroups(): Promise<MyGroupEntry[]> {
     countMap[row.group_id] = (countMap[row.group_id] ?? 0) + 1;
   });
 
-  return rows.map((row) => ({
-    group: row.group,
-    role: row.role,
-    memberCount: countMap[row.group.id] ?? 0,
-  }));
+  const groupMap = new Map<string, GroupRow>();
+  groups.forEach((g) => groupMap.set(g.id, g as GroupRow));
+
+  return memberships
+    .map((m) => {
+      const group = groupMap.get(m.group_id);
+      if (!group) return null;
+      return {
+        group,
+        role: m.role as 'admin' | 'member',
+        memberCount: countMap[m.group_id] ?? 0,
+      };
+    })
+    .filter((entry): entry is MyGroupEntry => entry !== null);
 }
 
 // ---------------------------------------------------------------------------
-// getGroupWithMembers  (server helper — not a mutation action)
-//
-// Returns the group row + all member profiles for the dynamic group view page.
-// Called by app/groups/[id]/page.tsx.
+// getGroupWithMembers (server helper)
 // ---------------------------------------------------------------------------
 
 export async function getGroupWithMembers(
@@ -418,7 +413,7 @@ export async function getGroupWithMembers(
 
   const service = createServiceClient();
 
-  // Fetch group (service client to bypass per-member RLS, still safe — display only)
+  // 1. Fetch group
   const { data: group, error: groupError } = await service
     .schema('cozy')
     .from('groups')
@@ -427,47 +422,54 @@ export async function getGroupWithMembers(
     .single();
 
   if (groupError || !group) {
+    console.error('[getGroupWithMembers] Group fetch error:', groupError?.message);
     return null;
   }
 
-  // Fetch members joined with user profiles
+  // 2. Fetch group members
   const { data: memberships, error: memberError } = await service
     .schema('cozy')
     .from('group_members')
-    .select(`
-      user_id,
-      role,
-      joined_at,
-      user:user_id (
-        display_name,
-        avatar_url,
-        points
-      )
-    `)
+    .select('user_id, role, joined_at')
     .eq('group_id', groupId);
 
-  if (memberError) {
-    console.error('[getGroupWithMembers] Member query error:', memberError.message);
+  if (memberError || !memberships) {
+    console.error('[getGroupWithMembers] Member query error:', memberError?.message);
     return null;
   }
 
-  // Supabase infers nested FK joins as arrays — cast to the actual runtime shape.
-  type RawMemberRow = {
-    user_id: string;
-    role: 'admin' | 'member';
-    joined_at: string;
-    user: { display_name: string; avatar_url: string | null; points: number };
-  };
-  const rawMembers = (memberships ?? []) as unknown as RawMemberRow[];
+  // 3. Fetch user profiles for all member user_ids
+  const userIds = memberships.map((m) => m.user_id);
+  const { data: usersData, error: usersError } = await service
+    .schema('cozy')
+    .from('users')
+    .select('id, display_name, avatar_url, points')
+    .in('id', userIds);
 
-  const members: GroupMemberRow[] = rawMembers.map((row) => ({
-    user_id: row.user_id,
-    role: row.role,
-    joined_at: row.joined_at,
-    display_name: row.user.display_name,
-    avatar_url: row.user.avatar_url,
-    points: row.user.points ?? 0,
-  }));
+  if (usersError) {
+    console.error('[getGroupWithMembers] Users query error:', usersError.message);
+  }
+
+  const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number }>();
+  (usersData ?? []).forEach((u) => {
+    userMap.set(u.id, {
+      display_name: u.display_name || 'Cozy Neighbor',
+      avatar_url: u.avatar_url || null,
+      points: u.points ?? 0,
+    });
+  });
+
+  const members: GroupMemberRow[] = memberships.map((m) => {
+    const u = userMap.get(m.user_id);
+    return {
+      user_id: m.user_id,
+      role: m.role as 'admin' | 'member',
+      joined_at: m.joined_at,
+      display_name: u?.display_name || 'Cozy Neighbor',
+      avatar_url: u?.avatar_url || null,
+      points: u?.points ?? 0,
+    };
+  });
 
   const currentUserRole =
     user
