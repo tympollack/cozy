@@ -1,12 +1,24 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Navbar } from '@/components/Navbar';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { OnboardingCarousel } from '@/components/OnboardingCarousel';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cozy-stag.sunshade.icu';
 
 export const metadata: Metadata = {
-  title: 'Cozy — Share Your Space',
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: 'Cozy — Share Your Space',
+    template: '%s | Cozy',
+  },
   description:
-    'A positivity-only community where you share Light & Dark photos of your living spaces. Earn points by contributing and cheering others on.',
+    'A positivity-only community where you share Light & Dark photos of your living spaces and pool points with your group.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -15,7 +27,24 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Cozy — Share Your Space',
     description: 'Gamified therapeutic cleaning and home sharing.',
+    url: APP_URL,
+    siteName: 'Cozy App',
+    locale: 'en_US',
     type: 'website',
+    images: [
+      {
+        url: '/api/og',
+        width: 1200,
+        height: 630,
+        alt: 'Cozy — Share Your Space',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Cozy — Share Your Space',
+    description: 'Gamified therapeutic cleaning and home sharing.',
+    images: ['/api/og'],
   },
 };
 
@@ -25,9 +54,6 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
 };
-
-import { ThemeProvider } from '@/components/ThemeProvider';
-import { OnboardingCarousel } from '@/components/OnboardingCarousel';
 
 export default function RootLayout({
   children,
