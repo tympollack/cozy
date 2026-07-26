@@ -42,7 +42,7 @@ export default function RootLayout({
       <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-cream)] dark:bg-zinc-950 transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <Navbar />
-          <main className="flex-1 flex flex-col relative overflow-hidden w-full pt-14">{children}</main>
+          <main className="flex-1 flex flex-col relative overflow-y-auto w-full pt-14">{children}</main>
           <OnboardingCarousel />
         </ThemeProvider>
       </body>

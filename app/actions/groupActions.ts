@@ -483,3 +483,127 @@ export async function getGroupWithMembers(
     memberCount: members.length,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Admin Management Actions
+// ---------------------------------------------------------------------------
+
+export async function updateGroupName(
+  groupId: string,
+  newName: string
+): Promise<GroupActionResult> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user || !newName.trim()) {
+    return { success: false, error: 'Authentication required and valid name.' };
+  }
+
+  const service = createServiceClient();
+  const { data: membership } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('role')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (membership?.role !== 'admin') {
+    return { success: false, error: 'Only admins can update group options.' };
+  }
+
+  const { error } = await service
+    .schema('cozy')
+    .from('groups')
+    .update({ name: newName.trim() })
+    .eq('id', groupId);
+
+  if (error) {
+    return { success: false, error: 'Failed to update group name.' };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath('/groups');
+  return { success: true, groupId };
+}
+
+export async function removeGroupMember(
+  groupId: string,
+  targetUserId: string
+): Promise<GroupActionResult> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+  const { data: membership } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('role')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (membership?.role !== 'admin') {
+    return { success: false, error: 'Only admins can remove members.' };
+  }
+
+  const { error } = await service
+    .schema('cozy')
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', targetUserId);
+
+  if (error) {
+    return { success: false, error: 'Failed to remove member.' };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath('/groups');
+  return { success: true, groupId };
+}
+
+export async function updateMemberRole(
+  groupId: string,
+  targetUserId: string,
+  newRole: 'admin' | 'member'
+): Promise<GroupActionResult> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+  const { data: membership } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('role')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (membership?.role !== 'admin') {
+    return { success: false, error: 'Only admins can update roles.' };
+  }
+
+  const { error } = await service
+    .schema('cozy')
+    .from('group_members')
+    .update({ role: newRole })
+    .eq('group_id', groupId)
+    .eq('user_id', targetUserId);
+
+  if (error) {
+    return { success: false, error: 'Failed to update member role.' };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath('/groups');
+  return { success: true, groupId };
+}
