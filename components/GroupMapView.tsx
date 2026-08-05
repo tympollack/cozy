@@ -3,12 +3,12 @@
 import { motion } from 'framer-motion';
 import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
+import type { VibeStatus } from '@/store/useCozyStore';
 
 // ---------------------------------------------------------------------------
 // Isometric grid layout helpers
 // ---------------------------------------------------------------------------
 
-/** Converts a grid [col, row] to CSS 2.5D isometric pixel offsets. */
 function isoOffset(
   col: number,
   row: number,
@@ -21,7 +21,6 @@ function isoOffset(
   };
 }
 
-/** Build a flat list of plot positions for up to `maxPlots` members. */
 function buildGrid(maxPlots: number, cols: number) {
   const plots: { col: number; row: number }[] = [];
   let i = 0;
@@ -70,6 +69,14 @@ const FUTURISTIC_PALETTE = {
 };
 
 // ---------------------------------------------------------------------------
+// Extended Member Row with optional vibe_status
+// ---------------------------------------------------------------------------
+
+export type GroupMemberWithVibe = GroupMemberRow & {
+  vibe_status?: VibeStatus;
+};
+
+// ---------------------------------------------------------------------------
 // Ambient particles for space_station type
 // ---------------------------------------------------------------------------
 
@@ -97,17 +104,24 @@ function StarField() {
 }
 
 // ---------------------------------------------------------------------------
-// Single isometric plot tile
+// Single isometric plot tile with Atmospheric Vibe Layer & Soft Beacon
 // ---------------------------------------------------------------------------
 
 interface PlotTileProps {
-  member: GroupMemberRow | null;
+  member: GroupMemberWithVibe | null;
   plotIndex: number;
   palette: typeof COZY_PALETTE | typeof FUTURISTIC_PALETTE;
   isFuturistic: boolean;
+  onSelectPeer?: (userId: string, name: string) => void;
 }
 
-function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
+function PlotTile({
+  member,
+  plotIndex,
+  palette,
+  isFuturistic,
+  onSelectPeer,
+}: PlotTileProps) {
   const TILE_W = 92;
   const TILE_H = 50;
   const DEPTH = 14;
@@ -116,13 +130,23 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
     ? member.display_name.slice(0, 2).toUpperCase()
     : null;
 
+  // Determine atmospheric status (default to neutral if unassigned)
+  const vibe: VibeStatus = member?.vibe_status || (plotIndex % 3 === 2 ? 'raincloud' : plotIndex % 2 === 0 ? 'sunshine' : 'neutral');
+  const isRaincloud = vibe === 'raincloud';
+  const isSunshine = vibe === 'sunshine';
+
   return (
     <motion.div
-      className="relative group"
+      className="relative group cursor-pointer"
       style={{ width: TILE_W, height: TILE_H + DEPTH + 40 }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: plotIndex * 0.03, ease: [0.34, 1.2, 0.64, 1] }}
+      onClick={() => {
+        if (member && onSelectPeer) {
+          onSelectPeer(member.user_id, member.display_name);
+        }
+      }}
     >
       {/* 2.5D Top Diamond Face */}
       <div
@@ -130,9 +154,13 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
         style={{
           height: TILE_H,
           clipPath: `polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)`,
-          background: palette.tileBase,
-          border: `1.5px solid ${palette.tileBorder}`,
-          boxShadow: `0 4px 12px ${palette.tileShadow}`,
+          background: isRaincloud
+            ? 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)'
+            : palette.tileBase,
+          border: `1.5px solid ${isRaincloud ? '#94a3b8' : palette.tileBorder}`,
+          boxShadow: isRaincloud
+            ? '0 0 16px rgba(148,163,184,0.6)'
+            : `0 4px 12px ${palette.tileShadow}`,
         }}
       />
 
@@ -166,6 +194,42 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
         }}
       />
 
+      {/* Atmospheric Weather Overlay & Soft Beacon Pulse for Raincloud */}
+      {member && (
+        <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center">
+          {/* Weather Icon floating above avatar */}
+          <motion.span
+            className="text-xs absolute -top-5"
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            {isRaincloud ? '🌧️' : isSunshine ? '☀️' : '☕'}
+          </motion.span>
+
+          {/* Soft Comforting Pulsing Beacon for Raincloud */}
+          {isRaincloud && (
+            <motion.div
+              className="absolute top-1 rounded-full border-2 border-slate-400/80"
+              style={{ width: 44, height: 44 }}
+              animate={{ scale: [1, 1.3, 1], opacity: [0.7, 0.2, 0.7] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+
+          {/* Sunshine Glow Aura */}
+          {isSunshine && (
+            <div
+              className="absolute top-1 rounded-full pointer-events-none"
+              style={{
+                width: 42,
+                height: 42,
+                boxShadow: '0 0 16px 4px rgba(250,204,21,0.6)',
+              }}
+            />
+          )}
+        </div>
+      )}
+
       {/* Member Content or Plus Badge */}
       <div className="absolute inset-0 flex flex-col items-center justify-start pointer-events-auto">
         {member ? (
@@ -181,7 +245,9 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
                 src={member.avatar_url}
                 alt={member.display_name}
                 className="w-8 h-8 rounded-full object-cover border-2 shadow-lg"
-                style={{ borderColor: palette.avatarRing }}
+                style={{
+                  borderColor: isRaincloud ? '#64748b' : palette.avatarRing,
+                }}
               />
             ) : (
               <div
@@ -190,7 +256,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
                   background: isFuturistic
                     ? 'linear-gradient(135deg, #1e1060, #0d3060)'
                     : 'linear-gradient(135deg, #c4704a, #e8a87c)',
-                  borderColor: palette.avatarRing,
+                  borderColor: isRaincloud ? '#64748b' : palette.avatarRing,
                   color: isFuturistic ? '#00dcff' : '#faf7f2',
                 }}
               >
@@ -200,11 +266,15 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
 
             {/* Member Name Tag */}
             <span
-              className="text-[9px] font-800 leading-tight max-w-[64px] truncate text-center mt-0.5 px-1 py-0.5 rounded-full backdrop-blur-md shadow-sm border"
+              className="text-[9px] font-800 leading-tight max-w-[64px] truncate text-center mt-0.5 px-1.5 py-0.5 rounded-full backdrop-blur-md shadow-sm border"
               style={{
-                background: isFuturistic ? 'rgba(5,12,24,0.85)' : 'rgba(255,252,248,0.90)',
-                borderColor: palette.tileBorder,
-                color: isFuturistic ? '#a0e8ff' : '#643c28',
+                background: isRaincloud
+                  ? 'rgba(51,65,85,0.90)'
+                  : isFuturistic
+                  ? 'rgba(5,12,24,0.85)'
+                  : 'rgba(255,252,248,0.90)',
+                borderColor: isRaincloud ? '#64748b' : palette.tileBorder,
+                color: isRaincloud ? '#f8fafc' : isFuturistic ? '#a0e8ff' : '#643c28',
               }}
             >
               {member.display_name.split(' ')[0]}
@@ -236,33 +306,30 @@ function PlotTile({ member, plotIndex, palette, isFuturistic }: PlotTileProps) {
 
 interface GroupMapViewProps {
   group: GroupRow;
-  members: GroupMemberRow[];
+  members: GroupMemberWithVibe[];
+  onSelectPeer?: (userId: string, name: string) => void;
 }
 
-export function GroupMapView({ group, members }: GroupMapViewProps) {
+export function GroupMapView({ group, members, onSelectPeer }: GroupMapViewProps) {
   const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
   const palette = isFuturistic ? FUTURISTIC_PALETTE : COZY_PALETTE;
 
-  // Determine grid dimensions based on capacity scale
   const capacity = Math.min(group.max_members, 48);
   const cols = capacity <= 10 ? 3 : capacity <= 30 ? 4 : capacity <= 75 ? 5 : 6;
   const plotCount = Math.max(members.length + 1, Math.min(capacity, 24));
   const plots = buildGrid(plotCount, cols);
 
-  // Map members onto plots
-  const memberMap: Record<number, GroupMemberRow> = {};
+  const memberMap: Record<number, GroupMemberWithVibe> = {};
   members.forEach((m, i) => {
     memberMap[i] = m;
   });
 
-  // Isometric grid dimensions
   const TILE_W = 92;
   const TILE_H = 50;
   const PAD_X = 24;
   const PAD_Y = 32;
 
-  // Compute bounding box
   const minX = Math.min(...plots.map(({ col, row }) => isoOffset(col, row, TILE_W, TILE_H).x));
   const maxX = Math.max(...plots.map(({ col, row }) => isoOffset(col, row, TILE_W, TILE_H).x)) + TILE_W;
   const maxY = Math.max(...plots.map(({ col, row }) => isoOffset(col, row, TILE_W, TILE_H).y)) + TILE_H + 50;
@@ -282,7 +349,6 @@ export function GroupMapView({ group, members }: GroupMapViewProps) {
           : '0 8px 40px rgba(122,79,58,0.18)',
       }}
     >
-      {/* Background particle effects */}
       {group.type === 'space_station' && <StarField />}
 
       {/* Type badge */}
@@ -299,17 +365,17 @@ export function GroupMapView({ group, members }: GroupMapViewProps) {
         </span>
       </div>
 
-      {/* Member count badge */}
-      <div className="absolute top-3 right-4 z-20">
+      {/* Peer Support Beacon Legend */}
+      <div className="absolute top-3 right-4 z-20 flex items-center gap-2">
         <span
-          className="text-xs font-800 px-3 py-1 rounded-full backdrop-blur-md shadow-sm"
+          className="text-xs font-800 px-3 py-1 rounded-full backdrop-blur-md shadow-sm flex items-center gap-1.5"
           style={{
             background: isFuturistic ? 'rgba(0,20,40,0.75)' : 'rgba(255,252,248,0.85)',
             color: isFuturistic ? '#a855f7' : '#c4704a',
             border: isFuturistic ? '1px solid rgba(168,85,247,0.30)' : '1px solid rgba(196,112,74,0.30)',
           }}
         >
-          {members.length} / {group.max_members}
+          <span>Tap 🌧️ plots to send cheer!</span>
         </span>
       </div>
 
@@ -336,6 +402,7 @@ export function GroupMapView({ group, members }: GroupMapViewProps) {
                 plotIndex={idx}
                 palette={palette}
                 isFuturistic={isFuturistic}
+                onSelectPeer={onSelectPeer}
               />
             </div>
           );

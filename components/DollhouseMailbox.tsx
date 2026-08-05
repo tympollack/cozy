@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useOptimistic, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Mail, MailCheck, Clock, Check, XCircle } from 'lucide-react';
+import { X, Heart, Mail, MailCheck, Clock, Check, XCircle, MessageSquareHeart } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import {
   sendCallingCard,
@@ -11,6 +11,7 @@ import {
   type PeerStatus,
   type PendingCard,
 } from '@/app/actions/peerActions';
+import { getPrivateNotes, type PrivateSupportNote } from '@/app/actions/vibeActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,7 +43,7 @@ function MailboxBody({
 }) {
   return (
     <div className="relative select-none" style={{ width: 64, height: 72 }}>
-      {/* ── Glow halo when pending ── */}
+      {/* Glow halo when pending */}
       {hasPending && (
         <div
           className="absolute inset-0 rounded-full pointer-events-none"
@@ -59,7 +60,7 @@ function MailboxBody({
         />
       )}
 
-      {/* ── Post (vertical stake) ── */}
+      {/* Post (vertical stake) */}
       <div
         className="absolute bottom-0 left-1/2 -translate-x-1/2"
         style={{
@@ -71,7 +72,7 @@ function MailboxBody({
         }}
       />
 
-      {/* ── Mailbox body ── */}
+      {/* Mailbox body */}
       <div
         className="absolute"
         style={{
@@ -120,7 +121,7 @@ function MailboxBody({
         />
       </div>
 
-      {/* ── Animated Flag ── */}
+      {/* Animated Flag */}
       <motion.div
         animate={{ rotate: flagUp ? -90 : 0, y: flagUp ? -4 : 0 }}
         transition={{ type: 'spring', stiffness: 200, damping: 15 }}
@@ -136,7 +137,6 @@ function MailboxBody({
           alignItems: 'center',
         }}
       >
-        {/* Flag pole */}
         <div
           style={{
             width: 2,
@@ -146,7 +146,6 @@ function MailboxBody({
             flexShrink: 0,
           }}
         />
-        {/* Flag pennant */}
         <div
           style={{
             position: 'absolute',
@@ -163,7 +162,7 @@ function MailboxBody({
         />
       </motion.div>
 
-      {/* ── Pending count badge ── */}
+      {/* Pending count badge */}
       <AnimatePresence>
         {hasPending && (
           <motion.div
@@ -223,7 +222,6 @@ function CallingCardRow({
       transition={{ duration: 0.22 }}
       className="flex items-center gap-3 p-3 rounded-2xl border border-[--cozy-amber]/20 bg-white/50"
     >
-      {/* Avatar placeholder */}
       <div
         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-base font-800"
         style={{
@@ -234,7 +232,6 @@ function CallingCardRow({
         {card.requesterName.charAt(0).toUpperCase()}
       </div>
 
-      {/* Name + time */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-700 text-[--cozy-bark] truncate">{card.requesterName}</p>
         <p className="text-[10px] text-[--cozy-muted] flex items-center gap-1 mt-0.5">
@@ -243,7 +240,6 @@ function CallingCardRow({
         </p>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <button
           id={`accept-card-${card.peerId}`}
@@ -274,10 +270,6 @@ function CallingCardRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
 function formatTimeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return 'just now';
@@ -302,12 +294,13 @@ export function DollhouseMailbox({
 }: DollhouseMailboxProps) {
   const pathname = usePathname();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'cards' | 'notes'>('cards');
+  const [privateNotes, setPrivateNotes] = useState<PrivateSupportNote[]>([]);
   const [isPending, startTransition] = useTransition();
   const [sendError, setSendError] = useState<string | null>(null);
   const [hasSent, setHasSent] = useState(peerStatus === 'pending_sent');
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Optimistic removal of cards from the inbox as they are accepted/declined
   const [optimisticCards, removeCard] = useOptimistic(
     initialPendingCards,
     (state, peerId: string) => state.filter((c) => c.peerId !== peerId)
@@ -316,7 +309,12 @@ export function DollhouseMailbox({
   const hasPending = isOwner && optimisticCards.length > 0;
   const flagUp = hasPending;
 
-  // Close modal on outside click
+  useEffect(() => {
+    if (isModalOpen && isOwner && recipientId) {
+      getPrivateNotes(recipientId).then(setPrivateNotes);
+    }
+  }, [isModalOpen, isOwner, recipientId]);
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -329,7 +327,6 @@ export function DollhouseMailbox({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isModalOpen]);
 
-  // ── Owner: handle accept ────────────────────────────────────────────────
   function handleAccept(peerId: string) {
     startTransition(async () => {
       removeCard(peerId);
@@ -340,7 +337,6 @@ export function DollhouseMailbox({
     });
   }
 
-  // ── Owner: handle decline ───────────────────────────────────────────────
   function handleDecline(peerId: string) {
     startTransition(async () => {
       removeCard(peerId);
@@ -351,26 +347,22 @@ export function DollhouseMailbox({
     });
   }
 
-  // ── Visitor: send card ──────────────────────────────────────────────────
   function handleSendCard() {
     if (!currentUserId || hasSent) return;
     setSendError(null);
-    setHasSent(true); // optimistic
+    setHasSent(true);
 
     startTransition(async () => {
       const result = await sendCallingCard(recipientId, pathname);
       if (!result.success) {
-        setHasSent(false); // revert optimistic
+        setHasSent(false);
         setSendError(result.error ?? 'Something went wrong.');
       }
     });
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
-
   return (
     <>
-      {/* ── CSS keyframe for glow pulse ── */}
       <style>{`
         @keyframes mailboxGlow {
           0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
@@ -379,8 +371,6 @@ export function DollhouseMailbox({
       `}</style>
 
       <div className="flex flex-col items-center gap-1.5 relative">
-
-        {/* ── Status label ABOVE mailbox ── */}
         <AnimatePresence mode="wait">
           {isOwner && hasPending && (
             <motion.div
@@ -436,7 +426,6 @@ export function DollhouseMailbox({
           )}
         </AnimatePresence>
 
-        {/* ── The Mailbox itself ── */}
         <motion.button
           id={isOwner ? 'mailbox-owner' : 'mailbox-visitor'}
           whileHover={!isOwner && peerStatus === 'none' && !hasSent ? { scale: 1.08 } : {}}
@@ -457,16 +446,10 @@ export function DollhouseMailbox({
               : 'Leave Calling Card'
           }
           style={{ cursor: isOwner || (peerStatus === 'none' && !hasSent) ? 'pointer' : 'default' }}
-          title={
-            !isOwner && peerStatus === 'none' && !hasSent && currentUserId
-              ? 'Leave Calling Card · −5 pts'
-              : undefined
-          }
         >
           <MailboxBody hasPending={hasPending} flagUp={flagUp} />
         </motion.button>
 
-        {/* ── Error message ── */}
         <AnimatePresence>
           {sendError && (
             <motion.p
@@ -480,7 +463,6 @@ export function DollhouseMailbox({
           )}
         </AnimatePresence>
 
-        {/* ── Tooltip hint for logged-out visitors ── */}
         {!currentUserId && !isOwner && (
           <p className="text-[9px] text-[--cozy-muted] text-center leading-tight">
             Log in to connect
@@ -488,7 +470,7 @@ export function DollhouseMailbox({
         )}
       </div>
 
-      {/* ── Owner Mailbox Modal ── */}
+      {/* Owner Mailbox Modal */}
       <AnimatePresence>
         {isOwner && isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -502,7 +484,7 @@ export function DollhouseMailbox({
             >
               {/* Modal Header */}
               <div
-                className="px-5 pt-5 pb-4 border-b border-[--cozy-amber]/20"
+                className="px-5 pt-5 pb-3 border-b border-[--cozy-amber]/20"
                 style={{
                   background:
                     'linear-gradient(135deg, rgba(240,192,96,0.12), rgba(232,168,124,0.08))',
@@ -520,12 +502,10 @@ export function DollhouseMailbox({
                     </div>
                     <div>
                       <h3 className="text-base font-800 text-[--cozy-bark] leading-tight">
-                        Your Mailbox
+                        Your Dollhouse Mailbox
                       </h3>
                       <p className="text-[10px] text-[--cozy-muted]">
-                        {optimisticCards.length === 0
-                          ? 'No pending Calling Cards'
-                          : `${optimisticCards.length} Calling Card${optimisticCards.length !== 1 ? 's' : ''} waiting`}
+                        Calling cards & peer support notes
                       </p>
                     </div>
                   </div>
@@ -537,47 +517,95 @@ export function DollhouseMailbox({
                     <X size={16} />
                   </button>
                 </div>
-              </div>
 
-              {/* Cards list */}
-              <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
-                <AnimatePresence mode="popLayout">
-                  {optimisticCards.length === 0 ? (
-                    <motion.div
-                      key="empty"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-8 space-y-2"
-                    >
-                      <Mail size={28} className="mx-auto text-[--cozy-muted] opacity-40" />
-                      <p className="text-sm font-600 text-[--cozy-muted]">All caught up!</p>
-                      <p className="text-xs text-[--cozy-muted] opacity-70">
-                        New Calling Cards will appear here.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    optimisticCards.map((card) => (
-                      <CallingCardRow
-                        key={card.peerId}
-                        card={card}
-                        onAccept={handleAccept}
-                        onDecline={handleDecline}
-                        isPending={isPending}
-                      />
-                    ))
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Footer hint */}
-              {optimisticCards.length > 0 && (
-                <div className="px-5 pb-4 text-center">
-                  <p className="text-[10px] text-[--cozy-muted]">
-                    Accepting awards you{' '}
-                    <span className="text-[--cozy-gold] font-700">+5 pts</span>
-                  </p>
+                {/* Tabs */}
+                <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-amber-100/40">
+                  <button
+                    onClick={() => setActiveTab('cards')}
+                    className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
+                      activeTab === 'cards'
+                        ? 'bg-white text-amber-950 shadow-sm'
+                        : 'text-amber-800 hover:text-amber-950'
+                    }`}
+                  >
+                    Calling Cards ({optimisticCards.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('notes')}
+                    className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
+                      activeTab === 'notes'
+                        ? 'bg-white text-amber-950 shadow-sm'
+                        : 'text-amber-800 hover:text-amber-950'
+                    }`}
+                  >
+                    Private Notes ({privateNotes.length})
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Cards / Notes List */}
+              <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+                {activeTab === 'cards' ? (
+                  <AnimatePresence mode="popLayout">
+                    {optimisticCards.length === 0 ? (
+                      <motion.div
+                        key="empty"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center py-8 space-y-2"
+                      >
+                        <Mail size={28} className="mx-auto text-[--cozy-muted] opacity-40" />
+                        <p className="text-sm font-600 text-[--cozy-muted]">All caught up!</p>
+                        <p className="text-xs text-[--cozy-muted] opacity-70">
+                          New Calling Cards will appear here.
+                        </p>
+                      </motion.div>
+                    ) : (
+                      optimisticCards.map((card) => (
+                        <CallingCardRow
+                          key={card.peerId}
+                          card={card}
+                          onAccept={handleAccept}
+                          onDecline={handleDecline}
+                          isPending={isPending}
+                        />
+                      ))
+                    )}
+                  </AnimatePresence>
+                ) : (
+                  <div className="space-y-2.5">
+                    {privateNotes.length === 0 ? (
+                      <div className="text-center py-8 space-y-2">
+                        <MessageSquareHeart size={28} className="mx-auto text-amber-700 opacity-40" />
+                        <p className="text-sm font-600 text-amber-900">No private notes yet</p>
+                        <p className="text-xs text-amber-700 opacity-75">
+                          Supportive notes from peers will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      privateNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-xs font-800 text-amber-950">
+                            <span className="flex items-center gap-1">
+                              <Heart size={12} className="fill-amber-500 text-amber-500" />
+                              From {note.senderName}
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-500">
+                              {formatTimeAgo(new Date(note.sentAt))}
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-900 font-500 leading-relaxed pt-0.5">
+                            &quot;{note.message}&quot;
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </div>
         )}

@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Crown, Shield } from 'lucide-react';
+import { ChevronLeft, Crown } from 'lucide-react';
 import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
 import { GroupBank } from '@/components/GroupBank';
+import { CommunityBulletinBoard } from '@/components/CommunityBulletinBoard';
+import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
 import { InviteCodePill } from '@/components/InviteCodePill';
 import { AdminGroupModal } from '@/components/AdminGroupModal';
 
@@ -26,6 +28,7 @@ export function GroupDetailClient({
   currentUserId,
 }: GroupDetailClientProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
 
   const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
@@ -92,7 +95,7 @@ export function GroupDetailClient({
             )}
           </div>
 
-          {/* Interactive Invite Code Pill (Copy on click, share on hold) */}
+          {/* Interactive Invite Code Pill */}
           <div className="pt-1">
             <InviteCodePill
               code={group.invite_code}
@@ -104,8 +107,19 @@ export function GroupDetailClient({
           </div>
         </div>
 
-        {/* 2.5D Isometric Map */}
-        <GroupMapView group={group} members={sortedMembers} />
+        {/* 2.5D Isometric Map with Atmospheric Vibe Check */}
+        <GroupMapView
+          group={group}
+          members={sortedMembers}
+          onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+        />
+
+        {/* Community Bulletin Board for Weekly Challenges */}
+        <CommunityBulletinBoard
+          groupId={group.id}
+          isFuturistic={isFuturistic}
+          isAdmin={currentUserRole === 'admin'}
+        />
 
         {/* Group Bank */}
         <GroupBank
@@ -123,7 +137,8 @@ export function GroupDetailClient({
             {sortedMembers.map((member, i) => (
               <div
                 key={member.user_id}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+                onClick={() => setSelectedPeer({ id: member.user_id, name: member.display_name })}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
                 style={{
                   background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
                   border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
@@ -155,19 +170,18 @@ export function GroupDetailClient({
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Link
-                      href={`/${member.display_name}`}
-                      className="text-sm font-700 truncate hover:underline"
+                    <span
+                      className="text-sm font-700 truncate"
                       style={{ color: textPrimary }}
                     >
                       {member.display_name}
-                    </Link>
+                    </span>
                     {member.role === 'admin' && (
                       <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
                     )}
                   </div>
                   <p className="text-xs font-500" style={{ color: textSecondary }}>
-                    {member.points.toLocaleString()} personal pts
+                    {member.points.toLocaleString()} personal pts · Tap to send cheer
                   </p>
                 </div>
 
@@ -184,6 +198,16 @@ export function GroupDetailClient({
             ))}
           </div>
         </div>
+
+        {/* Peer Support Drawer */}
+        {selectedPeer && (
+          <PeerSupportDrawer
+            recipientId={selectedPeer.id}
+            recipientName={selectedPeer.name}
+            isOpen={!!selectedPeer}
+            onClose={() => setSelectedPeer(null)}
+          />
+        )}
 
         {/* Admin Management Modal */}
         {showAdminModal && (
