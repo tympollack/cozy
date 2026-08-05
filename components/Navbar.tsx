@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Home, Camera, User, Users } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
+import { VibePill } from '@/components/VibePill';
 import { createServerClient } from '@/lib/supabase';
 
 export async function Navbar() {
@@ -69,6 +70,7 @@ export async function Navbar() {
                 <User size={16} aria-hidden="true" />
                 <span className="hidden sm:inline">Me</span>
               </Link>
+              <VibePill />
               <PointsBadge />
             </>
           ) : (
@@ -84,3 +86,4 @@ export async function Navbar() {
     </header>
   );
 }
+
