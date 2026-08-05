@@ -12,11 +12,21 @@ import { createServerClient as createSSRServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 // ---------------------------------------------------------------------------
-// Environment variable validation
+// Environment variable helpers
 // ---------------------------------------------------------------------------
+
+/** Returns the env var value, or throws a descriptive error in development.
+ *  In production we return '' so the Supabase client fails gracefully
+ *  (returns an auth error) rather than crashing the Server Component with a 500. */
 function requireEnv(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  if (!value) {
+    if (process.env.NODE_ENV !== 'production') {
+      throw new Error(`Missing required environment variable: ${name}`);
+    }
+    console.error(`[cozy] Missing env var: ${name}`);
+    return '';
+  }
   return value;
 }
 
@@ -31,6 +41,7 @@ export async function createServerClient() {
     requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
     requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     {
+      cookieOptions: { domain: '.sunshade.icu' },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -48,6 +59,7 @@ export async function createServerClient() {
     }
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Service Client (Server Actions only — bypasses RLS)

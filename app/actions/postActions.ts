@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
+import { revalidatePath } from 'next/cache';
 import { uploadToR2, generateR2Key } from '@/lib/r2';
 import { encodeGeohash } from '@/lib/geohash';
 import type { FeedPost } from '@/store/useCozyStore';
@@ -35,14 +36,12 @@ export async function getFeed(cursor?: string): Promise<FeedPayload> {
   const supabase = await createServerClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { posts: [], nextCursor: null };
+  if (authError) {
+    console.error('[getFeed] Auth error:', authError.message);
   }
 
-  const service = createServiceClient();
-
-  const { data, error } = await service.rpc('fetch_feed', {
-    p_user_id: user.id,
+  const { data, error } = await supabase.schema('cozy').rpc('fetch_feed', {
+    p_user_id: user?.id ?? null,
     p_limit: 20,
     p_cursor: cursor ?? null,
   });
@@ -84,8 +83,8 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
   const lightFile = formData.get('light') as File | null;
   const darkFile = formData.get('dark') as File | null;
 
-  if (!lightFile || !darkFile) {
-    return { success: false, error: 'Both a Light and Dark photo are required.' };
+  if (!lightFile && !darkFile) {
+    return { success: false, error: 'Either a Light or Dark photo is required.' };
   }
 
   // --- Privacy: compute geohash, discard raw coords ---
@@ -100,41 +99,73 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       // Precision 4 → ~45km × 45km cell
       obfuscatedHash = encodeGeohash(lat, lng, 4);
     }
-    // lat/lng are NOT stored — only the hash is forwarded
   }
 
   // --- Upload images to R2 ---
   try {
-    const [lightBuffer, darkBuffer] = await Promise.all([
-      lightFile.arrayBuffer().then(Buffer.from),
-      darkFile.arrayBuffer().then(Buffer.from),
-    ]);
+    let lightUrl: string | null = null;
+    if (lightFile) {
+      const lightBuffer = Buffer.from(await lightFile.arrayBuffer());
+      const lightKey = generateR2Key(user.id, 'light', lightFile.type);
+      lightUrl = await uploadToR2(lightBuffer, lightKey, lightFile.type);
+    }
 
-    const lightKey = generateR2Key(user.id, 'light', lightFile.type);
-    const darkKey = generateR2Key(user.id, 'dark', darkFile.type);
+    let darkUrl: string | null = null;
+    if (darkFile) {
+      const darkBuffer = Buffer.from(await darkFile.arrayBuffer());
+      const darkKey = generateR2Key(user.id, 'dark', darkFile.type);
+      darkUrl = await uploadToR2(darkBuffer, darkKey, darkFile.type);
+    }
 
-    const [lightUrl, darkUrl] = await Promise.all([
-      uploadToR2(lightBuffer, lightKey, lightFile.type),
-      uploadToR2(darkBuffer, darkKey, darkFile.type),
-    ]);
-
-    // --- Insert into DB via RPC (awards 10 points) ---
-    const service = createServiceClient();
-    const { data: postId, error: rpcError } = await service.rpc('upload_post', {
+    // --- Insert into DB via RPC (awards 10 points and stores exact coords in vault) ---
+    const { data: postId, error: rpcError } = await supabase.schema('cozy').rpc('upload_post', {
       p_user_id: user.id,
       p_light_img_url: lightUrl,
       p_dark_img_url: darkUrl,
       p_obfuscated_location_hash: obfuscatedHash,
+      p_exact_lat: latRaw ? parseFloat(latRaw.toString()) : null,
+      p_exact_lng: lngRaw ? parseFloat(lngRaw.toString()) : null,
     });
 
     if (rpcError) {
       console.error('[uploadPost] RPC error:', rpcError.message);
-      return { success: false, error: 'Failed to save your post. Please try again.' };
+      return { success: false, error: `RPC Error: ${rpcError.message}` };
     }
 
     return { success: true, postId: postId as string };
   } catch (err) {
     console.error('[uploadPost] Upload error:', err);
-    return { success: false, error: 'Upload failed. Please check your connection.' };
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: `Upload failed: ${msg}` };
   }
+}
+
+/**
+ * Deletes a post owned by the authenticated caller.
+ */
+export async function deletePost(postId: string, path?: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const { error } = await supabase
+    .schema('cozy')
+    .from('posts')
+    .delete()
+    .eq('id', postId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('[deletePost] Error:', error.message);
+    return { success: false, error: 'Failed to delete space.' };
+  }
+
+  revalidatePath('/profile');
+  if (path && path !== '/profile') {
+    revalidatePath(path);
+  }
+  return { success: true };
 }

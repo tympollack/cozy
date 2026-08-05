@@ -1,10 +1,15 @@
 import Link from 'next/link';
-import { Home, Camera } from 'lucide-react';
+import { Home, Camera, User, Users } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
+import { VibePill } from '@/components/VibePill';
+import { createServerClient } from '@/lib/supabase';
 
-export function Navbar() {
+export async function Navbar() {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
-    <header className="fixed top-0 inset-x-0 z-50 cozy-glass border-b border-amber-100/60">
+    <header className="fixed top-0 inset-x-0 z-50 shrink-0 backdrop-blur-md bg-white/20 dark:bg-black/40 border-b border-white/20 shadow-lg">
       <nav
         className="mx-auto max-w-lg px-4 h-14 flex items-center justify-between"
         aria-label="Main navigation"
@@ -33,7 +38,7 @@ export function Navbar() {
           </Link>
 
           <Link
-            href="/camera"
+            href={user ? "/camera" : "https://hub.sunshade.icu/login"}
             id="nav-camera"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
               text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
@@ -43,9 +48,42 @@ export function Navbar() {
             <span className="hidden sm:inline">Upload</span>
           </Link>
 
-          <PointsBadge />
+          {user ? (
+            <>
+              <Link
+                href="/groups"
+                id="nav-groups"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
+                  text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
+                aria-label="My Groups"
+              >
+                <Users size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">Village</span>
+              </Link>
+              <Link
+                href="/profile"
+                id="nav-profile"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
+                  text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
+                aria-label="My Spaces"
+              >
+                <User size={16} aria-hidden="true" />
+                <span className="hidden sm:inline">Me</span>
+              </Link>
+              <VibePill />
+              <PointsBadge />
+            </>
+          ) : (
+            <a
+              href="https://hub.sunshade.icu/login"
+              className="ml-2 text-sm font-700 bg-[--cozy-bark] text-white px-4 py-1.5 rounded-full hover:scale-105 transition-transform"
+            >
+              Sign In
+            </a>
+          )}
         </div>
       </nav>
     </header>
   );
 }
+

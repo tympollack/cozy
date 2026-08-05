@@ -11,12 +11,13 @@ import { Home, RefreshCw } from 'lucide-react';
 interface FeedSwiperProps {
   initialPosts: FeedPost[];
   initialCursor: string | null;
+  isAuthenticated?: boolean;
 }
 
 const CARD_OFFSET = 12;  // px between stacked cards
 const CARD_SCALE  = 0.04; // scale decrement per depth level
 
-export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
+export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = false }: FeedSwiperProps) {
   const { appendFeed, setFeedCursor, feed, feedCursor, removeFromFeed, setPoints, addPoints } =
     useCozyStore();
 
@@ -89,6 +90,27 @@ export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
     setIsDragging(false);
   }, [isDragging, dragX, dismiss]);
 
+  // --- Empty state & Auth gating ---
+  const hitAuthLimit = !isAuthenticated && currentIndex >= 7;
+
+  if (hitAuthLimit) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full max-w-sm mt-12 px-6 text-center">
+        <Home className="w-12 h-12 text-[--cozy-bark] mb-4 opacity-50" />
+        <h2 className="text-xl font-800 text-[--cozy-bark] mb-2">Sign in to see more</h2>
+        <p className="text-[--cozy-muted] mb-8">
+          Join Cozy to keep swiping, share your own space, and cheer on others!
+        </p>
+        <a 
+          href="https://hub.sunshade.icu/login"
+          className="bg-[--cozy-bark] text-white px-8 py-3 rounded-full font-700 shadow-md hover:scale-105 transition-transform"
+        >
+          Sign in with Sunshade Hub
+        </a>
+      </div>
+    );
+  }
+
   // --- Cheer handler ---
   const handleCheer = useCallback(async (postId: string) => {
     const result = await cheerPost(postId);
@@ -141,7 +163,7 @@ export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
   }
 
   return (
-    <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
+    <div className="w-full max-w-lg mx-auto flex-1 flex flex-col items-center justify-center gap-6 overflow-hidden w-full relative">
       {/* Card stack */}
       <div
         id="feed-card-stack"
@@ -167,7 +189,7 @@ export function FeedSwiper({ initialPosts, initialCursor }: FeedSwiperProps) {
                 transition: isDragging && isTop ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1)',
               }}
               onPointerDown={isTop ? onPointerDown : undefined}
-              className={`swipe-card ${isTop ? 'card-enter' : ''}`}
+              className={`swipe-card absolute inset-0 m-auto ${isTop ? 'card-enter' : ''}`}
               aria-hidden={!isTop}
             >
               <PostCard

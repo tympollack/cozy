@@ -1,0 +1,224 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { ChevronLeft, Crown } from 'lucide-react';
+import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
+import { GROUP_TYPE_META } from '@/config/groupDefinitions';
+import { GroupMapView } from '@/components/GroupMapView';
+import { GroupBank } from '@/components/GroupBank';
+import { CommunityBulletinBoard } from '@/components/CommunityBulletinBoard';
+import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
+import { InviteCodePill } from '@/components/InviteCodePill';
+import { AdminGroupModal } from '@/components/AdminGroupModal';
+
+interface GroupDetailClientProps {
+  group: GroupRow;
+  members: GroupMemberRow[];
+  currentUserRole: 'admin' | 'member' | null;
+  memberCount: number;
+  currentUserId: string;
+}
+
+export function GroupDetailClient({
+  group,
+  members,
+  currentUserRole,
+  memberCount,
+  currentUserId,
+}: GroupDetailClientProps) {
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
+
+  const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
+  const isFuturistic = meta.palette === 'futuristic';
+
+  const bgStyle = isFuturistic
+    ? 'linear-gradient(160deg, #050810 0%, #080f1e 50%, #060c18 100%)'
+    : 'linear-gradient(160deg, #faf7f2 0%, #f5ede0 60%, #ede0cc 100%)';
+
+  const textPrimary = isFuturistic ? '#e0f4ff' : '#1a1410';
+  const textSecondary = isFuturistic ? '#60a0bc' : '#8a7060';
+  const accentColor = isFuturistic ? '#00dcff' : '#f0c060';
+
+  // Sort members: admins first, then by points desc
+  const sortedMembers = [...members].sort((a, b) => {
+    if (a.role === 'admin' && b.role !== 'admin') return -1;
+    if (b.role === 'admin' && a.role !== 'admin') return 1;
+    return b.points - a.points;
+  });
+
+  return (
+    <div
+      className="flex-1 w-full overflow-y-auto min-h-full pb-28"
+      style={{ background: bgStyle }}
+    >
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Back link */}
+        <Link
+          href="/groups"
+          className="inline-flex items-center gap-1.5 text-sm font-600 transition-opacity hover:opacity-70"
+          style={{ color: textSecondary }}
+        >
+          <ChevronLeft size={16} />
+          All Groups
+        </Link>
+
+        {/* Group header */}
+        <div className="space-y-2">
+          <div className="flex items-start gap-3">
+            <span className="text-4xl mt-0.5">{meta.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
+                {group.name}
+              </h1>
+              <p className="text-sm font-500 mt-0.5" style={{ color: textSecondary }}>
+                {meta.label} · {memberCount} / {group.max_members} members
+              </p>
+            </div>
+
+            {/* Admin Badge — Click to manage group */}
+            {currentUserRole === 'admin' && (
+              <button
+                onClick={() => setShowAdminModal(true)}
+                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-800 px-3 py-1.5 rounded-2xl mt-1 transition-all hover:scale-105 active:scale-95 shadow-md border cursor-pointer"
+                style={{
+                  background: isFuturistic ? 'rgba(168,85,247,0.22)' : 'rgba(240,192,96,0.25)',
+                  color: isFuturistic ? '#e9d5ff' : '#9a441e',
+                  borderColor: isFuturistic ? 'rgba(168,85,247,0.45)' : 'rgba(240,192,96,0.60)',
+                }}
+                title="Manage Group Options & Members"
+              >
+                <Crown size={13} className="text-amber-500" />
+                <span>Admin</span>
+              </button>
+            )}
+          </div>
+
+          {/* Interactive Invite Code Pill */}
+          <div className="pt-1">
+            <InviteCodePill
+              code={group.invite_code}
+              groupName={group.name}
+              isFuturistic={isFuturistic}
+              accentColor={accentColor}
+              textColor={textSecondary}
+            />
+          </div>
+        </div>
+
+        {/* 2.5D Isometric Map with Atmospheric Vibe Check */}
+        <GroupMapView
+          group={group}
+          members={sortedMembers}
+          onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+        />
+
+        {/* Community Bulletin Board for Weekly Challenges */}
+        <CommunityBulletinBoard
+          groupId={group.id}
+          isFuturistic={isFuturistic}
+          isAdmin={currentUserRole === 'admin'}
+        />
+
+        {/* Group Bank */}
+        <GroupBank
+          group={group}
+          currentUserRole={currentUserRole}
+          memberCount={memberCount}
+        />
+
+        {/* Members roster */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-800" style={{ color: textSecondary }}>
+            Members ({memberCount})
+          </h2>
+          <div className="space-y-2">
+            {sortedMembers.map((member, i) => (
+              <div
+                key={member.user_id}
+                onClick={() => setSelectedPeer({ id: member.user_id, name: member.display_name })}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
+                style={{
+                  background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
+                  border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
+                }}
+              >
+                {/* Avatar */}
+                {member.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={member.avatar_url}
+                    alt={member.display_name}
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2"
+                    style={{ borderColor: isFuturistic ? '#00dcff' : '#e8a87c' }}
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-800 flex-shrink-0 border-2"
+                    style={{
+                      background: isFuturistic
+                        ? 'linear-gradient(135deg, #1e1060, #0d3060)'
+                        : 'linear-gradient(135deg, #c4704a, #e8a87c)',
+                      borderColor: isFuturistic ? '#00dcff' : '#e8a87c',
+                      color: isFuturistic ? '#00dcff' : '#faf7f2',
+                    }}
+                  >
+                    {member.display_name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className="text-sm font-700 truncate"
+                      style={{ color: textPrimary }}
+                    >
+                      {member.display_name}
+                    </span>
+                    {member.role === 'admin' && (
+                      <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
+                    )}
+                  </div>
+                  <p className="text-xs font-500" style={{ color: textSecondary }}>
+                    {member.points.toLocaleString()} personal pts · Tap to send cheer
+                  </p>
+                </div>
+
+                <span
+                  className="text-[10px] font-600 px-2 py-0.5 rounded-full"
+                  style={{
+                    background: isFuturistic ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                    color: textSecondary,
+                  }}
+                >
+                  #{i + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Peer Support Drawer */}
+        {selectedPeer && (
+          <PeerSupportDrawer
+            recipientId={selectedPeer.id}
+            recipientName={selectedPeer.name}
+            isOpen={!!selectedPeer}
+            onClose={() => setSelectedPeer(null)}
+          />
+        )}
+
+        {/* Admin Management Modal */}
+        {showAdminModal && (
+          <AdminGroupModal
+            group={group}
+            members={sortedMembers}
+            currentUserId={currentUserId}
+            onClose={() => setShowAdminModal(false)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

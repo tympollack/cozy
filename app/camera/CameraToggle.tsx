@@ -17,7 +17,7 @@ export function CameraToggle({ activeMode, onChange }: CameraToggleProps) {
         type="button"
         onClick={() => onChange('light')}
         aria-pressed={activeMode === 'light'}
-        className={`toggle-option flex items-center gap-2 ${activeMode === 'light' ? 'active' : ''}`}
+        className={`toggle-option flex items-center gap-2 ${activeMode === 'light' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400'}`}
       >
         <Sun size={15} aria-hidden="true" />
         Light Mode
@@ -27,7 +27,7 @@ export function CameraToggle({ activeMode, onChange }: CameraToggleProps) {
         type="button"
         onClick={() => onChange('dark')}
         aria-pressed={activeMode === 'dark'}
-        className={`toggle-option flex items-center gap-2 ${activeMode === 'dark' ? 'active' : ''}`}
+        className={`toggle-option flex items-center gap-2 ${activeMode === 'dark' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400'}`}
       >
         <Moon size={15} aria-hidden="true" />
         Dark Mode
