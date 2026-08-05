@@ -1,7 +1,7 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabase';
-import { updateVibeStatus, type VibeStatus } from './vibeActions';
+import { createServerClient, createServiceClient } from '@/lib/supabase';
+import { updateVibeStatus } from './vibeActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +32,9 @@ export interface WaterfallConfigResult {
   message?: string;
   error?: string;
 }
+
+/** In-memory fallback cache for porch items when DB table is not created in dev */
+const porchMemoryStore = new Map<string, PorchItem[]>();
 
 // ---------------------------------------------------------------------------
 // setRaincloudCascade
@@ -94,6 +97,10 @@ export async function sendPorchWarmth(
   itemType: PorchItemType = 'tea',
   message?: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (!recipientUserId) {
+    return { success: false, error: 'Recipient user ID is required.' };
+  }
+
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -101,22 +108,48 @@ export async function sendPorchWarmth(
     return { success: false, error: 'Authentication required.' };
   }
 
-  // Store in cozy.porch_items table (or fallback schema)
-  const { error } = await supabase
-    .schema('cozy')
-    .from('post_stickers') // Uses sticker/gift structure or cozy.porch_items
-    .insert({
-      post_id: null,
-      placed_by_user_id: user.id,
-      sticker_url: `/porch/${itemType}.png`,
-      cost: 0,
-      x_percent: 50,
-      y_percent: 50,
-    });
+  const service = createServiceClient();
 
-  if (error) {
-    // Graceful fallback for demo state
-    console.info(`[sendPorchWarmth] Warmth item '${itemType}' sent from ${user.id} to ${recipientUserId}`);
+  // Get sender name
+  const { data: senderData } = await service
+    .schema('cozy')
+    .from('users')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const senderName = senderData?.display_name || user.email?.split('@')[0] || 'A Neighbor';
+
+  const newItem: PorchItem = {
+    id: `porch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    senderId: user.id,
+    senderName,
+    itemType,
+    message: message || `Left a cozy ${itemType} on your porch!`,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const { error: dbError } = await service
+      .schema('cozy')
+      .from('porch_items')
+      .insert({
+        recipient_id: recipientUserId,
+        sender_id: user.id,
+        sender_name: senderName,
+        item_type: itemType,
+        message: newItem.message,
+        created_at: newItem.createdAt,
+      });
+
+    if (dbError) {
+      // Memory store fallback for recipient
+      const existing = porchMemoryStore.get(recipientUserId) || [];
+      porchMemoryStore.set(recipientUserId, [newItem, ...existing]);
+    }
+  } catch {
+    const existing = porchMemoryStore.get(recipientUserId) || [];
+    porchMemoryStore.set(recipientUserId, [newItem, ...existing]);
   }
 
   return { success: true };
@@ -125,8 +158,7 @@ export async function sendPorchWarmth(
 // ---------------------------------------------------------------------------
 // getPorchDigest
 //
-// Fetches accumulated porch items and generates soft consolidated digest:
-// "3 campmates left cozy thoughts on your porch. Tap to open whenever you feel up to it."
+// Fetches accumulated porch items for the target recipient and generates soft consolidated digest.
 // ---------------------------------------------------------------------------
 
 export async function getPorchDigest(targetUserId?: string): Promise<PorchDigestResult> {
@@ -138,42 +170,41 @@ export async function getPorchDigest(targetUserId?: string): Promise<PorchDigest
     return { success: false, items: [], error: 'User required' };
   }
 
-  // Sample items for demonstration
-  const sampleItems: PorchItem[] = [
-    {
-      id: 'porch-1',
-      senderId: 'user-a',
-      senderName: 'Maya',
-      itemType: 'tea',
-      message: 'Left some warm chamomile tea on your porch. Rest up! ☕',
-      createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    },
-    {
-      id: 'porch-2',
-      senderId: 'user-b',
-      senderName: 'Leo',
-      itemType: 'blanket',
-      message: 'Wrapped a cozy blanket for you. No need to reply! 🧧',
-      createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    },
-    {
-      id: 'porch-3',
-      senderId: 'user-c',
-      senderName: 'Kai',
-      itemType: 'crystal',
-      message: 'Sending calm grounding vibes your way. 🔮',
-      createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    },
-  ];
+  let items: PorchItem[] = [];
 
-  const count = sampleItems.length;
+  const service = createServiceClient();
+  try {
+    const { data: dbData, error: dbError } = await service
+      .schema('cozy')
+      .from('porch_items')
+      .select('*')
+      .eq('recipient_id', uid)
+      .order('created_at', { ascending: false });
+
+    if (!dbError && dbData && dbData.length > 0) {
+      items = dbData.map((row) => ({
+        id: row.id,
+        senderId: row.sender_id,
+        senderName: row.sender_name || 'A Neighbor',
+        itemType: (row.item_type as PorchItemType) || 'tea',
+        message: row.message,
+        createdAt: row.created_at,
+      }));
+    } else {
+      items = porchMemoryStore.get(uid) || [];
+    }
+  } catch {
+    items = porchMemoryStore.get(uid) || [];
+  }
+
+  const count = items.length;
   const digestText = count > 0
-    ? `${count} campmates left cozy thoughts on your porch. Open when you feel up to it.`
+    ? `${count} campmate${count > 1 ? 's' : ''} left cozy thoughts on your porch. Open when you feel up to it.`
     : undefined;
 
   return {
     success: true,
-    items: sampleItems,
+    items,
     digestText,
   };
 }

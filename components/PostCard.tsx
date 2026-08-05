@@ -62,15 +62,17 @@ function StickerLayer({ sticker, postId }: { sticker: PostSticker; postId: strin
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={sticker.sticker_url}
-        alt="Sticker"
+        alt="Decorative sticker attached to post"
         loading="lazy"
         className="w-10 h-10 object-contain drop-shadow-md select-none pointer-events-none"
         style={{ opacity: Math.max(opacity, 0.2) }}
       />
       {opacity < 1.0 && (
         <button
+          id={`reup-btn-${sticker.id}`}
           onClick={handleReup}
           disabled={isPending}
+          aria-label={`Re-up sticker for ${reupCost} points`}
           className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-700 whitespace-nowrap bg-black/70 text-white/90 hover:bg-black/90 transition-colors shadow-md"
         >
           <RefreshCw size={8} className={isPending ? 'animate-spin' : ''} />
@@ -143,7 +145,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
     <div
       ref={containerRef}
       style={style}
-      className={`relative w-full h-[100dvh] max-w-md mx-auto bg-stone-900 text-stone-100 overflow-hidden flex flex-col justify-between p-4 font-sans select-none rounded-3xl border border-white/10 shadow-2xl ${className}`}
+      className={`relative w-full h-full max-w-md mx-auto bg-stone-900 text-stone-100 overflow-hidden flex flex-col justify-between p-4 font-sans select-none rounded-3xl border border-white/10 shadow-2xl ${className}`}
     >
       {/* ── 1. TOP FLOATING GLASS HEADER ───────────────────────────────── */}
       <div className="z-20 flex items-center justify-between w-full p-3 rounded-2xl bg-white/10 dark:bg-black/30 backdrop-blur-md border border-white/20 shadow-lg">
@@ -244,7 +246,9 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
       <div className="z-20 w-full p-4 rounded-3xl bg-white/10 dark:bg-black/40 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col space-y-3">
         {/* Post Caption */}
         <div className="text-sm text-stone-100 font-medium line-clamp-2">
-          <span className="font-bold text-amber-300">@cozy_creator: </span>
+          <span className="font-bold text-amber-300">
+            @neighbor_{post.user_id ? post.user_id.slice(0, 6) : 'creator'}:{' '}
+          </span>
           Shared a beautiful sanctuary. Rest up and stay cozy.
         </div>
 
@@ -252,8 +256,10 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
         <div className="flex items-center justify-between pt-1">
           {/* Cheer Button */}
           <motion.button
+            id={`cheer-btn-${post.id}`}
             onClick={handleCheer}
             disabled={cheered || cheering}
+            aria-label={`Cheer this post (${cheerCount})`}
             whileTap={{ scale: 0.95 }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-full font-bold text-xs shadow-lg transition-all ${
               cheered

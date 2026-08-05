@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getUserProfileData } from '@/app/actions/profileActions';
+import { getPorchDigest } from '@/app/actions/waterfallActions';
 import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
+import { PorchHoldingPen } from '@/components/PorchHoldingPen';
 import { ProfileGrid } from './ProfileGrid';
 import { Sparkles, Home, Archive } from 'lucide-react';
 
@@ -22,6 +24,7 @@ export default async function ProfilePage() {
   }
 
   const { posts, shellType, isOwner, error } = await getUserProfileData(user.id);
+  const porchDigest = await getPorchDigest(user.id);
   const currentShellDef = getShellDefinition(shellType);
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
@@ -57,6 +60,9 @@ export default async function ProfilePage() {
             <span>New Space</span>
           </Link>
         </div>
+
+        {/* Porch Holding Pen */}
+        <PorchHoldingPen items={porchDigest.items} />
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-2xl">
