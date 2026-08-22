@@ -22,7 +22,7 @@ interface GroupDetailClientProps {
 
 export function GroupDetailClient({
   group,
-  members,
+  members = [],
   currentUserRole,
   memberCount,
   currentUserId,
@@ -30,7 +30,22 @@ export function GroupDetailClient({
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
 
-  const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
+  const safeGroup = group || {
+    id: '',
+    name: 'Cozy Group',
+    type: 'household',
+    min_members: 1,
+    max_members: 10,
+    pooled_points: 0,
+    theme_id: 'default_dollhouse',
+    invite_code: '',
+    created_at: new Date().toISOString(),
+  };
+
+  const safeMembers = Array.isArray(members) ? members : [];
+  const safeCount = memberCount ?? safeMembers.length ?? 1;
+
+  const meta = GROUP_TYPE_META[safeGroup.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
 
   const bgStyle = isFuturistic
@@ -42,10 +57,10 @@ export function GroupDetailClient({
   const accentColor = isFuturistic ? '#00dcff' : '#f0c060';
 
   // Sort members: admins first, then by points desc
-  const sortedMembers = [...members].sort((a, b) => {
+  const sortedMembers = [...safeMembers].sort((a, b) => {
     if (a.role === 'admin' && b.role !== 'admin') return -1;
     if (b.role === 'admin' && a.role !== 'admin') return 1;
-    return b.points - a.points;
+    return (b.points || 0) - (a.points || 0);
   });
 
   return (
@@ -70,10 +85,10 @@ export function GroupDetailClient({
             <span className="text-4xl mt-0.5">{meta.emoji}</span>
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
-                {group.name}
+                {safeGroup.name}
               </h1>
               <p className="text-sm font-500 mt-0.5" style={{ color: textSecondary }}>
-                {meta.label} · {memberCount} / {group.max_members} members
+                {meta.label} · {safeCount} / {safeGroup.max_members} members
               </p>
             </div>
 
@@ -98,8 +113,8 @@ export function GroupDetailClient({
           {/* Interactive Invite Code Pill */}
           <div className="pt-1">
             <InviteCodePill
-              code={group.invite_code}
-              groupName={group.name}
+              code={safeGroup.invite_code}
+              groupName={safeGroup.name}
               isFuturistic={isFuturistic}
               accentColor={accentColor}
               textColor={textSecondary}
@@ -109,29 +124,29 @@ export function GroupDetailClient({
 
         {/* 2.5D Isometric Map with Atmospheric Vibe Check */}
         <GroupMapView
-          group={group}
+          group={safeGroup}
           members={sortedMembers}
           onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}
         <CommunityBulletinBoard
-          groupId={group.id}
+          groupId={safeGroup.id}
           isFuturistic={isFuturistic}
           isAdmin={currentUserRole === 'admin'}
         />
 
         {/* Group Bank */}
         <GroupBank
-          group={group}
+          group={safeGroup}
           currentUserRole={currentUserRole}
-          memberCount={memberCount}
+          memberCount={safeCount}
         />
 
         {/* Members roster */}
         <div className="space-y-3">
           <h2 className="text-sm font-800" style={{ color: textSecondary }}>
-            Members ({memberCount})
+            Members ({safeCount})
           </h2>
           <div className="space-y-2">
             {sortedMembers.map((member, i) => (

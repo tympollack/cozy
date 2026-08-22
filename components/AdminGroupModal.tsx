@@ -239,8 +239,9 @@ export function AdminGroupModal({
         {/* Tab 2: Member Management */}
         {activeTab === 'members' && (
           <div className="space-y-3 overflow-y-auto pr-1 flex-1">
-            {members.map((member) => {
+            {(Array.isArray(members) ? members : []).map((member) => {
               const isSelf = member.user_id === currentUserId;
+              const displayName = member.display_name || 'Cozy Neighbor';
 
               return (
                 <div
@@ -249,16 +250,16 @@ export function AdminGroupModal({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-full bg-amber-400/80 flex items-center justify-center text-xs font-800 text-stone-900 flex-shrink-0">
-                      {member.display_name.slice(0, 2).toUpperCase()}
+                      {displayName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-700 text-[--cozy-bark] truncate flex items-center gap-1">
-                        <span>{member.display_name}</span>
+                        <span>{displayName}</span>
                         {member.role === 'admin' && <Crown size={11} className="text-amber-500 flex-shrink-0" />}
                         {isSelf && <span className="text-[10px] opacity-60">(You)</span>}
                       </p>
                       <p className="text-[10px] text-[--cozy-muted]">
-                        {member.points} personal pts · {member.role}
+                        {member.points ?? 0} personal pts · {member.role}
                       </p>
                     </div>
                   </div>

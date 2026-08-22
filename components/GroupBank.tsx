@@ -200,25 +200,27 @@ interface GroupBankProps {
 }
 
 export function GroupBank({ group, currentUserRole, memberCount }: GroupBankProps) {
-  const [pooledPoints, setPooledPoints] = useState(group.pooled_points);
+  const [pooledPoints, setPooledPoints] = useState(group?.pooled_points ?? 0);
   const [showContribute, setShowContribute] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [isPendingUpgrade, startUpgradeTransition] = useTransition();
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
 
-  const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
+  const groupType = group?.type || 'household';
+  const meta = GROUP_TYPE_META[groupType] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
 
   // Find next tier
-  const nextType = UPGRADE_PATH[group.type];
+  const nextType = UPGRADE_PATH[groupType];
   const nextMeta = nextType ? GROUP_TYPE_META[nextType] : null;
 
   // Determine unlocked cosmetics
-  const unlockedCount = UNLOCK_TIERS.filter((t) => pooledPoints >= t.points).length;
-  const nextUnlock = UNLOCK_TIERS.find((t) => pooledPoints < t.points);
+  const currentPoints = pooledPoints ?? 0;
+  const unlockedCount = UNLOCK_TIERS.filter((t) => currentPoints >= t.points).length;
+  const nextUnlock = UNLOCK_TIERS.find((t) => currentPoints < t.points);
   const progressToNext = nextUnlock
-    ? Math.min((pooledPoints / nextUnlock.points) * 100, 100)
+    ? Math.min((currentPoints / nextUnlock.points) * 100, 100)
     : 100;
 
   function handleUpgrade() {
