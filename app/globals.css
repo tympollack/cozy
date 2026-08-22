@@ -246,3 +246,27 @@ body {
   animation: reup-flash 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+
+/* ─── Locked slot land plot ──────────────────────────────────────────────── */
+
+.cozy-land-plot {
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0.45;
+}
+
+@keyframes shimmer-plot {
+  0%   { opacity: 0.06; }
+  50%  { opacity: 0.14; }
+  100% { opacity: 0.06; }
+}
+
+.plot-shimmer {
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    rgba(240, 192, 96, 0.18) 50%,
+    transparent 80%
+  );
+  animation: shimmer-plot 4s ease-in-out infinite;
+}
+
