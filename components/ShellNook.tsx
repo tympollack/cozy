@@ -2,16 +2,19 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Eye, Unlink, Sparkles } from 'lucide-react';
+import { Plus, Eye, Unlink, Lock, Sparkles } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { calcStickerOpacity } from '@/lib/stickerMath';
 import type { UserPost } from '@/store/useCozyStore';
 import type { ShellSlot } from '@/config/shellDefinitions';
+import { TIER_NAMES } from '@/config/shellDefinitions';
 
 interface ShellNookProps {
   slot: ShellSlot;
   post?: UserPost;
   isOwner: boolean;
+  /** When true the slot is tier-locked and shows a "land plot" placeholder. */
+  isLocked?: boolean;
   onSelectEmptySlot: (slot: ShellSlot) => void;
   onUnassignPost: (postId: string) => void;
   onViewPost: (post: UserPost) => void;
@@ -21,11 +24,45 @@ export function ShellNook({
   slot,
   post,
   isOwner,
+  isLocked = false,
   onSelectEmptySlot,
   onUnassignPost,
   onViewPost,
 }: ShellNookProps) {
   const activeUrl = post ? post.light_img_url || post.dark_img_url : null;
+
+  // ── Locked slot: gentle "land plot" placeholder ──────────────────────────
+  if (isLocked) {
+    return (
+      <div
+        className="absolute z-10"
+        style={{
+          left: `${slot.x}%`,
+          top: `${slot.y}%`,
+          width: `${slot.w}%`,
+          height: `${slot.h}%`,
+        }}
+      >
+        <div
+          className="cozy-land-plot w-full h-full rounded-2xl
+            flex flex-col items-center justify-center gap-1.5 text-center
+            border border-white/10 select-none overflow-hidden relative"
+        >
+          {/* Subtle animated shimmer layer */}
+          <div className="plot-shimmer absolute inset-0" />
+
+          <Lock
+            size={14}
+            className="text-white/25 relative z-10"
+            aria-hidden
+          />
+          <p className="text-[9px] font-600 text-white/25 relative z-10 leading-tight px-2">
+            {TIER_NAMES[slot.tier]}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -153,8 +190,7 @@ export function ShellNook({
         /* Empty Nook (Visitor View) */
         <div className="w-full h-full rounded-2xl p-2
           bg-white/5 backdrop-blur-[2px] border border-white/10
-          flex flex-col items-center justify-center gap-1 text-center opacity-60"
-        >
+          flex flex-col items-center justify-center gap-1 text-center opacity-60">
           <span className="text-lg">{slot.icon}</span>
           <p className="text-[10px] font-600 text-white/60 leading-tight">
             {slot.label}

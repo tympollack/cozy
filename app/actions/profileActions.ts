@@ -11,6 +11,9 @@ export interface UserPostsPayload {
 export interface UserProfilePayload {
   posts: UserPost[];
   shellType: string;
+  expansionTier: number;
+  milestoneTokens: number;
+  themesUnlocked: boolean;
   isOwner: boolean;
   userId: string | null;
   error?: string;
@@ -46,7 +49,7 @@ export async function getUserPosts(): Promise<UserPostsPayload> {
 }
 
 /**
- * Fetches comprehensive profile payload (shellChoice + posts + owner flag).
+ * Fetches comprehensive profile payload (shellChoice + posts + owner flag + expansion state).
  */
 export async function getUserProfileData(targetUserId?: string): Promise<UserProfilePayload> {
   const supabase = await createServerClient();
@@ -59,6 +62,9 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
     return {
       posts: [],
       shellType: 'default_dollhouse',
+      expansionTier: 1,
+      milestoneTokens: 0,
+      themesUnlocked: false,
       isOwner: false,
       userId: null,
       error: 'User not found or authentication required.',
@@ -67,19 +73,22 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
 
   const isOwner = currentUserId === activeUserId;
 
-  // 1. Fetch user's shell_type
-  const { data: userData, error: userErr } = await supabase
+  // 1. Fetch user's shell_type + expansion state via updated get_user_shell RPC
+  const { data: shellData, error: shellErr } = await supabase
     .schema('cozy')
-    .from('users')
-    .select('shell_type')
-    .eq('id', activeUserId)
-    .maybeSingle();
+    .rpc('get_user_shell', { p_user_id: activeUserId });
 
-  if (userErr) {
-    console.error('[getUserProfileData] User fetch error:', userErr.message);
+  if (shellErr) {
+    console.error('[getUserProfileData] Shell RPC error:', shellErr.message);
   }
 
-  const shellType = userData?.shell_type || 'default_dollhouse';
+  // RPC returns a single-row TABLE; Supabase JS returns it as an array
+  const shellRow = Array.isArray(shellData) ? shellData[0] : shellData;
+
+  const shellType = shellRow?.shell_type || 'default_dollhouse';
+  const expansionTier: number = shellRow?.expansion_tier ?? 1;
+  const milestoneTokens: number = shellRow?.milestone_tokens ?? 0;
+  const themesUnlocked: boolean = shellRow?.themes_unlocked ?? false;
 
   // 2. Fetch user's posts via RPC
   const { data: postsData, error: postsErr } = await supabase
@@ -91,6 +100,9 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
     return {
       posts: [],
       shellType,
+      expansionTier,
+      milestoneTokens,
+      themesUnlocked,
       isOwner,
       userId: activeUserId,
       error: postsErr.message,
@@ -100,6 +112,9 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
   return {
     posts: (postsData ?? []) as UserPost[],
     shellType,
+    expansionTier,
+    milestoneTokens,
+    themesUnlocked,
     isOwner,
     userId: activeUserId,
   };

@@ -2,10 +2,17 @@
 
 import { createServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
-import { SHELL_DEFINITIONS } from '@/config/shellDefinitions';
+import { SHELL_DEFINITIONS, getActiveSlots } from '@/config/shellDefinitions';
 
 export interface ShellActionResult {
   success: boolean;
+  error?: string;
+}
+
+export interface RedeemTokenResult {
+  success: boolean;
+  newTier?: number;
+  tokensRemaining?: number;
   error?: string;
 }
 
@@ -193,4 +200,44 @@ export async function getUserShell(userId?: string): Promise<string> {
 
   if (error || !data) return 'default_dollhouse';
   return data.shell_type || 'default_dollhouse';
+}
+
+/**
+ * Redeems milestone tokens to unlock the next expansion tier.
+ * Calls the cozy.redeem_expansion_token RPC for atomic validation + deduction.
+ */
+export async function redeemExpansionToken(
+  targetTier: number,
+  path?: string
+): Promise<RedeemTokenResult> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const { data, error } = await supabase.schema('cozy').rpc('redeem_expansion_token', {
+    p_user_id: user.id,
+    p_target_tier: targetTier,
+  });
+
+  if (error) {
+    console.error('[redeemExpansionToken] RPC error:', error.message);
+    return { success: false, error: 'Failed to redeem expansion token.' };
+  }
+
+  // RPC returns a single-row TABLE; Supabase JS returns it as an array
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (!row?.success) {
+    return { success: false, error: row?.error_message || 'Redemption failed.' };
+  }
+
+  revalidateShellPaths(path);
+  return {
+    success: true,
+    newTier: row.new_tier,
+    tokensRemaining: row.tokens_remaining,
+  };
 }

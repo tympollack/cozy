@@ -55,24 +55,16 @@ export default function CameraPage() {
       setter({ file, preview: instantPreview });
       setActivePickerModalMode(null);
 
-      // 2. Only run background conversion if file is HEIC/HEIF
-      const isHeic =
-        file.name.toLowerCase().endsWith('.heic') ||
-        file.name.toLowerCase().endsWith('.heif') ||
-        file.type === 'image/heic' ||
-        file.type === 'image/heif';
-
-      if (isHeic) {
-        setIsProcessingFile(true);
-        try {
-          const processedFile = await processImageFile(file);
-          const processedPreview = URL.createObjectURL(processedFile);
-          setter({ file: processedFile, preview: processedPreview });
-        } catch (err) {
-          console.error('HEIC processing error:', err);
-        } finally {
-          setIsProcessingFile(false);
-        }
+      // 2. Background image processing & compression (native HEIC decode + 1600px canvas JPEG)
+      setIsProcessingFile(true);
+      try {
+        const processedFile = await processImageFile(file);
+        const processedPreview = URL.createObjectURL(processedFile);
+        setter({ file: processedFile, preview: processedPreview });
+      } catch (err) {
+        console.error('Image processing error:', err);
+      } finally {
+        setIsProcessingFile(false);
       }
     },
     []

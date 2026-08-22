@@ -117,8 +117,8 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       darkUrl = await uploadToR2(darkBuffer, darkKey, darkFile.type);
     }
 
-    // --- Insert into DB via RPC (awards 10 points and stores exact coords in vault) ---
-    const { data: postId, error: rpcError } = await supabase.schema('cozy').rpc('upload_post', {
+    // --- Insert into DB via RPC (awards 20/50 points, milestone tokens, and stores exact coords in vault) ---
+    const { data: uploadResult, error: rpcError } = await supabase.schema('cozy').rpc('upload_post', {
       p_user_id: user.id,
       p_light_img_url: lightUrl,
       p_dark_img_url: darkUrl,
@@ -132,7 +132,10 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       return { success: false, error: `RPC Error: ${rpcError.message}` };
     }
 
-    return { success: true, postId: postId as string };
+    const row = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult;
+    const extractedPostId = typeof row === 'string' ? row : (row?.post_id || row?.id || uploadResult);
+
+    return { success: true, postId: extractedPostId as string };
   } catch (err) {
     console.error('[uploadPost] Upload error:', err);
     const msg = err instanceof Error ? err.message : 'Unknown error';

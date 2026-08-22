@@ -8,6 +8,7 @@ import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
 import { PorchHoldingPen } from '@/components/PorchHoldingPen';
 import { ProfileGrid } from './ProfileGrid';
+import { StickerTutorialCallout } from './StickerTutorialCallout';
 import { Sparkles, Home, Archive } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -23,12 +24,24 @@ export default async function ProfilePage() {
     redirect('https://hub.sunshade.icu/login');
   }
 
-  const { posts, shellType, isOwner, error } = await getUserProfileData(user.id);
+  const {
+    posts,
+    shellType,
+    expansionTier,
+    milestoneTokens,
+    themesUnlocked,
+    isOwner,
+    error,
+  } = await getUserProfileData(user.id);
+
   const porchDigest = await getPorchDigest(user.id);
   const currentShellDef = getShellDefinition(shellType);
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
   const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
+
+  // Show sticker tutorial only after first upload (tokens earned) and not yet dismissed
+  const showStickerTutorial = posts.length > 0 && milestoneTokens >= 100;
 
   return (
     <div
@@ -61,6 +74,9 @@ export default async function ProfilePage() {
           </Link>
         </div>
 
+        {/* Sticker Tutorial Callout (client component — checks Zustand flag) */}
+        {showStickerTutorial && <StickerTutorialCallout tokens={milestoneTokens} />}
+
         {/* Porch Holding Pen */}
         <PorchHoldingPen items={porchDigest.items} />
 
@@ -73,11 +89,11 @@ export default async function ProfilePage() {
         {posts.length === 0 ? (
           <div className="text-center py-20 space-y-4 bg-white/50 backdrop-blur-md rounded-3xl border border-[--cozy-amber]/20 p-8">
             <div className="text-6xl animate-bounce" role="img" aria-label="House">
-              🏡
+              🪴
             </div>
-            <h3 className="text-lg font-700 text-[--cozy-bark]">Your Shell is Empty</h3>
+            <h3 className="text-lg font-700 text-[--cozy-bark]">Your Corner Awaits</h3>
             <p className="text-sm text-[--cozy-muted] max-w-sm mx-auto">
-              Share your first cozy room photo to populate your 2.5D dollhouse nooks!
+              Share your first cozy space photo to claim your corner and earn your first 100 tokens!
             </p>
             <Link
               href="/camera"
@@ -85,7 +101,7 @@ export default async function ProfilePage() {
                 font-700 text-white bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
                 cozy-shadow hover:opacity-90 transition-opacity"
             >
-              Share Your Space ✨
+              Claim Your Corner ✨
             </Link>
           </div>
         ) : (
@@ -94,6 +110,9 @@ export default async function ProfilePage() {
             <div className="space-y-3">
               <ProfileShell
                 initialShellType={shellType}
+                initialExpansionTier={expansionTier}
+                initialMilestoneTokens={milestoneTokens}
+                themesUnlocked={themesUnlocked}
                 posts={posts}
                 isOwner={isOwner}
               />
