@@ -352,7 +352,7 @@ export function GroupMapView({ group, members = [], onSelectPeer }: GroupMapView
           : '0 8px 40px rgba(122,79,58,0.18)',
       }}
     >
-      {group.type === 'space_station' && <StarField />}
+      {group?.type === 'space_station' && <StarField />}
 
       {/* Type badge */}
       <div className="absolute top-3 left-4 z-20 flex items-center gap-2">

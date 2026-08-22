@@ -149,68 +149,73 @@ export function GroupDetailClient({
             Members ({safeCount})
           </h2>
           <div className="space-y-2">
-            {sortedMembers.map((member, i) => (
-              <div
-                key={member.user_id}
-                onClick={() => setSelectedPeer({ id: member.user_id, name: member.display_name })}
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
-                style={{
-                  background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
-                  border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
-                }}
-              >
-                {/* Avatar */}
-                {member.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={member.avatar_url}
-                    alt={member.display_name}
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2"
-                    style={{ borderColor: isFuturistic ? '#00dcff' : '#e8a87c' }}
-                  />
-                ) : (
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-800 flex-shrink-0 border-2"
-                    style={{
-                      background: isFuturistic
-                        ? 'linear-gradient(135deg, #1e1060, #0d3060)'
-                        : 'linear-gradient(135deg, #c4704a, #e8a87c)',
-                      borderColor: isFuturistic ? '#00dcff' : '#e8a87c',
-                      color: isFuturistic ? '#00dcff' : '#faf7f2',
-                    }}
-                  >
-                    {member.display_name.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
+            {sortedMembers.map((member, i) => {
+              const memberName = member.display_name || 'Cozy Neighbor';
+              const memberPoints = Number(member.points) || 0;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className="text-sm font-700 truncate"
-                      style={{ color: textPrimary }}
-                    >
-                      {member.display_name}
-                    </span>
-                    {member.role === 'admin' && (
-                      <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
-                    )}
-                  </div>
-                  <p className="text-xs font-500" style={{ color: textSecondary }}>
-                    {member.points.toLocaleString()} personal pts · Tap to send cheer
-                  </p>
-                </div>
-
-                <span
-                  className="text-[10px] font-600 px-2 py-0.5 rounded-full"
+              return (
+                <div
+                  key={member.user_id}
+                  onClick={() => setSelectedPeer({ id: member.user_id, name: memberName })}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
                   style={{
-                    background: isFuturistic ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                    color: textSecondary,
+                    background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
+                    border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
                   }}
                 >
-                  #{i + 1}
-                </span>
-              </div>
-            ))}
+                  {/* Avatar */}
+                  {member.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={member.avatar_url}
+                      alt={memberName}
+                      className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2"
+                      style={{ borderColor: isFuturistic ? '#00dcff' : '#e8a87c' }}
+                    />
+                  ) : (
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-800 flex-shrink-0 border-2"
+                      style={{
+                        background: isFuturistic
+                          ? 'linear-gradient(135deg, #1e1060, #0d3060)'
+                          : 'linear-gradient(135deg, #c4704a, #e8a87c)',
+                        borderColor: isFuturistic ? '#00dcff' : '#e8a87c',
+                        color: isFuturistic ? '#00dcff' : '#faf7f2',
+                      }}
+                    >
+                      {memberName.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className="text-sm font-700 truncate"
+                        style={{ color: textPrimary }}
+                      >
+                        {memberName}
+                      </span>
+                      {member.role === 'admin' && (
+                        <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
+                      )}
+                    </div>
+                    <p className="text-xs font-500" style={{ color: textSecondary }}>
+                      {memberPoints.toLocaleString()} personal pts · Tap to send cheer
+                    </p>
+                  </div>
+
+                  <span
+                    className="text-[10px] font-600 px-2 py-0.5 rounded-full"
+                    style={{
+                      background: isFuturistic ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                      color: textSecondary,
+                    }}
+                  >
+                    #{i + 1}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

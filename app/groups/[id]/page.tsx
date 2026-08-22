@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
-import { getGroupWithMembers, joinGroup } from '@/app/actions/groupActions';
+import { getGroupWithMembers } from '@/app/actions/groupActions';
 import { GroupDetailClient } from '@/components/GroupDetailClient';
+import { JoinGroupInline } from '@/components/JoinGroupInline';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
-import { Users, Home, Sparkles, Key, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Users, Home, Sparkles, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface GroupPageProps {
   params: Promise<{ id: string }>;
@@ -15,8 +16,15 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
   const { id } = await params;
   const result = await getGroupWithMembers(id);
 
-  const groupName = result?.group?.name || 'Cozy Group';
-  const groupType = result?.group?.type || 'household';
+  if (!result || !result.currentUserRole) {
+    return {
+      title: 'Cozy Group — Cozy',
+      description: 'Connect, share living spaces, and pool points together on Cozy.',
+    };
+  }
+
+  const groupName = result.group.name || 'Cozy Group';
+  const groupType = result.group.type || 'household';
   const meta = GROUP_TYPE_META[groupType] ?? GROUP_TYPE_META['household'];
 
   const title = `${groupName} ${meta.emoji} — Cozy`;
@@ -119,8 +127,6 @@ export default async function GroupViewPage({ params }: GroupPageProps) {
 
   // ── Graceful Fallback: Not a Member ──────────────────────────────
   if (!currentUserRole) {
-    const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
-
     return (
       <div
         className="min-h-screen flex items-center justify-center p-4 text-center overflow-hidden relative pb-24"
@@ -130,42 +136,24 @@ export default async function GroupViewPage({ params }: GroupPageProps) {
       >
         <div className="relative z-10 w-full max-w-md p-8 rounded-3xl cozy-glass border border-[--cozy-amber]/30 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div className="w-16 h-16 rounded-3xl bg-amber-100 dark:bg-zinc-800 flex items-center justify-center text-3xl mx-auto shadow-inner border border-amber-300/40">
-            {meta.emoji}
+            🔒
           </div>
 
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-800 tracking-wider text-amber-950 bg-amber-400/70 border border-amber-500/30 uppercase">
               <Sparkles size={12} />
-              <span>Private Collective</span>
+              <span>Private Group</span>
             </div>
             <h1 className="text-xl font-800 text-[--cozy-bark] leading-tight">
-              {group.name}
+              Membership Required
             </h1>
             <p className="text-xs text-[--cozy-muted] max-w-xs mx-auto leading-relaxed">
-              You are not currently a member of this {meta.label.toLowerCase()}. Join with an invite code or ask a group admin to add you.
+              This space is private to its members. If you have an invite code from the admin, enter it below to join.
             </p>
           </div>
 
-          <div className="space-y-2 pt-2">
-            {group.invite_code ? (
-              <form
-                action={async () => {
-                  'use server';
-                  await joinGroup(group.invite_code);
-                }}
-              >
-                <button
-                  type="submit"
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-800 text-white shadow-md transition-all hover:scale-[1.02] active:scale-95 cursor-pointer"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--cozy-rust), var(--cozy-amber))',
-                  }}
-                >
-                  <Key size={15} />
-                  <span>Join {group.name}</span>
-                </button>
-              </form>
-            ) : null}
+          <div className="space-y-3 pt-2">
+            <JoinGroupInline />
 
             <Link
               href="/groups"
