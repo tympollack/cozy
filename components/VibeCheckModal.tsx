@@ -65,6 +65,13 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      setSelected(vibeStatus);
+      setConfirmationMsg(null);
+    }
+  }, [isOpen, vibeStatus]);
+
   if (!mounted) return null;
 
   async function handleSelect(status: VibeStatus) {
@@ -99,11 +106,17 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div
+        <motion.div
+          key="vibe-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md overflow-y-auto"
           onClick={onClose}
         >
           <motion.div
+            key="vibe-modal-card"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.92, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -203,7 +216,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
               )}
             </AnimatePresence>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>,
     document.body
