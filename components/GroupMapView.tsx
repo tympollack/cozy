@@ -127,7 +127,7 @@ function PlotTile({
   const DEPTH = 14;
 
   const initials = member
-    ? member.display_name.slice(0, 2).toUpperCase()
+    ? (member.display_name || 'Cozy Neighbor').slice(0, 2).toUpperCase()
     : null;
 
   // Determine atmospheric status (default to neutral if unassigned)
@@ -277,7 +277,7 @@ function PlotTile({
                 color: isRaincloud ? '#f8fafc' : isFuturistic ? '#a0e8ff' : '#643c28',
               }}
             >
-              {member.display_name.split(' ')[0]}
+              {(member.display_name || 'Cozy Neighbor').split(' ')[0]}
               {member.role === 'admin' && ' 👑'}
             </span>
           </motion.div>
@@ -310,18 +310,21 @@ interface GroupMapViewProps {
   onSelectPeer?: (userId: string, name: string) => void;
 }
 
-export function GroupMapView({ group, members, onSelectPeer }: GroupMapViewProps) {
-  const meta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
+export function GroupMapView({ group, members = [], onSelectPeer }: GroupMapViewProps) {
+  const safeMembers = Array.isArray(members) ? members : [];
+  const meta = GROUP_TYPE_META[group?.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
   const palette = isFuturistic ? FUTURISTIC_PALETTE : COZY_PALETTE;
 
-  const capacity = Math.min(group.max_members, 48);
+  const rawCap = Number(group?.max_members) || 10;
+  const capacity = Math.max(1, Math.min(rawCap, 48));
   const cols = capacity <= 10 ? 3 : capacity <= 30 ? 4 : capacity <= 75 ? 5 : 6;
-  const plotCount = Math.max(members.length + 1, Math.min(capacity, 24));
-  const plots = buildGrid(plotCount, cols);
+  const plotCount = Math.max(safeMembers.length + 1, Math.min(capacity, 24));
+  const calculatedPlots = buildGrid(plotCount, cols);
+  const plots = calculatedPlots.length > 0 ? calculatedPlots : [{ col: 0, row: 0 }];
 
   const memberMap: Record<number, GroupMemberWithVibe> = {};
-  members.forEach((m, i) => {
+  safeMembers.forEach((m, i) => {
     memberMap[i] = m;
   });
 
@@ -334,8 +337,8 @@ export function GroupMapView({ group, members, onSelectPeer }: GroupMapViewProps
   const maxX = Math.max(...plots.map(({ col, row }) => isoOffset(col, row, TILE_W, TILE_H).x)) + TILE_W;
   const maxY = Math.max(...plots.map(({ col, row }) => isoOffset(col, row, TILE_W, TILE_H).y)) + TILE_H + 50;
 
-  const canvasW = maxX - minX + PAD_X * 2;
-  const canvasH = maxY + PAD_Y * 2;
+  const canvasW = Math.max(280, maxX - minX + PAD_X * 2);
+  const canvasH = Math.max(260, maxY + PAD_Y * 2);
 
   return (
     <div
@@ -349,7 +352,7 @@ export function GroupMapView({ group, members, onSelectPeer }: GroupMapViewProps
           : '0 8px 40px rgba(122,79,58,0.18)',
       }}
     >
-      {group.type === 'space_station' && <StarField />}
+      {group?.type === 'space_station' && <StarField />}
 
       {/* Type badge */}
       <div className="absolute top-3 left-4 z-20 flex items-center gap-2">
