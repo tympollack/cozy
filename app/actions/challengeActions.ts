@@ -2,54 +2,11 @@
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
-
-export interface GroupChallenge {
-  id: string;
-  groupId: string;
-  title: string;
-  description: string;
-  multiplier: number; // e.g. 1.25, 1.5, 2.0
-  createdBy: string;
-  createdAt: string;
-  completedUserIds: string[];
-}
-
-export interface ChallengeActionResult {
-  success: boolean;
-  newPersonalPoints?: number;
-  newGroupPoints?: number;
-  error?: string;
-}
-
-/**
- * Default preset positive weekly challenges if none created yet for a group.
- */
-export const DEFAULT_CHALLENGES: Omit<GroupChallenge, 'groupId' | 'createdBy'>[] = [
-  {
-    id: 'c1',
-    title: 'Desk & Workspace Refresh 🧹',
-    description: 'Tidy up your main desk surface, wipe down your screen, and take a 5-minute breather.',
-    multiplier: 1.5,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-  {
-    id: 'c2',
-    title: 'Hydrate & Hydrate Plant 🌿',
-    description: 'Drink a full glass of water and give your houseplants or outdoor greenery a quick watering.',
-    multiplier: 1.25,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-  {
-    id: 'c3',
-    title: 'Digital Sunshine Break ☀️',
-    description: 'Step outside for 10 minutes of natural sunlight without looking at any notifications.',
-    multiplier: 2.0,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-];
+import {
+  DEFAULT_CHALLENGES,
+  type GroupChallenge,
+  type ChallengeActionResult,
+} from '@/lib/challengeDefaults';
 
 /**
  * Creates and pins a new weekly positive challenge for a group. Only admins can create.
@@ -158,4 +115,44 @@ export async function completeGroupChallenge(
     newPersonalPoints: newPersonal,
     newGroupPoints: newGroupPts,
   };
+}
+
+/**
+ * Returns the most recent pinned challenge for a group from the DB,
+ * falling back to the first DEFAULT_CHALLENGES preset if the table is
+ * empty or unreachable.
+ */
+export async function getActiveGroupChallenge(
+  groupId: string
+): Promise<GroupChallenge | null> {
+  try {
+    const service = createServiceClient();
+    const { data, error } = await service
+      .schema('cozy')
+      .from('group_challenges')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { ...DEFAULT_CHALLENGES[0], groupId, createdBy: 'system' };
+    }
+
+    return {
+      id: data.id,
+      groupId: data.group_id,
+      title: data.title,
+      description: data.description,
+      multiplier: data.multiplier ?? 1.5,
+      createdBy: data.created_by,
+      createdAt: data.created_at,
+      completedUserIds: Array.isArray(data.completed_user_ids)
+        ? data.completed_user_ids
+        : [],
+    };
+  } catch {
+    return { ...DEFAULT_CHALLENGES[0], groupId, createdBy: 'system' };
+  }
 }

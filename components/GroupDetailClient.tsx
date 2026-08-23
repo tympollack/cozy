@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Crown } from 'lucide-react';
 import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
+import type { GroupChallenge } from '@/lib/challengeDefaults';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
 import { GroupBank } from '@/components/GroupBank';
@@ -18,6 +19,7 @@ interface GroupDetailClientProps {
   currentUserRole: 'admin' | 'member' | null;
   memberCount: number;
   currentUserId: string;
+  activeChallenge?: GroupChallenge | null;
 }
 
 export function GroupDetailClient({
@@ -26,6 +28,7 @@ export function GroupDetailClient({
   currentUserRole,
   memberCount,
   currentUserId,
+  activeChallenge = null,
 }: GroupDetailClientProps) {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
@@ -127,6 +130,7 @@ export function GroupDetailClient({
           group={safeGroup}
           members={sortedMembers}
           onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+          activeChallenge={activeChallenge}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}

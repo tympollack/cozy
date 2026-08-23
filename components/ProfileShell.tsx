@@ -364,21 +364,72 @@ export function ProfileShell({
             shadow-2xl border-4 border-white/40 dark:border-zinc-800/40 select-none"
           style={{ background: currentShell.bgGradient }}
         >
-          {/* Roof / Crown Architecture Banner */}
+          {/* ── Layer 1: Roof / Crown band ─────────────────────────────── */}
           <div
-            className="absolute top-0 left-0 right-0 h-10 z-0 flex items-center justify-center opacity-80"
+            className="absolute top-0 left-0 right-0 h-12 z-0 flex items-center justify-center"
             style={{ background: currentShell.roofGradient }}
           >
-            <div className="w-24 h-1 rounded-full bg-white/30" />
+            {/* Ridge beam / crown ornament */}
+            <div className="flex items-center gap-1.5">
+              <div className="w-10 h-[2px] rounded-full bg-white/25" />
+              <span className="text-xs opacity-40 select-none" aria-hidden>
+                {currentShell.badge.split(' ')[0]}
+              </span>
+              <div className="w-10 h-[2px] rounded-full bg-white/25" />
+            </div>
           </div>
 
-          {/* Ambient Wall Partition Grid Lines (2.5D Room Structure) */}
-          <div className="absolute inset-0 z-0 pointer-events-none p-4">
-            <div className="w-full h-full rounded-2xl border-2 border-white/10 flex flex-col justify-between">
-              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent my-auto" />
-            </div>
-            <div className="absolute inset-y-4 left-1/2 w-0.5 bg-gradient-to-b from-transparent via-white/20 to-transparent -translate-x-1/2" />
+          {/* ── Layer 2: Wall body with theme texture overlay ───────────── */}
+          <div
+            className="absolute inset-0 z-0 pointer-events-none"
+            style={{ background: currentShell.wallTexture }}
+          />
+
+          {/* ── Layer 3: Floor slab gradient at the bottom ──────────────── */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-16 z-0 pointer-events-none"
+            style={{
+              background: `linear-gradient(to top, ${currentShell.themeColor}55 0%, transparent 100%)`,
+            }}
+          />
+
+          {/* ── Structural Room Partition Lines (theme-aware) ───────────── */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            {/* Horizontal partition — molding strip */}
+            <div
+              className="absolute top-1/2 left-4 right-4 -translate-y-1/2"
+              style={{
+                height: '2px',
+                background: `linear-gradient(to right, transparent, ${currentShell.themeColor}60, transparent)`,
+                boxShadow: `0 1px 3px ${currentShell.themeColor}30`,
+              }}
+            />
+            {/* Vertical partition — structural beam */}
+            <div
+              className="absolute left-1/2 top-12 bottom-0 -translate-x-1/2"
+              style={{
+                width: '2px',
+                background: `linear-gradient(to bottom, transparent, ${currentShell.themeColor}50, ${currentShell.themeColor}30, transparent)`,
+                boxShadow: `1px 0 4px ${currentShell.themeColor}20, -1px 0 4px ${currentShell.themeColor}20`,
+              }}
+            />
           </div>
+
+          {/* ── Per-slot ambient glow spots ─────────────────────────────── */}
+          {activeSlots.map((slot) => (
+            <div
+              key={`glow-${slot.id}`}
+              className="nook-ambient-glow absolute z-0 pointer-events-none rounded-full"
+              style={{
+                left: `${slot.x + slot.w / 2}%`,
+                top: `${slot.y + slot.h / 2}%`,
+                width: `${slot.w * 0.7}%`,
+                height: `${slot.h * 0.7}%`,
+                transform: 'translate(-50%, -50%)',
+                background: `radial-gradient(ellipse, ${currentShell.accentColor}22 0%, transparent 70%)`,
+              }}
+            />
+          ))}
 
           {/* Focus Mode overlay — zooms into the active corner slot */}
           <AnimatePresence>
