@@ -4,6 +4,7 @@
  * Import this ONLY from 'use client' components.
  */
 import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr';
+import { getCookieDomain } from '@/lib/env';
 
 export function createBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,7 +16,10 @@ export function createBrowserClient() {
     );
   }
 
+  const domain = getCookieDomain();
+  const cookieOptions = domain ? { domain } : {};
+
   return createSSRBrowserClient(url, key, {
-    cookieOptions: { domain: '.sunshade.icu' },
+    cookieOptions,
   });
 }
