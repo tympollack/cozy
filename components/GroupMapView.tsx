@@ -112,6 +112,7 @@ interface PlotTileProps {
   plotIndex: number;
   palette: typeof COZY_PALETTE | typeof FUTURISTIC_PALETTE;
   isFuturistic: boolean;
+  currentUserId?: string;
   onSelectPeer?: (userId: string, name: string) => void;
 }
 
@@ -120,12 +121,14 @@ function PlotTile({
   plotIndex,
   palette,
   isFuturistic,
+  currentUserId,
   onSelectPeer,
 }: PlotTileProps) {
   const TILE_W = 92;
   const TILE_H = 50;
   const DEPTH = 14;
 
+  const isSelf = Boolean(member && currentUserId && member.user_id === currentUserId);
   const initials = member
     ? (member.display_name || 'Cozy Neighbor').slice(0, 2).toUpperCase()
     : null;
@@ -137,13 +140,13 @@ function PlotTile({
 
   return (
     <motion.div
-      className="relative group cursor-pointer"
+      className={`relative group ${isSelf || !member ? 'cursor-default' : 'cursor-pointer'}`}
       style={{ width: TILE_W, height: TILE_H + DEPTH + 40 }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: plotIndex * 0.03, ease: [0.34, 1.2, 0.64, 1] }}
       onClick={() => {
-        if (member && onSelectPeer) {
+        if (member && !isSelf && onSelectPeer) {
           onSelectPeer(member.user_id, member.display_name);
         }
       }}
@@ -307,10 +310,11 @@ function PlotTile({
 interface GroupMapViewProps {
   group: GroupRow;
   members: GroupMemberWithVibe[];
+  currentUserId?: string;
   onSelectPeer?: (userId: string, name: string) => void;
 }
 
-export function GroupMapView({ group, members = [], onSelectPeer }: GroupMapViewProps) {
+export function GroupMapView({ group, members = [], currentUserId, onSelectPeer }: GroupMapViewProps) {
   const safeMembers = Array.isArray(members) ? members : [];
   const meta = GROUP_TYPE_META[group?.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
@@ -405,6 +409,7 @@ export function GroupMapView({ group, members = [], onSelectPeer }: GroupMapView
                 plotIndex={idx}
                 palette={palette}
                 isFuturistic={isFuturistic}
+                currentUserId={currentUserId}
                 onSelectPeer={onSelectPeer}
               />
             </div>

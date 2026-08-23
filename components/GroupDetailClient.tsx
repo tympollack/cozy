@@ -126,7 +126,12 @@ export function GroupDetailClient({
         <GroupMapView
           group={safeGroup}
           members={sortedMembers}
-          onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+          currentUserId={currentUserId}
+          onSelectPeer={(id, name) => {
+            if (id !== currentUserId) {
+              setSelectedPeer({ id, name });
+            }
+          }}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}
@@ -150,14 +155,21 @@ export function GroupDetailClient({
           </h2>
           <div className="space-y-2">
             {sortedMembers.map((member, i) => {
+              const isSelf = member.user_id === currentUserId;
               const memberName = member.display_name || 'Cozy Neighbor';
               const memberPoints = Number(member.points) || 0;
 
               return (
                 <div
                   key={member.user_id}
-                  onClick={() => setSelectedPeer({ id: member.user_id, name: memberName })}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
+                  onClick={() => {
+                    if (!isSelf) {
+                      setSelectedPeer({ id: member.user_id, name: memberName });
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+                    isSelf ? 'cursor-default' : 'cursor-pointer hover:brightness-95'
+                  }`}
                   style={{
                     background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
                     border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
@@ -195,12 +207,25 @@ export function GroupDetailClient({
                       >
                         {memberName}
                       </span>
+                      {isSelf && (
+                        <span
+                          className="text-[10px] font-800 px-1.5 py-0.5 rounded-md"
+                          style={{
+                            background: isFuturistic ? 'rgba(0,220,255,0.15)' : 'rgba(240,192,96,0.25)',
+                            color: isFuturistic ? '#00dcff' : '#9a441e',
+                          }}
+                        >
+                          You
+                        </span>
+                      )}
                       {member.role === 'admin' && (
                         <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
                       )}
                     </div>
                     <p className="text-xs font-500" style={{ color: textSecondary }}>
-                      {memberPoints.toLocaleString()} personal pts · Tap to send cheer
+                      {isSelf
+                        ? `${memberPoints.toLocaleString()} personal pts`
+                        : `${memberPoints.toLocaleString()} personal pts · Tap to send cheer`}
                     </p>
                   </div>
 
