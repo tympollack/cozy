@@ -23,7 +23,7 @@ export function CommunityBulletinBoard({
   isAdmin,
 }: CommunityBulletinBoardProps) {
   const [challenges, setChallenges] = useState<GroupChallenge[]>(
-    DEFAULT_CHALLENGES.map((c) => ({ ...c, groupId, createdBy: 'admin' }))
+    (Array.isArray(DEFAULT_CHALLENGES) ? DEFAULT_CHALLENGES : []).map((c) => ({ ...c, groupId, createdBy: 'admin' }))
   );
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -139,7 +139,7 @@ export function CommunityBulletinBoard({
 
       {/* Challenges List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-4">
-        {challenges.map((ch) => {
+        {(Array.isArray(challenges) ? challenges : []).map((ch) => {
           const isDone = completedIds.has(ch.id);
           return (
             <motion.div

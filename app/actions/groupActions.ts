@@ -29,6 +29,7 @@ export interface GroupMemberRow {
   display_name: string;
   avatar_url: string | null;
   points: number;
+  vibe_status?: 'sunshine' | 'neutral' | 'raincloud';
 }
 
 export interface GroupWithMembers {
@@ -443,19 +444,19 @@ export async function getGroupWithMembers(
   const { data: usersData, error: usersError } = await service
     .schema('cozy')
     .from('users')
-    .select('id, display_name, avatar_url, points')
+    .select('id, display_name, points, vibe_status')
     .in('id', userIds);
 
   if (usersError) {
     console.error('[getGroupWithMembers] Users query error:', usersError.message);
   }
 
-  const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number }>();
+  const userMap = new Map<string, { display_name: string; points: number; vibe_status?: 'sunshine' | 'neutral' | 'raincloud' }>();
   (usersData ?? []).forEach((u) => {
     userMap.set(u.id, {
       display_name: u.display_name || 'Cozy Neighbor',
-      avatar_url: u.avatar_url || null,
       points: u.points ?? 0,
+      vibe_status: (u.vibe_status as 'sunshine' | 'neutral' | 'raincloud') || 'neutral',
     });
   });
 
@@ -466,8 +467,9 @@ export async function getGroupWithMembers(
       role: m.role as 'admin' | 'member',
       joined_at: m.joined_at,
       display_name: u?.display_name || 'Cozy Neighbor',
-      avatar_url: u?.avatar_url || null,
+      avatar_url: null,
       points: u?.points ?? 0,
+      vibe_status: u?.vibe_status || 'neutral',
     };
   });
 
