@@ -129,6 +129,10 @@ export async function acceptCallingCard(
     revalidatePath(profilePath);
   }
 
+  // Mirror +5 Calling Card acceptance points to recipient's active groups
+  const { cascadePointsToUserGroups } = await import('@/lib/pointCascade');
+  await cascadePointsToUserGroups(user.id, 5);
+
   return { success: true, newPoints: data as number };
 }
 

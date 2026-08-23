@@ -135,6 +135,11 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
     const row = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult;
     const extractedPostId = typeof row === 'string' ? row : (row?.post_id || row?.id || uploadResult);
 
+    // Mirror earned post points (50 pts for dual, 20 pts for single) to user's active groups
+    const pointsAwarded = lightUrl && darkUrl ? 50 : 20;
+    const { cascadePointsToUserGroups } = await import('@/lib/pointCascade');
+    await cascadePointsToUserGroups(user.id, pointsAwarded);
+
     return { success: true, postId: extractedPostId as string };
   } catch (err) {
     console.error('[uploadPost] Upload error:', err);

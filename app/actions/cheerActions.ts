@@ -107,6 +107,10 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
 
   const groupsUpdated = result.groups_updated ?? 0;
 
+  // Mirror +1 cheer bonus point to the cheering user's active groups as well
+  const { cascadePointsToUserGroups } = await import('@/lib/pointCascade');
+  await cascadePointsToUserGroups(user.id, 1);
+
   return {
     success: true,
     newPoints: result.personal_points,

@@ -185,10 +185,13 @@ export async function sendPeerSupport(
   const senderName = sender?.display_name || 'A Neighbor';
   let newSenderPoints = sender?.points ?? 0;
 
+  const { cascadePointsToUserGroups } = await import('@/lib/pointCascade');
+
   if (type === 'brew') {
     // Warm Brew: +5 points to both sender & receiver, shift recipient status to sunshine
     newSenderPoints += 5;
     await service.schema('cozy').from('users').update({ points: newSenderPoints }).eq('id', user.id);
+    await cascadePointsToUserGroups(user.id, 5);
 
     // Fetch recipient
     const { data: recipient } = await service
@@ -204,6 +207,7 @@ export async function sendPeerSupport(
         .from('users')
         .update({ points: (recipient.points ?? 0) + 5, vibe_status: 'sunshine' })
         .eq('id', recipientId);
+      await cascadePointsToUserGroups(recipientId, 5);
     }
   } else if (type === 'sticker') {
     // Comfort Sticker: +5 points to receiver, shift recipient status to sunshine
@@ -220,6 +224,7 @@ export async function sendPeerSupport(
         .from('users')
         .update({ points: (recipient.points ?? 0) + 5, vibe_status: 'sunshine' })
         .eq('id', recipientId);
+      await cascadePointsToUserGroups(recipientId, 5);
     }
   }
 
