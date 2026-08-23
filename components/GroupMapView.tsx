@@ -677,13 +677,17 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
   const isFuturistic = meta.palette === 'futuristic';
   const palette = isFuturistic ? FUTURISTIC_PALETTE : COZY_PALETTE;
 
-  // ── Dynamic scale based on current member count ──────────────────────────
-  const scale = computeScaleConfig(safeMembers.length);
-  const { tileW, tileH, depth, gap, cols } = scale;
-
+  // ── Dynamic scale based on active plots (members + open invite slots) ──
   const rawCap = Number(group?.max_members) || 10;
   const capacity = Math.max(1, Math.min(rawCap, 48));
-  const plotCount = Math.max(safeMembers.length + 1, Math.min(capacity, 24));
+
+  // Render all active members plus 1-2 open invite plot(s) to invite neighbors, capped at capacity
+  const openInviteSlots = safeMembers.length < capacity ? (safeMembers.length <= 4 ? 2 : 1) : 0;
+  const plotCount = Math.min(Math.max(safeMembers.length + openInviteSlots, 1), capacity);
+
+  const scale = computeScaleConfig(plotCount);
+  const { tileW, tileH, depth, gap, cols } = scale;
+
   const calculatedPlots = buildGrid(plotCount, cols);
   const plots = calculatedPlots.length > 0 ? calculatedPlots : [{ col: 0, row: 0 }];
 

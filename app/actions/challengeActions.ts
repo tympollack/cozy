@@ -61,7 +61,8 @@ export async function createGroupChallenge(
 
 /**
  * Completes a weekly positive challenge for the current user.
- * Grants +15 personal points and adds a multiplier boost to the group bank.
+ * Grants +15 personal points, records the user's completion in DB,
+ * and adds the dynamic multiplier boost to the group bank.
  */
 export async function completeGroupChallenge(
   groupId: string,
@@ -79,7 +80,52 @@ export async function completeGroupChallenge(
 
   const service = createServiceClient();
 
-  // 1. Award +15 personal points
+  // 1. Fetch the target challenge if it exists in the DB
+  let multiplier = 1.5;
+  const { data: challenge } = await service
+    .schema('cozy')
+    .from('group_challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .maybeSingle();
+
+  if (challenge) {
+    multiplier = challenge.multiplier ?? 1.5;
+    const completedList: string[] = Array.isArray(challenge.completed_user_ids)
+      ? challenge.completed_user_ids
+      : [];
+
+    if (completedList.includes(user.id)) {
+      return { success: false, error: 'Challenge already completed by user.' };
+    }
+
+    const updatedCompleted = [...completedList, user.id];
+    await service
+      .schema('cozy')
+      .from('group_challenges')
+      .update({ completed_user_ids: updatedCompleted })
+      .eq('id', challenge.id);
+  } else {
+    // If challengeId is a default preset (e.g. 'c1', 'c2', 'c3')
+    const preset = DEFAULT_CHALLENGES.find((c) => c.id === challengeId);
+    if (preset) {
+      multiplier = preset.multiplier ?? 1.5;
+      try {
+        await service.schema('cozy').from('group_challenges').insert({
+          group_id: groupId,
+          title: preset.title,
+          description: preset.description,
+          multiplier: preset.multiplier,
+          created_by: user.id,
+          completed_user_ids: [user.id],
+        });
+      } catch (err: unknown) {
+        console.info('[completeGroupChallenge] Fallback insert note:', err);
+      }
+    }
+  }
+
+  // 2. Award +15 personal points
   const { data: userData } = await service
     .schema('cozy')
     .from('users')
@@ -90,7 +136,7 @@ export async function completeGroupChallenge(
   const newPersonal = (userData?.points ?? 0) + 15;
   await service.schema('cozy').from('users').update({ points: newPersonal }).eq('id', user.id);
 
-  // 2. Multiplier boost to group pooled_points (+25 * multiplier)
+  // 3. Multiplier boost to group pooled_points (+25 * multiplier)
   const { data: groupData } = await service
     .schema('cozy')
     .from('groups')
@@ -99,7 +145,7 @@ export async function completeGroupChallenge(
     .single();
 
   const currentGroupPts = groupData?.pooled_points ?? 0;
-  const bonus = Math.round(25 * 1.5);
+  const bonus = Math.round(25 * multiplier);
   const newGroupPts = currentGroupPts + bonus;
 
   await service
@@ -119,8 +165,7 @@ export async function completeGroupChallenge(
 
 /**
  * Returns the most recent pinned challenge for a group from the DB,
- * falling back to the first DEFAULT_CHALLENGES preset if the table is
- * empty or unreachable.
+ * or null if no challenge has been pinned.
  */
 export async function getActiveGroupChallenge(
   groupId: string
@@ -137,7 +182,7 @@ export async function getActiveGroupChallenge(
       .maybeSingle();
 
     if (error || !data) {
-      return { ...DEFAULT_CHALLENGES[0], groupId, createdBy: 'system' };
+      return null;
     }
 
     return {
@@ -153,6 +198,6 @@ export async function getActiveGroupChallenge(
         : [],
     };
   } catch {
-    return { ...DEFAULT_CHALLENGES[0], groupId, createdBy: 'system' };
+    return null;
   }
 }
