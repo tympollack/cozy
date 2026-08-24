@@ -555,107 +555,47 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
 }
 
 // ---------------------------------------------------------------------------
-// Central Group Anchor — with challenge progress bar
+// Central Group Landmark / Monument (Town Square Campfire or Orbital Beacon)
 // ---------------------------------------------------------------------------
 
 interface GroupAnchorProps {
-  group: GroupRow;
-  meta: { emoji: string; label: string };
   palette: typeof COZY_PALETTE | typeof FUTURISTIC_PALETTE;
   isFuturistic: boolean;
-  memberCount: number;
-  activeChallenge: GroupChallenge | null;
 }
 
-function GroupAnchor({ group, meta, palette, isFuturistic, memberCount, activeChallenge }: GroupAnchorProps) {
+function GroupAnchor({ palette, isFuturistic }: GroupAnchorProps) {
   const anchorEmoji = isFuturistic ? '🛸' : '🔥';
   const sparkle = isFuturistic ? '⚡' : '✨';
 
-  const completedCount = activeChallenge?.completedUserIds.length ?? 0;
-  const progressPct = memberCount > 0
-    ? Math.min((completedCount / memberCount) * 100, 100)
-    : 0;
-
   return (
     <div className="group-anchor-float flex flex-col items-center pointer-events-none select-none">
-      {/* Diamond platform */}
+      {/* Diamond landmark platform */}
       <div
-        className="relative flex items-center justify-center"
+        className="relative flex items-center justify-center shadow-lg"
         style={{
-          width: 108,
-          height: 60,
+          width: 96,
+          height: 52,
           clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
           background: palette.anchorBg,
           border: `2px solid ${palette.anchorBorder}`,
-          boxShadow: `0 0 24px 6px ${palette.anchorGlow}, 0 8px 24px rgba(0,0,0,0.22)`,
+          boxShadow: `0 0 20px 4px ${palette.anchorGlow}, 0 6px 16px rgba(0,0,0,0.18)`,
         }}
       >
-        <span className="text-2xl" aria-hidden>{anchorEmoji}</span>
-        <span className="text-xs" aria-hidden>{sparkle}</span>
+        <span className="text-xl" aria-hidden>{anchorEmoji}</span>
+        <span className="text-[10px] ml-0.5" aria-hidden>{sparkle}</span>
       </div>
 
-      {/* Info card */}
-      <div
-        className="mt-1 px-3 py-2 rounded-xl backdrop-blur-md shadow-md text-center min-w-[112px]"
-        style={{ background: palette.anchorBg, border: `1px solid ${palette.anchorBorder}` }}
+      {/* Subtle landmark label */}
+      <span
+        className="text-[8px] font-800 tracking-wider uppercase px-2 py-0.5 rounded-full mt-1 backdrop-blur-sm border shadow-xs"
+        style={{
+          background: palette.anchorBg,
+          borderColor: palette.anchorBorder,
+          color: palette.anchorText,
+        }}
       >
-        <p className="text-[10px] font-800 truncate max-w-[108px]" style={{ color: palette.anchorText }}>
-          {group.name}
-        </p>
-
-        <div className="flex items-center justify-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-[8px] font-700" style={{ color: isFuturistic ? '#a0e8ff' : '#c4704a' }}>
-            {memberCount} members
-          </span>
-          {group.pooled_points > 0 && (
-            <>
-              <span style={{ color: isFuturistic ? '#4a5568' : '#d4a96a' }}>·</span>
-              <span className="text-[8px] font-700" style={{ color: isFuturistic ? '#f0c060' : '#b45309' }}>
-                🪙 {group.pooled_points.toLocaleString()}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Challenge progress bar */}
-        {activeChallenge && (
-          <div className="mt-1.5 space-y-0.5">
-            <p
-              className="text-[7px] font-700 truncate max-w-[108px] text-left"
-              style={{ color: palette.anchorText, opacity: 0.8 }}
-              title={activeChallenge.title}
-            >
-              🏆 {activeChallenge.title}
-              <span
-                className="ml-1 opacity-60"
-                style={{ color: isFuturistic ? '#a0e8ff' : '#c4704a' }}
-              >
-                ×{activeChallenge.multiplier}
-              </span>
-            </p>
-            {/* Track */}
-            <div
-              className="w-full h-1.5 rounded-full overflow-hidden"
-              style={{ background: isFuturistic ? 'rgba(0,220,255,0.12)' : 'rgba(240,192,96,0.18)' }}
-            >
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: palette.progressBar }}
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPct}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
-              />
-            </div>
-            <p className="text-[6px] font-600 text-left" style={{ color: palette.anchorText, opacity: 0.6 }}>
-              {completedCount}/{memberCount} completed
-            </p>
-          </div>
-        )}
-
-        <span className="text-[7px] font-600 opacity-50 mt-0.5 block" style={{ color: palette.anchorText }}>
-          {meta.emoji} {meta.label}
-        </span>
-      </div>
+        {isFuturistic ? 'Orbital Core' : 'Town Hearth'}
+      </span>
     </div>
   );
 }
@@ -695,7 +635,7 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
   safeMembers.forEach((m, i) => { memberMap[i] = m; });
 
   const PAD_X = 32;
-  const PAD_Y = 40;
+  const PAD_Y = 56;
 
   const allOffsets = plots.map(({ col, row }) => isoOffset(col, row, tileW, tileH, gap));
   const minX = Math.min(...allOffsets.map((o) => o.x));
@@ -705,9 +645,14 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
   const canvasW = Math.max(300, maxX - minX + PAD_X * 2);
   const canvasH = Math.max(300, maxY + PAD_Y * 2);
 
-  // Anchor: horizontally centered at the top of the canvas
-  const anchorX = (canvasW / 2) - 54;
-  const anchorY = 4;
+  // Landmark: horizontally centered at the apex of the canvas
+  const anchorX = (canvasW / 2) - 48;
+  const anchorY = 8;
+
+  const completedCount = activeChallenge?.completedUserIds.length ?? 0;
+  const progressPct = safeMembers.length > 0
+    ? Math.min((completedCount / safeMembers.length) * 100, 100)
+    : 0;
 
   return (
     <div
@@ -755,20 +700,54 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
         </span>
       </div>
 
+      {/* Active Challenge HUD Banner (bottom of map view, non-obstructive) */}
+      {activeChallenge && (
+        <div className="absolute bottom-3 inset-x-4 z-20 flex justify-center pointer-events-none">
+          <div
+            className="px-4 py-2 rounded-2xl backdrop-blur-md shadow-lg border flex items-center gap-3 max-w-sm w-full pointer-events-auto"
+            style={{
+              background: isFuturistic ? 'rgba(5,12,24,0.92)' : 'rgba(255,252,248,0.95)',
+              borderColor: isFuturistic ? 'rgba(0,220,255,0.40)' : 'rgba(217,119,54,0.30)',
+            }}
+          >
+            <span className="text-base shrink-0">🏆</span>
+            <div className="flex-1 min-w-0">
+              <div
+                className="flex items-center justify-between text-[11px] font-800"
+                style={{ color: isFuturistic ? '#a0e8ff' : '#543220' }}
+              >
+                <span className="truncate">{activeChallenge.title}</span>
+                <span className="shrink-0 ml-2 text-[10px] opacity-80 font-bold">
+                  {completedCount}/{safeMembers.length} (×{activeChallenge.multiplier})
+                </span>
+              </div>
+              <div
+                className="w-full h-1.5 rounded-full overflow-hidden mt-1"
+                style={{ background: isFuturistic ? 'rgba(0,220,255,0.15)' : 'rgba(217,119,54,0.15)' }}
+              >
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: palette.progressBar }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPct}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Isometric Canvas — scrollable container */}
       <div
-        className="relative pt-12 pb-4"
+        className="relative pt-10 pb-6"
         style={{ width: canvasW, height: canvasH }}
       >
-        {/* Central Group Anchor */}
-        <div className="absolute z-30" style={{ left: anchorX, top: anchorY }}>
+        {/* Central Landmark / Monument */}
+        <div className="absolute" style={{ left: anchorX, top: anchorY, zIndex: 1 }}>
           <GroupAnchor
-            group={group}
-            meta={meta}
             palette={palette}
             isFuturistic={isFuturistic}
-            memberCount={safeMembers.length}
-            activeChallenge={activeChallenge}
           />
         </div>
 
@@ -783,7 +762,7 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
               style={{
                 left: x - minX + PAD_X,
                 top: y + PAD_Y,
-                zIndex: col + row * 2,
+                zIndex: (col + row) * 2 + 5,
               }}
             >
               <PlotTile
