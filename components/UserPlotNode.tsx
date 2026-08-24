@@ -133,8 +133,11 @@ function HabitatSprite({
         alt={shellType ?? 'habitat'}
         width={spriteSize}
         height={spriteSize}
-        className="rounded-lg object-contain"
-        style={isRaincloud ? { filter: 'grayscale(0.65) brightness(0.70) saturate(0.5)' } : {}}
+        className="object-contain"
+        style={{
+          mixBlendMode: 'multiply',
+          ...(isRaincloud ? { filter: 'grayscale(0.65) brightness(0.70) saturate(0.5)' } : {}),
+        }}
         draggable={false}
       />
 
