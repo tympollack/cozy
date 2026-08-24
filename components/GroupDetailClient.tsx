@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Crown } from 'lucide-react';
-import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
+import type { GroupRow, GroupMemberRow, MyGroupEntry } from '@/app/actions/groupActions';
 import type { GroupChallenge } from '@/lib/challengeDefaults';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
@@ -20,6 +21,7 @@ interface GroupDetailClientProps {
   memberCount: number;
   currentUserId: string;
   activeChallenge?: GroupChallenge | null;
+  myGroups?: MyGroupEntry[];
 }
 
 export function GroupDetailClient({
@@ -29,7 +31,9 @@ export function GroupDetailClient({
   memberCount,
   currentUserId,
   activeChallenge = null,
+  myGroups = [],
 }: GroupDetailClientProps) {
+  const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
 
@@ -66,30 +70,109 @@ export function GroupDetailClient({
     return (b.points || 0) - (a.points || 0);
   });
 
+  // Group Switcher calculations
+  const safeMyGroups = Array.isArray(myGroups) ? myGroups : [];
+  const currentGroupIndex = safeMyGroups.findIndex((g) => g.group.id === safeGroup.id);
+  const hasMultipleGroups = safeMyGroups.length > 1;
+
+  const prevGroup = hasMultipleGroups && currentGroupIndex !== -1
+    ? safeMyGroups[(currentGroupIndex - 1 + safeMyGroups.length) % safeMyGroups.length].group
+    : null;
+  const nextGroup = hasMultipleGroups && currentGroupIndex !== -1
+    ? safeMyGroups[(currentGroupIndex + 1) % safeMyGroups.length].group
+    : null;
+
+  // Keyboard navigation for jumping to previous/next group with arrow keys
+  useEffect(() => {
+    if (!hasMultipleGroups) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === 'ArrowLeft' && prevGroup) {
+        router.push(`/groups/${prevGroup.id}`);
+      } else if (e.key === 'ArrowRight' && nextGroup) {
+        router.push(`/groups/${nextGroup.id}`);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasMultipleGroups, prevGroup, nextGroup, router]);
+
   return (
     <div
       className="flex-1 w-full overflow-y-auto min-h-full pb-28"
       style={{ background: bgStyle }}
     >
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Back link */}
-        <Link
-          href="/groups"
-          className="inline-flex items-center gap-1.5 text-sm font-600 transition-opacity hover:opacity-70"
-          style={{ color: textSecondary }}
-        >
-          <ChevronLeft size={16} />
-          All Groups
-        </Link>
+        {/* Top Navigation Row: Back Link & Group Switcher */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/groups"
+            className="inline-flex items-center gap-1.5 text-sm font-700 transition-opacity hover:opacity-80"
+            style={{ color: textSecondary }}
+          >
+            <ChevronLeft size={16} />
+            <span>All Groups</span>
+          </Link>
+
+          {/* Previous / Next Group Switcher */}
+          {hasMultipleGroups && prevGroup && nextGroup && (
+            <div className="flex items-center gap-1 bg-white/85 dark:bg-[#1a1410]/90 backdrop-blur-md px-2 py-1 rounded-full border border-amber-900/15 dark:border-amber-500/25 shadow-xs">
+              <Link
+                href={`/groups/${prevGroup.id}`}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
+                title={`Previous Group: ${prevGroup.name} (←)`}
+                aria-label="Previous group"
+              >
+                <ChevronLeft size={16} />
+              </Link>
+              <span className="text-[11px] font-800 px-1 text-stone-700 dark:text-amber-300">
+                {currentGroupIndex + 1} / {safeMyGroups.length}
+              </span>
+              <Link
+                href={`/groups/${nextGroup.id}`}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
+                title={`Next Group: ${nextGroup.name} (→)`}
+                aria-label="Next group"
+              >
+                <ChevronRight size={16} />
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Group header */}
         <div className="space-y-2">
           <div className="flex items-start gap-3">
             <span className="text-4xl mt-0.5">{meta.emoji}</span>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
-                {safeGroup.name}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
+                  {safeGroup.name}
+                </h1>
+                {/* Fast Next/Prev Chevrons right next to Title */}
+                {hasMultipleGroups && prevGroup && nextGroup && (
+                  <div className="flex items-center gap-0.5 opacity-75 hover:opacity-100">
+                    <Link
+                      href={`/groups/${prevGroup.id}`}
+                      className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
+                      title={`Previous: ${prevGroup.name}`}
+                    >
+                      <ChevronLeft size={18} style={{ color: accentColor }} />
+                    </Link>
+                    <Link
+                      href={`/groups/${nextGroup.id}`}
+                      className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
+                      title={`Next: ${nextGroup.name}`}
+                    >
+                      <ChevronRight size={18} style={{ color: accentColor }} />
+                    </Link>
+                  </div>
+                )}
+              </div>
               <p className="text-sm font-500 mt-0.5" style={{ color: textSecondary }}>
                 {meta.label} · {safeCount} / {safeGroup.max_members} members
               </p>

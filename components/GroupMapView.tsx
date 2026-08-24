@@ -445,7 +445,7 @@ function WeatherAura({ vibe, isFuturistic }: { vibe: VibeStatus; isFuturistic: b
 }
 
 // ---------------------------------------------------------------------------
-// Single isometric plot tile — size-aware
+// Single isometric plot tile — size-aware and organically integrated
 // ---------------------------------------------------------------------------
 
 interface PlotTileProps {
@@ -458,7 +458,7 @@ interface PlotTileProps {
 }
 
 function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPeer }: PlotTileProps) {
-  const { tileW, tileH, depth } = scale;
+  const { tileW, tileH } = scale;
 
   const initials = member
     ? (member.display_name || 'Cozy Neighbor').slice(0, 2).toUpperCase()
@@ -469,8 +469,8 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
 
   return (
     <motion.div
-      className="relative group cursor-pointer"
-      style={{ width: tileW, height: tileH + depth + Math.round(tileH * 1.4) }}
+      className="relative group cursor-pointer flex flex-col items-center justify-start"
+      style={{ width: tileW, height: tileH + Math.round(tileH * 1.2) }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: plotIndex * 0.03, ease: [0.34, 1.2, 0.64, 1] }}
@@ -479,55 +479,46 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
         if (member && onSelectPeer) onSelectPeer(member.user_id, member.display_name);
       }}
     >
-      {/* 2.5D Diamond Base / Garden Plot Foundation */}
-      <div
-        className="absolute inset-x-0 top-0 transition-all duration-200 group-hover:brightness-110 shadow-lg"
-        style={{
-          height: tileH,
-          clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-          background: member
-            ? (isRaincloud
-                ? 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)'
-                : (isFuturistic
-                    ? 'linear-gradient(135deg, #0f1d36 0%, #091326 100%)'
-                    : 'linear-gradient(135deg, #e8d9c0 0%, #cfbba0 100%)'))
-            : (isFuturistic
-                ? 'rgba(0,220,255,0.08)'
-                : 'rgba(217,119,54,0.12)'),
-          border: member
-            ? `2px solid ${isRaincloud ? '#64748b' : (isFuturistic ? '#00dcff' : '#a36d47')}`
-            : `2px dashed ${isFuturistic ? '#00dcff' : '#d97736'}`,
-          boxShadow: isRaincloud
-            ? '0 0 16px rgba(148,163,184,0.5)'
-            : (isFuturistic ? '0 0 16px rgba(0,220,255,0.3)' : '0 4px 14px rgba(122,79,58,0.2)'),
-        }}
-      />
-
-      {/* 3D Left Wall of Plot Foundation */}
-      <div
-        className="absolute"
-        style={{
-          top: tileH / 2,
-          left: 0,
-          width: tileW / 2,
-          height: depth,
-          clipPath: 'polygon(0% 0%, 100% 50%, 100% 100%, 0% 50%)',
-          background: isFuturistic ? '#081428' : '#8a5330',
-        }}
-      />
-
-      {/* 3D Right Wall of Plot Foundation */}
-      <div
-        className="absolute"
-        style={{
-          top: tileH / 2,
-          right: 0,
-          width: tileW / 2,
-          height: depth,
-          clipPath: 'polygon(0% 50%, 100% 0%, 100% 50%, 0% 100%)',
-          background: isFuturistic ? '#050e1f' : '#6b3e20',
-        }}
-      />
+      {/* Organic Plot Foundation: Cobblestone Garden Patio or Holographic Docking Port */}
+      {isFuturistic ? (
+        /* Sci-Fi Holographic Docking Ring */
+        <div
+          className="absolute inset-x-2 top-3 rounded-full transition-all duration-200 group-hover:scale-105"
+          style={{
+            height: Math.round(tileH * 0.72),
+            background: member
+              ? (isRaincloud
+                  ? 'radial-gradient(ellipse at center, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.4) 60%, transparent 85%)'
+                  : 'radial-gradient(ellipse at center, rgba(0,220,255,0.25) 0%, rgba(0,128,255,0.12) 60%, transparent 85%)')
+              : 'radial-gradient(ellipse at center, rgba(0,220,255,0.12) 0%, transparent 70%)',
+            border: member
+              ? `1.5px solid ${isRaincloud ? '#475569' : '#00dcff'}`
+              : '1.5px dashed rgba(0,220,255,0.6)',
+            boxShadow: isRaincloud
+              ? 'none'
+              : '0 0 16px rgba(0,220,255,0.4), inset 0 0 10px rgba(0,220,255,0.2)',
+          }}
+        />
+      ) : (
+        /* Cozy Village: Organic Cobblestone Garden Patio with soft ground shadow */
+        <div
+          className="absolute inset-x-2 top-3 rounded-full transition-all duration-200 group-hover:scale-105"
+          style={{
+            height: Math.round(tileH * 0.75),
+            background: member
+              ? (isRaincloud
+                  ? 'radial-gradient(ellipse at center, rgba(148,163,184,0.45) 0%, rgba(100,116,139,0.2) 60%, transparent 80%)'
+                  : 'radial-gradient(ellipse at center, rgba(254,243,199,0.65) 0%, rgba(217,119,54,0.20) 55%, transparent 75%)')
+              : 'radial-gradient(ellipse at center, rgba(254,243,199,0.35) 0%, rgba(245,158,11,0.12) 60%, transparent 80%)',
+            border: member
+              ? `1.5px solid ${isRaincloud ? 'rgba(100,116,139,0.45)' : 'rgba(217,119,54,0.45)'}`
+              : '1.5px dashed rgba(217,119,54,0.40)',
+            boxShadow: member
+              ? (isRaincloud ? '0 6px 16px rgba(0,0,0,0.3)' : '0 8px 24px rgba(69,26,3,0.25)')
+              : '0 4px 12px rgba(245,158,11,0.15)',
+          }}
+        />
+      )}
 
       {/* Weather aura */}
       {member && <WeatherAura vibe={vibe} isFuturistic={isFuturistic} />}
@@ -535,7 +526,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
       {/* Plot Content (Dollhouse Cottage or For-Sale/Invite Plot) */}
       <div className="absolute inset-0 flex flex-col items-center justify-start pointer-events-auto">
         {member ? (
-          <div className="flex flex-col items-center -mt-3 z-10">
+          <div className="flex flex-col items-center -mt-2.5 z-10">
             <MiniHouseModel
               palette={palette}
               isFuturistic={isFuturistic}
@@ -591,7 +582,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
           /* Empty Garden Plot Clearing with "+ Invite" Signboard */
           <div
             className="z-10 flex flex-col items-center gap-1"
-            style={{ marginTop: scale.tileH * 0.2 }}
+            style={{ marginTop: scale.tileH * 0.22 }}
           >
             <motion.div
               className="rounded-2xl px-2.5 py-1 flex items-center gap-1 font-900 shadow-md backdrop-blur-md border cursor-pointer"
@@ -599,7 +590,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               style={{
                 fontSize: scale.nameFontSize,
-                background: isFuturistic ? 'rgba(0,20,40,0.85)' : 'rgba(255,252,248,0.90)',
+                background: isFuturistic ? 'rgba(0,20,40,0.85)' : 'rgba(255,252,248,0.92)',
                 color: isFuturistic ? '#00dcff' : '#b45309',
                 borderColor: isFuturistic ? '#00dcff' : '#f59e0b',
               }}
@@ -608,7 +599,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
               <span>+ Invite</span>
             </motion.div>
             <span
-              className="font-800 opacity-70 text-[9px]"
+              className="font-800 opacity-75 text-[9px]"
               style={{ color: isFuturistic ? '#00dcff' : '#78350f' }}
             >
               Vacant Plot
@@ -621,7 +612,7 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
 }
 
 // ---------------------------------------------------------------------------
-// Central Group Landmark / Monument (Town Square Campfire or Orbital Beacon)
+// Central Group Landmark / Monument (Town Square Hearth or Orbital Core)
 // ---------------------------------------------------------------------------
 
 interface GroupAnchorProps {
@@ -635,25 +626,26 @@ function GroupAnchor({ palette, isFuturistic }: GroupAnchorProps) {
 
   return (
     <div className="group-anchor-float flex flex-col items-center pointer-events-none select-none">
-      {/* Diamond landmark platform */}
+      {/* Circular stone campfire ring or orbital beacon */}
       <div
-        className="relative flex items-center justify-center shadow-lg"
+        className="relative flex items-center justify-center rounded-full shadow-lg"
         style={{
-          width: 96,
-          height: 52,
-          clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-          background: palette.anchorBg,
+          width: 64,
+          height: 64,
+          background: isFuturistic
+            ? 'radial-gradient(circle, rgba(0,220,255,0.3) 0%, rgba(5,12,24,0.9) 70%)'
+            : 'radial-gradient(circle, rgba(254,243,199,0.8) 0%, rgba(217,119,54,0.4) 60%, transparent 80%)',
           border: `2px solid ${palette.anchorBorder}`,
-          boxShadow: `0 0 20px 4px ${palette.anchorGlow}, 0 6px 16px rgba(0,0,0,0.18)`,
+          boxShadow: `0 0 24px 6px ${palette.anchorGlow}, 0 6px 16px rgba(0,0,0,0.18)`,
         }}
       >
-        <span className="text-xl" aria-hidden>{anchorEmoji}</span>
-        <span className="text-[10px] ml-0.5" aria-hidden>{sparkle}</span>
+        <span className="text-2xl" aria-hidden>{anchorEmoji}</span>
+        <span className="text-xs ml-0.5" aria-hidden>{sparkle}</span>
       </div>
 
-      {/* Subtle landmark label */}
+      {/* Landmark label */}
       <span
-        className="text-[8px] font-800 tracking-wider uppercase px-2 py-0.5 rounded-full mt-1 backdrop-blur-sm border shadow-xs"
+        className="text-[8px] font-800 tracking-wider uppercase px-2 py-0.5 rounded-full mt-1 backdrop-blur-md border shadow-xs"
         style={{
           background: palette.anchorBg,
           borderColor: palette.anchorBorder,

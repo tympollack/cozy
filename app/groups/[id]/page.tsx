@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
-import { getGroupWithMembers } from '@/app/actions/groupActions';
+import { getGroupWithMembers, getMyGroups } from '@/app/actions/groupActions';
 import { getActiveGroupChallenge } from '@/app/actions/challengeActions';
 import { GroupDetailClient } from '@/components/GroupDetailClient';
 import { JoinGroupInline } from '@/components/JoinGroupInline';
@@ -70,9 +70,10 @@ export default async function GroupViewPage({ params }: GroupPageProps) {
     redirect('/login');
   }
 
-  const [result, activeChallenge] = await Promise.all([
+  const [result, activeChallenge, myGroups] = await Promise.all([
     getGroupWithMembers(id),
     getActiveGroupChallenge(id),
+    getMyGroups(),
   ]);
 
   // ── Graceful Fallback: Group Not Found or Stale State ─────────────
@@ -180,6 +181,7 @@ export default async function GroupViewPage({ params }: GroupPageProps) {
       memberCount={memberCount ?? members?.length ?? 0}
       currentUserId={user.id}
       activeChallenge={activeChallenge}
+      myGroups={myGroups}
     />
   );
 }
