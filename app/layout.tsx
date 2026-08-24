@@ -3,6 +3,7 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { OnboardingCarousel } from '@/components/OnboardingCarousel';
+import { AuthListener } from '@/components/AuthListener';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cozy-stag.sunshade.icu';
 
@@ -67,6 +68,7 @@ export default function RootLayout({
       </head>
       <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-cream)] dark:bg-zinc-950 transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthListener />
           <Navbar />
           <main className="flex-1 flex flex-col relative overflow-y-auto w-full pt-14">{children}</main>
           <OnboardingCarousel />
