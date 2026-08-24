@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
@@ -36,6 +36,14 @@ export function GroupDetailClient({
   const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
+  const [inviteHighlight, setInviteHighlight] = useState(false);
+  const invitePillRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenInvite = () => {
+    setInviteHighlight(true);
+    invitePillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => setInviteHighlight(false), 2500);
+  };
 
   const safeGroup = group || {
     id: '',
@@ -196,8 +204,16 @@ export function GroupDetailClient({
             )}
           </div>
 
-          {/* Interactive Invite Code Pill */}
-          <div className="pt-1">
+          {/* Interactive Invite Code Pill — highlighted when a vacant plot is tapped */}
+          <div
+            ref={invitePillRef}
+            className="pt-1 rounded-2xl transition-all duration-300"
+            style={inviteHighlight ? {
+              outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
+              outlineOffset: '4px',
+              boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
+            } : {}}
+          >
             <InviteCodePill
               code={safeGroup.invite_code}
               groupName={safeGroup.name}
@@ -208,11 +224,12 @@ export function GroupDetailClient({
           </div>
         </div>
 
-        {/* 2.5D Isometric Map with Atmospheric Vibe Check */}
+        {/* Anchor-based 2.5D Group Map with Habitat Renderers & Vibe Auras */}
         <GroupMapView
           group={safeGroup}
           members={sortedMembers}
           onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+          onOpenInvite={handleOpenInvite}
           activeChallenge={activeChallenge}
         />
 

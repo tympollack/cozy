@@ -29,6 +29,12 @@ export interface GroupMemberRow {
   display_name: string;
   avatar_url: string | null;
   points: number;
+  /**
+   * The member's active shell/habitat type (e.g. 'default_dollhouse', 'cozy_campsite', 'stone_castle').
+   * Sourced from cozy.users.shell_type — column already exists (written by shellActions, read by profileActions).
+   * No migration required. Note for sunshade-db-platform: preserve this column in any future users table alterations.
+   */
+  shell_type?: string;
 }
 
 export interface GroupWithMembers {
@@ -443,19 +449,20 @@ export async function getGroupWithMembers(
   const { data: usersData, error: usersError } = await service
     .schema('cozy')
     .from('users')
-    .select('id, display_name, avatar_url, points')
+    .select('id, display_name, avatar_url, points, shell_type')
     .in('id', userIds);
 
   if (usersError) {
     console.error('[getGroupWithMembers] Users query error:', usersError.message);
   }
 
-  const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number }>();
+  const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number; shell_type?: string }>();
   (usersData ?? []).forEach((u) => {
     userMap.set(u.id, {
       display_name: u.display_name || 'Cozy Neighbor',
       avatar_url: u.avatar_url || null,
       points: u.points ?? 0,
+      shell_type: u.shell_type ?? undefined,
     });
   });
 
@@ -468,6 +475,7 @@ export async function getGroupWithMembers(
       display_name: u?.display_name || 'Cozy Neighbor',
       avatar_url: u?.avatar_url || null,
       points: u?.points ?? 0,
+      shell_type: u?.shell_type,
     };
   });
 

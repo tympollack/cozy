@@ -446,3 +446,32 @@ body {
 .group-anchor-float {
   animation: anchor-float 4s ease-in-out infinite;
 }
+
+/* ─── UserPlotNode: habitat vibe aura ground rings ───────────────────────── */
+
+@keyframes habitat-glow-warm {
+  0%, 100% { box-shadow: 0 0 12px 3px rgba(250,204,21,0.45); opacity: 0.85; }
+  50%       { box-shadow: 0 0 22px 7px rgba(250,204,21,0.70); opacity: 1; }
+}
+
+@keyframes habitat-glow-cool {
+  0%, 100% { box-shadow: 0 0 12px 3px rgba(99,102,241,0.45); opacity: 0.85; }
+  50%       { box-shadow: 0 0 22px 7px rgba(99,102,241,0.70); opacity: 1; }
+}
+
+@keyframes habitat-glow-neutral {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(217,119,54,0.28); opacity: 0.75; }
+  50%       { box-shadow: 0 0 16px 4px rgba(217,119,54,0.48); opacity: 1; }
+}
+
+.habitat-aura-sunshine {
+  animation: habitat-glow-warm 2.5s ease-in-out infinite;
+}
+
+.habitat-aura-raincloud {
+  animation: habitat-glow-cool 2s ease-in-out infinite;
+}
+
+.habitat-aura-cozy {
+  animation: habitat-glow-neutral 3.5s ease-in-out infinite;
+}
