@@ -40,7 +40,7 @@ export function JoinGroupInline() {
           value={code}
           onChange={(e) => setCode(e.target.value.toLowerCase())}
           maxLength={8}
-          className="w-full rounded-2xl px-4 py-3 text-center text-sm font-800 tracking-widest outline-none bg-white dark:bg-zinc-900 border border-amber-300 dark:border-zinc-700 text-stone-900 dark:text-zinc-100 placeholder:text-stone-400 placeholder:font-500 placeholder:tracking-normal shadow-sm"
+          className="w-full rounded-2xl px-4 py-3 text-center text-sm font-800 tracking-widest outline-none bg-white dark:bg-[#14100e] border border-amber-300 dark:border-amber-600/40 text-stone-900 dark:text-amber-100 placeholder:text-stone-400 dark:placeholder:text-amber-200/40 placeholder:font-500 placeholder:tracking-normal shadow-xs"
         />
         {error && (
           <p className="text-xs text-rose-500 font-600 flex items-center justify-center gap-1 pt-1">

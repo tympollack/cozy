@@ -197,14 +197,14 @@ export function ProfileShell({
               {TIER_BADGES[expansionTier]}
             </span>
             <div>
-              <h2 className="text-base font-800 text-[--cozy-bark] leading-tight flex items-center gap-1.5">
+              <h2 className="text-base font-900 text-stone-900 dark:text-amber-50 leading-tight flex items-center gap-1.5">
                 {currentShell.name}
-                <span className="text-[10px] font-700 px-1.5 py-0.5 rounded-full
-                  bg-[--cozy-amber]/15 text-[--cozy-rust] border border-[--cozy-amber]/30">
+                <span className="text-[10px] font-800 px-2 py-0.5 rounded-full
+                  bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-600/40">
                   {TIER_NAMES[expansionTier]}
                 </span>
               </h2>
-              <p className="text-xs text-[--cozy-muted]">
+              <p className="text-xs font-500 text-stone-600 dark:text-amber-200/75">
                 {slottedPostMap.size} of {activeSlots.length} nooks occupied
               </p>
             </div>
@@ -212,11 +212,11 @@ export function ProfileShell({
 
           <div className="flex items-center gap-2">
             {/* Token balance */}
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full
-              bg-[--cozy-gold]/15 border border-[--cozy-gold]/30 text-xs font-700 text-[--cozy-bark]"
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+              bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-xs font-900 text-amber-950 dark:text-amber-200 shadow-xs"
               title="Milestone tokens"
             >
-              <Coins size={12} className="text-[--cozy-gold]" />
+              <Coins size={13} className="text-amber-600 dark:text-amber-400" />
               <span>{milestoneTokens}</span>
             </div>
 
@@ -225,14 +225,14 @@ export function ProfileShell({
               onClick={() => setIsFocusMode((prev) => !prev)}
               title={isFocusMode ? 'View full estate' : 'Focus on active nook'}
               aria-label={isFocusMode ? 'Exit focus mode' : 'Enter focus mode'}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-700
-                bg-white/80 dark:bg-zinc-800/80 text-[--cozy-bark]
-                border border-[--cozy-amber]/30 cozy-shadow
-                hover:scale-105 active:scale-95 transition-transform"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-800
+                bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100
+                border border-amber-900/15 dark:border-amber-500/30 shadow-xs
+                hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               {isFocusMode
-                ? <Minimize2 size={13} className="text-[--cozy-rust]" />
-                : <Maximize2 size={13} className="text-[--cozy-muted]" />}
+                ? <Minimize2 size={13} className="text-amber-700 dark:text-amber-400" />
+                : <Maximize2 size={13} className="text-stone-700 dark:text-amber-300" />}
             </button>
 
             {/* Theme Switcher Button (Owner Only) */}
@@ -241,12 +241,12 @@ export function ProfileShell({
                 <button
                   onClick={() => setIsThemeMenuOpen((prev) => !prev)}
                   disabled={isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-700
-                    bg-white/80 dark:bg-zinc-800/80 text-[--cozy-bark]
-                    border border-[--cozy-amber]/30 cozy-shadow
-                    hover:scale-105 active:scale-95 transition-transform"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-800
+                    bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100
+                    border border-amber-900/15 dark:border-amber-500/30 shadow-xs
+                    hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
                 >
-                  <Sparkles size={13} className="text-[--cozy-gold]" />
+                  <Sparkles size={13} className="text-amber-600 dark:text-amber-400" />
                   <span>Shell</span>
                 </button>
 
@@ -259,9 +259,9 @@ export function ProfileShell({
                       exit={{ opacity: 0, y: 4, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 top-full mt-2 z-50 w-60 rounded-2xl p-2
-                        cozy-glass border border-[--cozy-amber]/30 shadow-2xl space-y-1"
+                        cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-1"
                     >
-                      <p className="text-[10px] font-700 text-[--cozy-muted] uppercase px-2 py-1">
+                      <p className="text-[10px] font-800 text-stone-700 dark:text-amber-300 uppercase px-2 py-1 tracking-wider">
                         Choose Architecture
                       </p>
                       {Object.values(SHELL_DEFINITIONS).map((def) => {
@@ -272,12 +272,12 @@ export function ProfileShell({
                             key={def.id}
                             onClick={() => !isThemeLocked && handleSelectShellType(def.id)}
                             disabled={isThemeLocked}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-600 text-left transition-colors ${
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-700 text-left transition-colors cursor-pointer ${
                               isThemeLocked
-                                ? 'opacity-40 cursor-not-allowed text-[--cozy-muted]'
+                                ? 'opacity-40 cursor-not-allowed text-stone-500 dark:text-stone-400'
                                 : isSelected
-                                ? 'bg-[--cozy-rust] text-white shadow-sm'
-                                : 'text-[--cozy-night] hover:bg-[--cozy-warm]'
+                                ? 'bg-amber-500 text-stone-950 font-800 shadow-sm'
+                                : 'text-stone-800 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-amber-950/60'
                             }`}
                           >
                             <div className="flex items-center gap-2">
@@ -285,7 +285,7 @@ export function ProfileShell({
                               <span>{def.name}</span>
                             </div>
                             {isThemeLocked ? (
-                              <Lock size={11} className="text-[--cozy-muted]" />
+                              <Lock size={11} className="text-stone-500" />
                             ) : isSelected ? (
                               <Check size={14} />
                             ) : null}
@@ -293,7 +293,7 @@ export function ProfileShell({
                         );
                       })}
                       {!themesUnlocked && (
-                        <p className="text-[9px] text-[--cozy-muted] px-2 py-1 italic">
+                        <p className="text-[9px] text-stone-500 dark:text-amber-400/80 px-2 py-1 italic">
                           Upload your first space to unlock all themes
                         </p>
                       )}
@@ -315,26 +315,26 @@ export function ProfileShell({
               className="overflow-hidden"
             >
               <div className="flex items-center justify-between px-4 py-3 rounded-2xl
-                bg-white/40 dark:bg-black/20 backdrop-blur-md
-                border border-[--cozy-amber]/25"
+                bg-amber-50/90 dark:bg-[#231a15] backdrop-blur-md
+                border border-amber-200/90 dark:border-amber-600/30 shadow-xs"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="text-xl flex-shrink-0">{TIER_BADGES[nextTier]}</span>
                   <div className="min-w-0">
-                    <p className="text-xs font-800 text-[--cozy-bark] truncate">
+                    <p className="text-xs font-900 text-stone-900 dark:text-amber-100 truncate">
                       Unlock {TIER_NAMES[nextTier]}
                     </p>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5">
                       {/* Token progress bar */}
-                      <div className="flex-1 h-1.5 rounded-full bg-[--cozy-warm] overflow-hidden max-w-[80px]">
+                      <div className="flex-1 h-2 rounded-full bg-amber-200/80 dark:bg-stone-800 overflow-hidden max-w-[90px]">
                         <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-[--cozy-amber] to-[--cozy-gold]"
+                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-600"
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min((milestoneTokens / (nextTierCost ?? 1)) * 100, 100)}%` }}
                           transition={{ duration: 0.6, ease: 'easeOut' }}
                         />
                       </div>
-                      <span className="text-[10px] text-[--cozy-muted] font-600 flex-shrink-0">
+                      <span className="text-[10px] text-amber-950 dark:text-amber-300 font-800 flex-shrink-0">
                         {milestoneTokens}/{nextTierCost} 🪙
                       </span>
                     </div>
@@ -345,10 +345,10 @@ export function ProfileShell({
                   whileTap={{ scale: 0.95 }}
                   onClick={handleUnlockTier}
                   disabled={!canUnlock || isPending}
-                  className={`flex-shrink-0 ml-3 px-3.5 py-2 rounded-xl text-xs font-800
-                    transition-all ${canUnlock
-                      ? 'bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber] text-white shadow-md hover:opacity-90'
-                      : 'bg-[--cozy-warm] text-[--cozy-muted] cursor-not-allowed'
+                  className={`flex-shrink-0 ml-3 px-3.5 py-2 rounded-xl text-xs font-900
+                    transition-all cursor-pointer ${canUnlock
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 shadow-md hover:opacity-95'
+                      : 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-400 cursor-not-allowed'
                     }`}
                 >
                   {canUnlock ? 'Unlock ✨' : 'Save up 🪙'}

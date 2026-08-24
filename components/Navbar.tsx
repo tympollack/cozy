@@ -30,10 +30,10 @@ export async function Navbar() {
             href="/feed"
             id="nav-feed"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-700
-              text-[var(--cozy-text-secondary)] hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors duration-150"
+              text-stone-800 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/70 transition-colors duration-150"
             aria-label="Feed"
           >
-            <Home size={15} aria-hidden="true" />
+            <Home size={15} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
             <span className="hidden sm:inline">Feed</span>
           </Link>
 
@@ -41,10 +41,10 @@ export async function Navbar() {
             href={user ? "/camera" : "/login?next=/camera"}
             id="nav-camera"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-700
-              text-[var(--cozy-text-secondary)] hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors duration-150"
+              text-stone-800 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/70 transition-colors duration-150"
             aria-label="Upload a photo"
           >
-            <Camera size={15} aria-hidden="true" />
+            <Camera size={15} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
             <span className="hidden sm:inline">Upload</span>
           </Link>
 
@@ -54,20 +54,20 @@ export async function Navbar() {
                 href="/groups"
                 id="nav-groups"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-700
-                  text-[var(--cozy-text-secondary)] hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors duration-150"
+                  text-stone-800 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/70 transition-colors duration-150"
                 aria-label="My Groups"
               >
-                <Users size={15} aria-hidden="true" />
+                <Users size={15} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
                 <span className="hidden sm:inline">Village</span>
               </Link>
               <Link
                 href="/profile"
                 id="nav-profile"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-700
-                  text-[var(--cozy-text-secondary)] hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors duration-150"
+                  text-stone-800 dark:text-amber-100 hover:bg-amber-100/80 dark:hover:bg-amber-950/70 transition-colors duration-150"
                 aria-label="My Spaces"
               >
-                <User size={15} aria-hidden="true" />
+                <User size={15} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
                 <span className="hidden sm:inline">Me</span>
               </Link>
               <VibePill />
@@ -75,11 +75,11 @@ export async function Navbar() {
               <Link
                 href="/settings"
                 id="nav-settings"
-                className="p-2 rounded-xl text-[var(--cozy-text-secondary)] hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors duration-150"
+                className="p-2 rounded-xl text-stone-800 dark:text-amber-200 hover:bg-amber-100/80 dark:hover:bg-amber-950/70 transition-colors duration-150"
                 aria-label="Settings"
                 title="Settings & Hub Options"
               >
-                <Settings size={16} aria-hidden="true" />
+                <Settings size={16} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
               </Link>
             </>
           ) : (

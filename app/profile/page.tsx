@@ -63,11 +63,11 @@ export default async function ProfilePage() {
           <div className="flex items-center gap-2">
             <Link
               href="/settings"
-              className="p-2 rounded-full bg-white/80 dark:bg-zinc-800/80 hover:bg-white text-[--cozy-bark] border border-[--cozy-amber]/30 shadow-sm hover:scale-105 active:scale-95 transition-all"
+              className="p-2 rounded-full bg-white dark:bg-[#281e19] text-stone-800 dark:text-amber-200 border border-amber-900/15 dark:border-amber-500/30 shadow-xs hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
               title="Settings & Hub Options"
               aria-label="Settings"
             >
-              <Settings size={16} className="text-[--cozy-bark]" />
+              <Settings size={16} className="text-amber-700 dark:text-amber-400" />
             </Link>
 
             <Link
