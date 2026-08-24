@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { GroupMemberWithVibe } from '@/components/GroupMapView';
 
@@ -11,12 +11,9 @@ import type { GroupMemberWithVibe } from '@/components/GroupMapView';
 export type PlotSize = 'sm' | 'md' | 'lg';
 
 interface SizeTokens {
-  /** Rendered pixel width/height of the square habitat sprite. */
   spriteSize: number;
-  /** Avatar badge diameter. */
   avatarBadgeSize: number;
   nameFontSize: number;
-  /** Width of the ground aura ellipse. */
   auraWidth: number;
 }
 
@@ -27,11 +24,11 @@ const SIZE_TOKENS: Record<PlotSize, SizeTokens> = {
 };
 
 // ---------------------------------------------------------------------------
-// Extensible habitat image registry
+// Habitat image registry
 //
 // To add a new shell type:
-//   1. Drop the illustrated sprite into /public/images/habitats/
-//   2. Add one entry here keyed by the shell_type id — nothing else changes.
+//   1. Drop the illustrated sprite into /public/images/habitats/ (white bg).
+//   2. Add one entry here keyed by shell_type id — nothing else changes.
 // ---------------------------------------------------------------------------
 
 const HABITAT_IMAGE_REGISTRY: Record<string, string> = {
@@ -48,23 +45,117 @@ function resolveHabitatImage(shellType: string | null | undefined, isFuturistic:
 }
 
 // ---------------------------------------------------------------------------
-// Avatar badge — small circular portrait overlaid on the sprite
+// Canvas-based white-background removal
+//
+// Uses a BFS flood fill seeded from all four image edges. Only pixels
+// connected to the border that exceed the brightness threshold are made
+// transparent — interior light-colored pixels (cream walls, etc.) are
+// protected by the dark illustration outline that surrounds them.
+//
+// Results are cached in a module-level Map so each sprite is only
+// processed once per page lifecycle.
+// ---------------------------------------------------------------------------
+
+const spriteCache = new Map<string, string>();
+
+const FLOOD_THRESHOLD = 238; // pixels with all channels ≥ this from edges are background
+
+function stripWhiteBackground(img: HTMLImageElement): string {
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const px = imageData.data; // RGBA flat array
+
+  const visited = new Uint8Array(w * h);
+  const queue: number[] = [];
+
+  // isBackground: pixel must have R, G, B all ≥ threshold
+  function isBackground(pi: number) {
+    return px[pi] >= FLOOD_THRESHOLD && px[pi + 1] >= FLOOD_THRESHOLD && px[pi + 2] >= FLOOD_THRESHOLD;
+  }
+
+  function tryEnqueue(x: number, y: number) {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const idx = y * w + x;
+    if (visited[idx]) return;
+    const pi = idx * 4;
+    if (!isBackground(pi)) return;
+    visited[idx] = 1;
+    queue.push(idx);
+  }
+
+  // Seed all four edges
+  for (let x = 0; x < w; x++) { tryEnqueue(x, 0); tryEnqueue(x, h - 1); }
+  for (let y = 0; y < h; y++) { tryEnqueue(0, y); tryEnqueue(w - 1, y); }
+
+  // BFS expand
+  let qi = 0;
+  while (qi < queue.length) {
+    const idx = queue[qi++];
+    const x = idx % w;
+    const y = (idx - x) / w;
+    tryEnqueue(x - 1, y);
+    tryEnqueue(x + 1, y);
+    tryEnqueue(x, y - 1);
+    tryEnqueue(x, y + 1);
+  }
+
+  // Apply transparency — pure white → alpha 0, near-threshold → alpha ~255
+  // so edge anti-aliasing is preserved.
+  for (let i = 0; i < w * h; i++) {
+    if (!visited[i]) continue;
+    const pi = i * 4;
+    const maxCh = Math.max(px[pi], px[pi + 1], px[pi + 2]);
+    // Linear ramp: maxCh=255 → alpha=0; maxCh=FLOOD_THRESHOLD → alpha=255
+    const alpha = Math.round(Math.max(0, Math.min(255,
+      255 * (255 - maxCh) / (255 - FLOOD_THRESHOLD)
+    )));
+    px[pi + 3] = alpha;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+/** Returns a processed (white-removed) data URL, or the original src while loading. */
+function useProcessedSprite(src: string): string {
+  const cached = spriteCache.get(src);
+  const [result, setResult] = useState<string>(cached ?? src);
+
+  useEffect(() => {
+    if (spriteCache.has(src)) {
+      setResult(spriteCache.get(src)!);
+      return;
+    }
+
+    const img = new window.Image();
+    img.onload = () => {
+      const dataUrl = stripWhiteBackground(img);
+      spriteCache.set(src, dataUrl);
+      setResult(dataUrl);
+    };
+    img.src = src; // same-origin public asset — no CORS needed
+  }, [src]);
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Avatar badge
 // ---------------------------------------------------------------------------
 
 function AvatarBadge({
-  avatarUrl,
-  initials,
-  size,
-  borderColor,
-  bgColor,
-  textColor,
+  avatarUrl, initials, size, borderColor, bgColor, textColor,
 }: {
-  avatarUrl: string | null;
-  initials: string;
-  size: number;
-  borderColor: string;
-  bgColor: string;
-  textColor: string;
+  avatarUrl: string | null; initials: string; size: number;
+  borderColor: string; bgColor: string; textColor: string;
 }) {
   return (
     <div
@@ -87,69 +178,48 @@ function AvatarBadge({
 }
 
 // ---------------------------------------------------------------------------
-// Habitat sprite — rendered image with avatar badge overlay
+// Habitat sprite — processed image + avatar badge overlay
 // ---------------------------------------------------------------------------
 
 function HabitatSprite({
-  shellType,
-  isFuturistic,
-  isRaincloud,
-  spriteSize,
-  avatarBadgeSize,
-  avatarUrl,
-  initials,
+  shellType, isFuturistic, isRaincloud, spriteSize, avatarBadgeSize, avatarUrl, initials,
 }: {
-  shellType: string | null | undefined;
-  isFuturistic: boolean;
-  isRaincloud: boolean;
-  spriteSize: number;
-  avatarBadgeSize: number;
-  avatarUrl: string | null;
-  initials: string;
+  shellType: string | null | undefined; isFuturistic: boolean; isRaincloud: boolean;
+  spriteSize: number; avatarBadgeSize: number; avatarUrl: string | null; initials: string;
 }) {
-  const src = resolveHabitatImage(shellType, isFuturistic);
+  const src          = resolveHabitatImage(shellType, isFuturistic);
+  const processedSrc = useProcessedSprite(src);
+  const isReady      = processedSrc !== src; // true once canvas processing is done
 
-  const badgeBorder = isRaincloud
-    ? '#64748b'
-    : isFuturistic
-    ? '#00dcff'
-    : '#f0c060';
-  const badgeBg = isRaincloud
-    ? '#1e293b'
-    : isFuturistic
-    ? '#0f1d36'
-    : '#fef3c7';
-  const badgeText = isRaincloud
-    ? '#94a3b8'
-    : isFuturistic
-    ? '#a0e8ff'
-    : '#92400e';
+  const badgeBorder = isRaincloud ? '#64748b' : isFuturistic ? '#00dcff' : '#f0c060';
+  const badgeBg     = isRaincloud ? '#1e293b' : isFuturistic ? '#0f1d36' : '#fef3c7';
+  const badgeText   = isRaincloud ? '#94a3b8' : isFuturistic ? '#a0e8ff' : '#92400e';
 
   return (
     <div className="relative inline-block" style={{ width: spriteSize, height: spriteSize }}>
-      {/* Habitat sprite image */}
-      <Image
-        src={src}
+      {/* Processed sprite with true alpha — use plain <img> since src is a data URL */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={processedSrc}
         alt={shellType ?? 'habitat'}
         width={spriteSize}
         height={spriteSize}
-        className="object-contain"
+        className="object-contain transition-opacity duration-200"
         style={{
-          mixBlendMode: 'multiply',
+          opacity: isReady ? 1 : 0,
           ...(isRaincloud ? { filter: 'grayscale(0.65) brightness(0.70) saturate(0.5)' } : {}),
         }}
         draggable={false}
       />
 
-      {/* Avatar badge — bottom-right corner */}
-      <div className="absolute -bottom-1.5 -right-1.5 z-10">
+      {/* Avatar badge — bottom-right corner, outside the blend scope */}
+      <div
+        className="absolute -bottom-1.5 -right-1.5 z-10 transition-opacity duration-200"
+        style={{ opacity: isReady ? 1 : 0 }}
+      >
         <AvatarBadge
-          avatarUrl={avatarUrl}
-          initials={initials}
-          size={avatarBadgeSize}
-          borderColor={badgeBorder}
-          bgColor={badgeBg}
-          textColor={badgeText}
+          avatarUrl={avatarUrl} initials={initials} size={avatarBadgeSize}
+          borderColor={badgeBorder} bgColor={badgeBg} textColor={badgeText}
         />
       </div>
     </div>
@@ -173,7 +243,7 @@ function VibeAuraRing({ vibe, isFuturistic, auraWidth }: { vibe: string; isFutur
     neutral: {
       className: 'habitat-aura-cozy',
       style: {
-        background: isFuturistic ? 'rgba(0,220,255,0.08)'          : 'rgba(217,119,54,0.10)',
+        background: isFuturistic ? 'rgba(0,220,255,0.08)'           : 'rgba(217,119,54,0.10)',
         border:     isFuturistic ? '1px solid rgba(0,220,255,0.30)' : '1px solid rgba(217,119,54,0.25)',
       },
     },
@@ -189,7 +259,7 @@ function VibeAuraRing({ vibe, isFuturistic, auraWidth }: { vibe: string; isFutur
 }
 
 // ---------------------------------------------------------------------------
-// Weather vibe overlay (emoji + ambient effect)
+// Weather vibe overlay
 // ---------------------------------------------------------------------------
 
 function WeatherAura({ vibe, isFuturistic }: { vibe: string; isFuturistic: boolean }) {
@@ -237,7 +307,6 @@ function WeatherAura({ vibe, isFuturistic }: { vibe: string; isFuturistic: boole
       </div>
     );
   }
-  // Cozy / neutral
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center">
       <motion.span
@@ -283,9 +352,9 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
   const vibe        = member.vibe_status ?? 'neutral';
   const isRaincloud = vibe === 'raincloud';
 
-  const nameTagBg     = isRaincloud ? 'rgba(30,41,59,0.95)'      : isFuturistic ? 'rgba(5,12,24,0.90)'          : 'rgba(255,252,248,0.92)';
-  const nameTagBorder = isRaincloud ? 'rgba(100,116,139,0.50)'   : isFuturistic ? 'rgba(0,220,255,0.40)'        : 'rgba(217,119,54,0.35)';
-  const nameTagColor  = isRaincloud ? '#f8fafc'                  : isFuturistic ? '#a0e8ff'                     : '#451a03';
+  const nameTagBg     = isRaincloud ? 'rgba(30,41,59,0.95)'    : isFuturistic ? 'rgba(5,12,24,0.90)'          : 'rgba(255,252,248,0.92)';
+  const nameTagBorder = isRaincloud ? 'rgba(100,116,139,0.50)' : isFuturistic ? 'rgba(0,220,255,0.40)'        : 'rgba(217,119,54,0.35)';
+  const nameTagColor  = isRaincloud ? '#f8fafc'                : isFuturistic ? '#a0e8ff'                     : '#451a03';
 
   return (
     <motion.div
@@ -295,7 +364,6 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
       transition={{ type: 'spring', stiffness: 350, damping: 28, delay: plotIndex * 0.04 }}
       onClick={() => onSelectPeer?.(member.user_id, member.display_name || 'Cozy Neighbor')}
     >
-      {/* Habitat sprite + aura ring + weather overlay */}
       <div className="relative flex flex-col items-center">
         <VibeAuraRing vibe={vibe} isFuturistic={isFuturistic} auraWidth={auraWidth} />
         <WeatherAura  vibe={vibe} isFuturistic={isFuturistic} />
@@ -310,8 +378,7 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
         />
       </div>
 
-      {/* Frosted glass name pill + admin crown */}
-      <div className="flex items-center gap-1 mt-1">
+      <div className="flex items-center gap-1 mt-0.5">
         <span
           className="font-black leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border"
           style={{

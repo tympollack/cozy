@@ -4,6 +4,7 @@
  * Import this ONLY from 'use client' components.
  */
 import { createBrowserClient as createSSRBrowserClient } from '@supabase/ssr';
+import { isLocalDevelopment } from '@/lib/env';
 
 export function createBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,15 +17,19 @@ export function createBrowserClient() {
   }
 
   const isBrowser = typeof window !== 'undefined';
+  const hostname = isBrowser ? window.location.hostname : '';
+  const isLocal = isLocalDevelopment(hostname);
   const isSunShadeDomain =
     isBrowser &&
-    (window.location.hostname === 'sunshade.icu' || window.location.hostname.endsWith('.sunshade.icu'));
+    (hostname === 'sunshade.icu' || hostname.endsWith('.sunshade.icu'));
+  const isSecure = process.env.NODE_ENV === 'production' && !isLocal;
+
 
   return createSSRBrowserClient(url, key, {
     cookieOptions: {
       path: '/',
       sameSite: 'lax',
-      secure: true,
+      secure: isSecure,
       ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
     },
   });

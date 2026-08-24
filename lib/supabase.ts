@@ -10,6 +10,7 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createServerClient as createSSRServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
+import { isLocalDevelopment } from '@/lib/env';
 
 // ---------------------------------------------------------------------------
 // Environment variable helpers
@@ -38,13 +39,18 @@ export async function createServerClient() {
   const cookieStore = await cookies();
   
   let isSunShadeDomain = false;
+  let isLocal = false;
   try {
     const headersList = await headers();
     const host = headersList.get('x-forwarded-host') || headersList.get('host') || '';
     isSunShadeDomain = host === 'sunshade.icu' || host.endsWith('.sunshade.icu');
+    isLocal = isLocalDevelopment(host);
   } catch {
-    // ignore
+    isLocal = isLocalDevelopment();
   }
+
+  const isSecure = process.env.NODE_ENV === 'production' && !isLocal;
+
 
   return createSSRServerClient(
     requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
@@ -53,7 +59,7 @@ export async function createServerClient() {
       cookieOptions: {
         path: '/',
         sameSite: 'lax',
-        secure: true,
+        secure: isSecure,
         ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
       },
       cookies: {
@@ -67,7 +73,7 @@ export async function createServerClient() {
                 ...options,
                 path: '/',
                 sameSite: 'lax',
-                secure: true,
+                secure: isSecure,
                 ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
               })
             );
