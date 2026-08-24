@@ -266,11 +266,6 @@ function WeatherAura({ vibe, isFuturistic }: { vibe: string; isFuturistic: boole
   if (vibe === 'sunshine') {
     return (
       <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center">
-        <motion.span
-          className="text-sm absolute -top-6"
-          animate={{ scale: [1, 1.15, 1] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        >☀️</motion.span>
         <div className="vibe-sunshine-aura absolute" style={{ top: -4, width: 44, height: 44 }} />
       </div>
     );
@@ -278,11 +273,6 @@ function WeatherAura({ vibe, isFuturistic }: { vibe: string; isFuturistic: boole
   if (vibe === 'raincloud') {
     return (
       <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center">
-        <motion.span
-          className="text-sm absolute -top-6"
-          animate={{ y: [0, -2, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >🌧️</motion.span>
         <motion.div
           className="absolute border-2 rounded-full"
           style={{ top: -2, width: 42, height: 42, borderColor: 'rgba(148,163,184,0.70)' }}
@@ -307,13 +297,9 @@ function WeatherAura({ vibe, isFuturistic }: { vibe: string; isFuturistic: boole
       </div>
     );
   }
+  // Cozy / neutral
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col items-center">
-      <motion.span
-        className="text-sm absolute -top-6"
-        animate={{ y: [0, -2, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-      >☕</motion.span>
       {[
         { left: '44%', dur: '1.6s', delay: '0s'   },
         { left: '56%', dur: '1.9s', delay: '0.5s' },
@@ -351,6 +337,7 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
   const initials    = (member.display_name || 'CN').slice(0, 2).toUpperCase();
   const vibe        = member.vibe_status ?? 'neutral';
   const isRaincloud = vibe === 'raincloud';
+  const vibeEmoji   = vibe === 'sunshine' ? '☀️' : vibe === 'raincloud' ? '🌧️' : '☕';
 
   const nameTagBg     = isRaincloud ? 'rgba(30,41,59,0.95)'    : isFuturistic ? 'rgba(5,12,24,0.90)'          : 'rgba(255,252,248,0.92)';
   const nameTagBorder = isRaincloud ? 'rgba(100,116,139,0.50)' : isFuturistic ? 'rgba(0,220,255,0.40)'        : 'rgba(217,119,54,0.35)';
@@ -380,20 +367,23 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
 
       <div className="flex items-center gap-1 mt-0.5">
         <span
-          className="font-black leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border"
+          className="font-black leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border flex items-center gap-1"
           style={{
             fontSize: nameFontSize,
-            maxWidth: spriteSize + 16,
+            maxWidth: spriteSize + 26,
             background: nameTagBg,
             borderColor: nameTagBorder,
             color: nameTagColor,
           }}
         >
-          {(member.display_name || 'Cozy Neighbor').split(' ')[0]}
+          <span className="text-[10px] leading-none shrink-0" title={`Feeling ${vibe}`}>
+            {vibeEmoji}
+          </span>
+          <span className="truncate">{(member.display_name || 'Cozy Neighbor').split(' ')[0]}</span>
         </span>
         {member.role === 'admin' && (
           <span
-            className="px-1 py-0.5 rounded-full border text-[9px] shadow-sm"
+            className="px-1 py-0.5 rounded-full border text-[9px] shadow-sm shrink-0"
             style={{ background: 'rgba(251,191,36,0.22)', borderColor: 'rgba(251,191,36,0.55)', color: '#92400e' }}
             title="Group Admin"
           >👑</span>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6ad55"/>
+      <stop offset="50%" stop-color="#ed8936"/>
+      <stop offset="100%" stop-color="#dd6b20"/>
+    </linearGradient>
+    <linearGradient id="roofGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7a4f3a"/>
+      <stop offset="100%" stop-color="#4a2e22"/>
+    </linearGradient>
+    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fdfbf7"/>
+      <stop offset="100%" stop-color="#e2d4be"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Chimney -->
+  <rect x="76" y="32" width="14" height="24" rx="2" fill="#8c583f"/>
+  <!-- Smoke puff -->
+  <circle cx="83" cy="24" r="5" fill="#ffffff" opacity="0.6"/>
+  <circle cx="88" cy="18" r="4" fill="#ffffff" opacity="0.4"/>
+
+  <!-- Roof -->
+  <polygon points="64,30 22,66 106,66" fill="url(#roofGrad)" filter="url(#shadow)"/>
+
+  <!-- House Body -->
+  <rect x="32" y="64" width="64" height="42" rx="4" fill="url(#wallGrad)"/>
+
+  <!-- Hearth Window (Glowing) -->
+  <rect x="42" y="74" width="20" height="20" rx="3" fill="url(#glowGrad)"/>
+  <path d="M 52,74 L 52,94 M 42,84 L 62,84" stroke="#78350f" stroke-width="2"/>
+
+  <!-- Door -->
+  <rect x="70" y="74" width="18" height="32" rx="2" fill="#7a4f3a"/>
+  <circle cx="83" cy="90" r="1.5" fill="#fbbf24"/>
+
+  <!-- Sprout Plant -->
+  <path d="M 98,102 Q 102,94 108,92 Q 106,100 100,104" fill="#48bb78"/>
+  <path d="M 96,104 Q 92,98 88,97 Q 92,103 98,105" fill="#38a169"/>
+</svg>

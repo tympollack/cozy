@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Home, X, Check, ArrowRight, LayoutGrid,
-  Lock, Maximize2, Minimize2, Coins,
+  Lock, Coins,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import {
@@ -71,8 +71,8 @@ export function ProfileShell({
   const [expansionTier, setLocalExpansionTier] = useState(initialExpansionTier);
   const [milestoneTokens, setLocalMilestoneTokens] = useState(initialMilestoneTokens);
   const [selectedSlotForAssignment, setSelectedSlotForAssignment] = useState<ShellSlot | null>(null);
+  const [expandedPost, setExpandedPost] = useState<{ post: UserPost; slot: ShellSlot } | null>(null);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
 
@@ -121,9 +121,6 @@ export function ProfileShell({
       slottedPostMap.set(p.shell_slot, p);
     }
   });
-
-  // The focused slot is always the first active slot (tier-1 corner)
-  const focusedSlot = activeSlots[0];
 
   // Next unlock info
   const nextTier = expansionTier < 3 ? expansionTier + 1 : null;
@@ -219,21 +216,6 @@ export function ProfileShell({
               <Coins size={13} className="text-amber-600 dark:text-amber-400" />
               <span>{milestoneTokens}</span>
             </div>
-
-            {/* Focus Mode Toggle */}
-            <button
-              onClick={() => setIsFocusMode((prev) => !prev)}
-              title={isFocusMode ? 'View full estate' : 'Focus on active nook'}
-              aria-label={isFocusMode ? 'Exit focus mode' : 'Enter focus mode'}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-800
-                bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100
-                border border-amber-900/15 dark:border-amber-500/30 shadow-xs
-                hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            >
-              {isFocusMode
-                ? <Minimize2 size={13} className="text-amber-700 dark:text-amber-400" />
-                : <Maximize2 size={13} className="text-stone-700 dark:text-amber-300" />}
-            </button>
 
             {/* Theme Switcher Button (Owner Only) */}
             {isOwner && (
@@ -364,56 +346,46 @@ export function ProfileShell({
             shadow-2xl border-4 border-white/40 dark:border-zinc-800/40 select-none"
           style={{ background: currentShell.bgGradient }}
         >
-          {/* ── Layer 1: Roof / Crown band ─────────────────────────────── */}
-          <div
-            className="absolute top-0 left-0 right-0 h-12 z-0 flex items-center justify-center"
-            style={{ background: currentShell.roofGradient }}
-          >
-            {/* Ridge beam / crown ornament */}
-            <div className="flex items-center gap-1.5">
-              <div className="w-10 h-[2px] rounded-full bg-white/25" />
-              <span className="text-xs opacity-40 select-none" aria-hidden>
-                {currentShell.badge.split(' ')[0]}
-              </span>
-              <div className="w-10 h-[2px] rounded-full bg-white/25" />
+          {/* ── Layer 1: Illustrated 2.5D Cutaway Interior Background ───────── */}
+          {currentShell.interiorImage ? (
+            <div className="absolute inset-0 z-0 pointer-events-none">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentShell.interiorImage}
+                alt={currentShell.name}
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+              <div className="absolute inset-0 bg-black/15" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
             </div>
-          </div>
-
-          {/* ── Layer 2: Wall body with theme texture overlay ───────────── */}
-          <div
-            className="absolute inset-0 z-0 pointer-events-none"
-            style={{ background: currentShell.wallTexture }}
-          />
-
-          {/* ── Layer 3: Floor slab gradient at the bottom ──────────────── */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-16 z-0 pointer-events-none"
-            style={{
-              background: `linear-gradient(to top, ${currentShell.themeColor}55 0%, transparent 100%)`,
-            }}
-          />
-
-          {/* ── Structural Room Partition Lines (theme-aware) ───────────── */}
-          <div className="absolute inset-0 z-0 pointer-events-none">
-            {/* Horizontal partition — molding strip */}
-            <div
-              className="absolute top-1/2 left-4 right-4 -translate-y-1/2"
-              style={{
-                height: '2px',
-                background: `linear-gradient(to right, transparent, ${currentShell.themeColor}60, transparent)`,
-                boxShadow: `0 1px 3px ${currentShell.themeColor}30`,
-              }}
-            />
-            {/* Vertical partition — structural beam */}
-            <div
-              className="absolute left-1/2 top-12 bottom-0 -translate-x-1/2"
-              style={{
-                width: '2px',
-                background: `linear-gradient(to bottom, transparent, ${currentShell.themeColor}50, ${currentShell.themeColor}30, transparent)`,
-                boxShadow: `1px 0 4px ${currentShell.themeColor}20, -1px 0 4px ${currentShell.themeColor}20`,
-              }}
-            />
-          </div>
+          ) : (
+            <>
+              {/* Fallback procedural roof / walls */}
+              <div
+                className="absolute top-0 left-0 right-0 h-12 z-0 flex items-center justify-center"
+                style={{ background: currentShell.roofGradient }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className="w-10 h-[2px] rounded-full bg-white/25" />
+                  <span className="text-xs opacity-40 select-none" aria-hidden>
+                    {currentShell.badge.split(' ')[0]}
+                  </span>
+                  <div className="w-10 h-[2px] rounded-full bg-white/25" />
+                </div>
+              </div>
+              <div
+                className="absolute inset-0 z-0 pointer-events-none"
+                style={{ background: currentShell.wallTexture }}
+              />
+              <div
+                className="absolute bottom-0 left-0 right-0 h-16 z-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(to top, ${currentShell.themeColor}55 0%, transparent 100%)`,
+                }}
+              />
+            </>
+          )}
 
           {/* ── Per-slot ambient glow spots ─────────────────────────────── */}
           {activeSlots.map((slot) => (
@@ -431,52 +403,7 @@ export function ProfileShell({
             />
           ))}
 
-          {/* Focus Mode overlay — zooms into the active corner slot */}
-          <AnimatePresence>
-            {isFocusMode && focusedSlot && (
-              <motion.div
-                key="focus-overlay"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-30 bg-[--cozy-night]/80 backdrop-blur-sm
-                  flex items-center justify-center"
-                onClick={() => setIsFocusMode(false)}
-              >
-                <motion.div
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.7, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-                  className="relative w-[72%] aspect-square"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ShellNook
-                    slot={{
-                      ...focusedSlot,
-                      // Override position to fill the focus container
-                      x: 0, y: 0, w: 100, h: 100,
-                    }}
-                    post={slottedPostMap.get(focusedSlot.id)}
-                    isOwner={isOwner}
-                    isLocked={false}
-                    onSelectEmptySlot={(s) => {
-                      setIsFocusMode(false);
-                      setSelectedSlotForAssignment(s);
-                    }}
-                    onUnassignPost={handleUnassignPost}
-                    onViewPost={(p) => {
-                      setIsFocusMode(false);
-                      onPostSelect?.(p);
-                    }}
-                  />
-                </motion.div>
-                <p className="absolute bottom-4 text-xs text-white/50 font-600">
-                  Tap outside to exit focus
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
 
           {/* ── Dollhouse Mailbox (bottom-left) ── */}
           <div
@@ -506,7 +433,10 @@ export function ProfileShell({
                 isLocked={false}
                 onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
                 onUnassignPost={handleUnassignPost}
-                onViewPost={(p) => onPostSelect?.(p)}
+                onViewPost={(p) => {
+                  setExpandedPost({ post: p, slot });
+                  onPostSelect?.(p);
+                }}
               />
             );
           })}
@@ -524,6 +454,134 @@ export function ProfileShell({
             />
           ))}
         </div>
+
+        {/* ── Expanded Post Lightbox Modal (Shared Element Zoom) ─────────── */}
+        <AnimatePresence>
+          {expandedPost && (
+            <motion.div
+              key="lightbox-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+              onClick={() => setExpandedPost(null)}
+            >
+              <motion.div
+                layoutId={`nook-frame-${expandedPost.post.id}`}
+                transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.75 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-3xl overflow-hidden bg-white dark:bg-[#1f1713] border border-amber-300/40 shadow-2xl flex flex-col max-h-[90vh]"
+              >
+                {/* Lightbox Header */}
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  transition={{ delay: 0.08, duration: 0.18 }}
+                  className="flex items-center justify-between px-5 py-3.5 bg-amber-50/90 dark:bg-[#281e19] border-b border-amber-200/50 dark:border-amber-600/30"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{expandedPost.slot.icon}</span>
+                    <div>
+                      <h3 className="text-sm font-800 text-stone-900 dark:text-amber-100">
+                        {expandedPost.slot.label}
+                      </h3>
+                      <p className="text-[11px] font-500 text-stone-600 dark:text-amber-300/70">
+                        Featured in your {currentShell.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setExpandedPost(null)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </motion.div>
+
+                {/* Expanded Photo Container */}
+                <div className="relative flex-1 min-h-[260px] max-h-[55vh] bg-stone-950 flex items-center justify-center overflow-hidden">
+                  {expandedPost.post.light_img_url || expandedPost.post.dark_img_url ? (
+                    <motion.img
+                      layoutId={`nook-img-${expandedPost.post.id}`}
+                      src={getOptimizedImageUrl(
+                        expandedPost.post.light_img_url || expandedPost.post.dark_img_url || '',
+                        1000
+                      )}
+                      alt={expandedPost.slot.label}
+                      className="w-full h-full object-contain max-h-[55vh]"
+                    />
+                  ) : (
+                    <div className="text-center py-16 text-amber-200 space-y-2">
+                      <span className="text-5xl">{expandedPost.slot.icon}</span>
+                      <p className="text-sm font-700">{expandedPost.slot.label}</p>
+                    </div>
+                  )}
+
+                  {/* Stickers layer */}
+                  {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                      transition={{ delay: 0.1 }}
+                      className="absolute inset-0 pointer-events-none"
+                    >
+                      {expandedPost.post.stickers.map((st) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={st.id}
+                          src={st.sticker_url}
+                          alt="Sticker"
+                          className="absolute w-8 h-8 object-contain drop-shadow-md"
+                          style={{
+                            left: `${st.x_percent}%`,
+                            top: `${st.y_percent}%`,
+                            transform: `translate(-50%, -50%) rotate(${st.rotation_degrees}deg)`,
+                          }}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Lightbox Footer Actions */}
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  transition={{ delay: 0.08, duration: 0.18 }}
+                  className="px-5 py-4 bg-amber-50/95 dark:bg-[#241a15] border-t border-amber-200/50 dark:border-amber-600/30 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-full text-xs font-900 bg-amber-400 text-stone-950 shadow-sm flex items-center gap-1">
+                      ♥ {expandedPost.post.cheer_count} Cheers
+                    </span>
+                    {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
+                      <span className="text-xs font-600 text-stone-600 dark:text-amber-200/80">
+                        {expandedPost.post.stickers.length} sticker{expandedPost.post.stickers.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        const postId = expandedPost.post.id;
+                        setExpandedPost(null);
+                        handleUnassignPost(postId);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-300 dark:border-red-700/40 transition-colors cursor-pointer"
+                    >
+                      Unsnap Space
+                    </button>
+                  )}
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Assign Post Picker Modal ────────────────────────────────────── */}
         <AnimatePresence>

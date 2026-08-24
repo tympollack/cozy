@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
 import type { GroupRow, GroupMemberRow, MyGroupEntry } from '@/app/actions/groupActions';
+import { getGroupPageBundle } from '@/app/actions/groupActions';
 import type { GroupChallenge } from '@/lib/challengeDefaults';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
@@ -13,6 +14,20 @@ import { CommunityBulletinBoard } from '@/components/CommunityBulletinBoard';
 import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
 import { InviteCodePill } from '@/components/InviteCodePill';
 import { AdminGroupModal } from '@/components/AdminGroupModal';
+
+interface GroupBundleData {
+  group: GroupRow;
+  members: GroupMemberRow[];
+  currentUserRole: 'admin' | 'member' | null;
+  memberCount: number;
+  activeChallenge: GroupChallenge | null;
+  cachedAt: number;
+}
+
+// Module-level in-memory client cache preserved across route navigation
+const groupBundleCache = new Map<string, GroupBundleData>();
+
+import { useCozyStore } from '@/store/useCozyStore';
 
 interface GroupDetailClientProps {
   group: GroupRow;
@@ -35,17 +50,47 @@ export function GroupDetailClient({
 }: GroupDetailClientProps) {
   const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
+  const [selectedPeer, setSelectedPeer] = useState<{
+    id: string;
+    name: string;
+    vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
+  } | null>(null);
   const [inviteHighlight, setInviteHighlight] = useState(false);
   const invitePillRef = useRef<HTMLDivElement>(null);
 
-  const handleOpenInvite = () => {
-    setInviteHighlight(true);
-    invitePillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => setInviteHighlight(false), 2500);
+  // Active group ID for instant client-side cycling
+  const [activeGroupId, setActiveGroupId] = useState<string>(group?.id || '');
+
+  // Synchronously seed the client cache with incoming server props
+  if (group?.id) {
+    groupBundleCache.set(group.id, {
+      group,
+      members,
+      currentUserRole,
+      memberCount,
+      activeChallenge,
+      cachedAt: Date.now(),
+    });
+  }
+
+  // Keep activeGroupId in sync if a full server navigation prop changes
+  useEffect(() => {
+    if (group?.id && group.id !== activeGroupId) {
+      setActiveGroupId(group.id);
+    }
+  }, [group?.id]);
+
+  // Retrieve active group data from cache (or fallback to props)
+  const activeBundle = groupBundleCache.get(activeGroupId) || {
+    group,
+    members,
+    currentUserRole,
+    memberCount,
+    activeChallenge,
+    cachedAt: Date.now(),
   };
 
-  const safeGroup = group || {
+  const safeGroup = activeBundle.group || group || {
     id: '',
     name: 'Cozy Group',
     type: 'household',
@@ -57,8 +102,10 @@ export function GroupDetailClient({
     created_at: new Date().toISOString(),
   };
 
-  const safeMembers = Array.isArray(members) ? members : [];
-  const safeCount = memberCount ?? safeMembers.length ?? 1;
+  const safeMembers = Array.isArray(activeBundle.members) ? activeBundle.members : [];
+  const safeCount = activeBundle.memberCount ?? memberCount ?? safeMembers.length ?? 1;
+  const currentRole = activeBundle.currentUserRole ?? currentUserRole;
+  const currentChallenge = activeBundle.activeChallenge !== undefined ? activeBundle.activeChallenge : activeChallenge;
 
   const meta = GROUP_TYPE_META[safeGroup.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
@@ -67,16 +114,24 @@ export function GroupDetailClient({
     ? 'linear-gradient(160deg, #050810 0%, #080f1e 50%, #060c18 100%)'
     : 'var(--cozy-bg-gradient)';
 
+  const { vibeStatus: storeVibeStatus } = useCozyStore();
   const textPrimary = isFuturistic ? '#e0f4ff' : 'var(--cozy-text-primary)';
   const textSecondary = isFuturistic ? '#60a0bc' : 'var(--cozy-text-muted)';
   const accentColor = isFuturistic ? '#00dcff' : 'var(--cozy-amber)';
 
-  // Sort members: admins first, then by points desc
-  const sortedMembers = [...safeMembers].sort((a, b) => {
-    if (a.role === 'admin' && b.role !== 'admin') return -1;
-    if (b.role === 'admin' && a.role !== 'admin') return 1;
-    return (b.points || 0) - (a.points || 0);
-  });
+  // Sort members: admins first, then by points desc, dynamically reflecting store vibe
+  const sortedMembers = [...safeMembers]
+    .map((m) => {
+      if (m.user_id === currentUserId && storeVibeStatus) {
+        return { ...m, vibe_status: storeVibeStatus as 'sunshine' | 'neutral' | 'raincloud' };
+      }
+      return m;
+    })
+    .sort((a, b) => {
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (b.role === 'admin' && a.role !== 'admin') return 1;
+      return (b.points || 0) - (a.points || 0);
+    });
 
   // Group Switcher calculations
   const safeMyGroups = Array.isArray(myGroups) ? myGroups : [];
@@ -90,6 +145,97 @@ export function GroupDetailClient({
     ? safeMyGroups[(currentGroupIndex + 1) % safeMyGroups.length].group
     : null;
 
+  // Instant group switch handler
+  const handleSwitchGroup = useCallback((targetGroupId: string) => {
+    if (!targetGroupId || targetGroupId === activeGroupId) return;
+
+    if (groupBundleCache.has(targetGroupId)) {
+      // 0ms instant switch!
+      setActiveGroupId(targetGroupId);
+      window.history.pushState(null, '', `/groups/${targetGroupId}`);
+
+      // Silent background revalidation if cache is older than 30s
+      const cached = groupBundleCache.get(targetGroupId);
+      if (cached && Date.now() - cached.cachedAt > 30000) {
+        getGroupPageBundle(targetGroupId).then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(targetGroupId, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+            setActiveGroupId((curr) => (curr === targetGroupId ? targetGroupId : curr));
+          }
+        }).catch(() => {});
+      }
+    } else {
+      // Not yet in cache — fetch quickly and transition
+      getGroupPageBundle(targetGroupId)
+        .then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(targetGroupId, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+            setActiveGroupId(targetGroupId);
+            window.history.pushState(null, '', `/groups/${targetGroupId}`);
+          } else {
+            router.push(`/groups/${targetGroupId}`);
+          }
+        })
+        .catch(() => {
+          router.push(`/groups/${targetGroupId}`);
+        });
+    }
+  }, [activeGroupId, router]);
+
+  // Background prefetch all other user groups on mount for instant cycling
+  useEffect(() => {
+    if (!safeMyGroups.length) return;
+
+    safeMyGroups.forEach((entry) => {
+      const gid = entry.group.id;
+      // Router prefetch for Next.js RSC route cache
+      router.prefetch(`/groups/${gid}`);
+
+      // Preload data into client bundle cache
+      if (!groupBundleCache.has(gid)) {
+        getGroupPageBundle(gid).then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(gid, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+          }
+        }).catch(() => {});
+      }
+    });
+  }, [safeMyGroups, router]);
+
+  // Handle browser Back / Forward buttons seamlessly from cache
+  useEffect(() => {
+    const handlePopState = () => {
+      const parts = window.location.pathname.split('/');
+      const id = parts[2];
+      if (id && groupBundleCache.has(id)) {
+        setActiveGroupId(id);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Keyboard navigation for jumping to previous/next group with arrow keys
   useEffect(() => {
     if (!hasMultipleGroups) return;
@@ -99,15 +245,21 @@ export function GroupDetailClient({
         return;
       }
       if (e.key === 'ArrowLeft' && prevGroup) {
-        router.push(`/groups/${prevGroup.id}`);
+        handleSwitchGroup(prevGroup.id);
       } else if (e.key === 'ArrowRight' && nextGroup) {
-        router.push(`/groups/${nextGroup.id}`);
+        handleSwitchGroup(nextGroup.id);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hasMultipleGroups, prevGroup, nextGroup, router]);
+  }, [hasMultipleGroups, prevGroup, nextGroup, handleSwitchGroup]);
+
+  const handleOpenInvite = () => {
+    setInviteHighlight(true);
+    invitePillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => setInviteHighlight(false), 2500);
+  };
 
   return (
     <div
@@ -131,6 +283,10 @@ export function GroupDetailClient({
             <div className="flex items-center gap-1 bg-white/85 dark:bg-[#1a1410]/90 backdrop-blur-md px-2 py-1 rounded-full border border-amber-900/15 dark:border-amber-500/25 shadow-xs">
               <Link
                 href={`/groups/${prevGroup.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSwitchGroup(prevGroup.id);
+                }}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
                 title={`Previous Group: ${prevGroup.name} (←)`}
                 aria-label="Previous group"
@@ -142,6 +298,10 @@ export function GroupDetailClient({
               </span>
               <Link
                 href={`/groups/${nextGroup.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSwitchGroup(nextGroup.id);
+                }}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
                 title={`Next Group: ${nextGroup.name} (→)`}
                 aria-label="Next group"
@@ -166,6 +326,10 @@ export function GroupDetailClient({
                   <div className="flex items-center gap-0.5 opacity-75 hover:opacity-100">
                     <Link
                       href={`/groups/${prevGroup.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSwitchGroup(prevGroup.id);
+                      }}
                       className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
                       title={`Previous: ${prevGroup.name}`}
                     >
@@ -173,6 +337,10 @@ export function GroupDetailClient({
                     </Link>
                     <Link
                       href={`/groups/${nextGroup.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSwitchGroup(nextGroup.id);
+                      }}
                       className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
                       title={`Next: ${nextGroup.name}`}
                     >
@@ -187,7 +355,7 @@ export function GroupDetailClient({
             </div>
 
             {/* Admin Badge — Click to manage group */}
-            {currentUserRole === 'admin' && (
+            {currentRole === 'admin' && (
               <button
                 onClick={() => setShowAdminModal(true)}
                 className="flex-shrink-0 flex items-center gap-1.5 text-xs font-800 px-3 py-1.5 rounded-2xl mt-1 transition-all hover:scale-105 active:scale-95 shadow-md border cursor-pointer"
@@ -228,22 +396,29 @@ export function GroupDetailClient({
         <GroupMapView
           group={safeGroup}
           members={sortedMembers}
-          onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+          onSelectPeer={(id, name) => {
+            const member = sortedMembers.find((m) => m.user_id === id);
+            setSelectedPeer({
+              id,
+              name,
+              vibeStatus: member?.vibe_status || 'neutral',
+            });
+          }}
           onOpenInvite={handleOpenInvite}
-          activeChallenge={activeChallenge}
+          activeChallenge={currentChallenge}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}
         <CommunityBulletinBoard
           groupId={safeGroup.id}
           isFuturistic={isFuturistic}
-          isAdmin={currentUserRole === 'admin'}
+          isAdmin={currentRole === 'admin'}
         />
 
         {/* Group Bank */}
         <GroupBank
           group={safeGroup}
-          currentUserRole={currentUserRole}
+          currentUserRole={currentRole}
           memberCount={safeCount}
         />
 
@@ -256,11 +431,19 @@ export function GroupDetailClient({
             {sortedMembers.map((member, i) => {
               const memberName = member.display_name || 'Cozy Neighbor';
               const memberPoints = Number(member.points) || 0;
+              const memberVibe = member.vibe_status || 'neutral';
+              const vibeIcon = memberVibe === 'sunshine' ? '☀️' : memberVibe === 'raincloud' ? '🌧️' : '☕';
 
               return (
                 <div
                   key={member.user_id}
-                  onClick={() => setSelectedPeer({ id: member.user_id, name: memberName })}
+                  onClick={() =>
+                    setSelectedPeer({
+                      id: member.user_id,
+                      name: memberName,
+                      vibeStatus: member.vibe_status || 'neutral',
+                    })
+                  }
                   className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
                   style={{
                     background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
@@ -293,6 +476,9 @@ export function GroupDetailClient({
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs shrink-0" title={`Feeling ${memberVibe}`}>
+                        {vibeIcon}
+                      </span>
                       <span
                         className="text-sm font-700 truncate"
                         style={{ color: textPrimary }}
@@ -328,6 +514,7 @@ export function GroupDetailClient({
           <PeerSupportDrawer
             recipientId={selectedPeer.id}
             recipientName={selectedPeer.name}
+            vibeStatus={selectedPeer.vibeStatus}
             isOpen={!!selectedPeer}
             onClose={() => setSelectedPeer(null)}
           />
@@ -336,7 +523,7 @@ export function GroupDetailClient({
         {/* Admin Management Modal */}
         {showAdminModal && (
           <AdminGroupModal
-            group={group}
+            group={safeGroup}
             members={sortedMembers}
             currentUserId={currentUserId}
             onClose={() => setShowAdminModal(false)}

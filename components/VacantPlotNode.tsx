@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import type { PlotSize } from '@/components/UserPlotNode';
+import { Plus } from 'lucide-react';
 
 interface VacantPlotNodeProps {
   plotSize: PlotSize;
@@ -9,58 +10,54 @@ interface VacantPlotNodeProps {
   onClick?: () => void;
 }
 
-const FONT_SIZE: Record<PlotSize, number> = { lg: 11, md: 10, sm: 9 };
-const RING_W:    Record<PlotSize, number> = { lg: 64, md: 50, sm: 42 };
+const RING_W: Record<PlotSize, number> = { lg: 52, md: 42, sm: 34 };
+const BADGE_SIZE: Record<PlotSize, number> = { lg: 20, md: 18, sm: 16 };
 
 export function VacantPlotNode({ plotSize, isFuturistic, onClick }: VacantPlotNodeProps) {
-  const fs = FONT_SIZE[plotSize];
   const rw = RING_W[plotSize];
+  const bs = BADGE_SIZE[plotSize];
 
-  const pillBg     = isFuturistic ? 'rgba(0,20,40,0.88)'     : 'rgba(255,252,248,0.92)';
-  const pillColor  = isFuturistic ? '#00dcff'                 : '#b45309';
-  const pillBorder = isFuturistic ? 'rgba(0,220,255,0.65)'   : 'rgba(240,192,96,0.65)';
-  const subColor   = isFuturistic ? '#60a0c0'                 : '#78350f';
-  const ringBorder = isFuturistic ? 'rgba(0,220,255,0.55)'   : 'rgba(217,119,54,0.45)';
-  const ringGlow   = isFuturistic ? 'rgba(0,220,255,0.18)'   : 'rgba(254,243,199,0.28)';
+  const ringBorder = isFuturistic ? 'rgba(0,220,255,0.25)'   : 'rgba(160,110,60,0.22)';
+  const ringGlow   = isFuturistic ? 'rgba(0,220,255,0.06)'   : 'rgba(217,119,54,0.08)';
+  const badgeBg    = isFuturistic ? 'rgba(0,20,40,0.60)'     : 'rgba(255,252,248,0.65)';
+  const badgeBorder= isFuturistic ? 'rgba(0,220,255,0.35)'   : 'rgba(180,130,80,0.30)';
+  const badgeColor = isFuturistic ? 'rgba(0,220,255,0.70)'   : 'rgba(120,53,15,0.60)';
 
   return (
-    <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={onClick}>
-      {/* Glowing dashed ground ring */}
+    <motion.div
+      className="group flex flex-col items-center justify-center cursor-pointer select-none relative opacity-60 hover:opacity-100 transition-opacity duration-200"
+      onClick={onClick}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.96 }}
+      title="Vacant plot — tap to invite"
+      aria-label="Vacant plot"
+    >
+      {/* Subtle dashed ground ring */}
       <div
-        className="iso-plot-glow rounded-full"
+        className="rounded-full transition-all duration-200 group-hover:border-opacity-60"
         style={{
           width: rw,
-          height: Math.round(rw * 0.35),
+          height: Math.round(rw * 0.40),
           border: `1.5px dashed ${ringBorder}`,
-          background: `radial-gradient(ellipse, ${ringGlow} 0%, transparent 75%)`,
-          boxShadow: `0 0 10px 2px ${ringGlow}`,
+          background: `radial-gradient(ellipse, ${ringGlow} 0%, transparent 80%)`,
         }}
         aria-hidden
       />
 
-      {/* + Invite glass pill (floats just above the ground ring) */}
-      <motion.button
-        className="relative -mt-4 z-10 rounded-2xl flex items-center gap-1 font-black shadow-lg backdrop-blur-md border cursor-pointer"
+      {/* Discreet small + badge centered on the plot */}
+      <div
+        className="absolute rounded-full flex items-center justify-center backdrop-blur-xs border shadow-xs transition-all duration-200 group-hover:scale-110"
         style={{
-          fontSize: fs,
-          paddingInline: '10px',
-          paddingBlock: '4px',
-          background: pillBg,
-          color: pillColor,
-          borderColor: pillBorder,
+          width: bs,
+          height: bs,
+          background: badgeBg,
+          borderColor: badgeBorder,
+          color: badgeColor,
         }}
-        animate={{ scale: [1, 1.06, 1] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        aria-label="Open invite"
       >
-        <span className="text-xs leading-none">{isFuturistic ? '🛸' : '🏡'}</span>
-        <span>+ Invite</span>
-      </motion.button>
-
-      {/* Subtext */}
-      <span className="font-bold opacity-70" style={{ fontSize: fs - 1, color: subColor }}>
-        Vacant Plot
-      </span>
-    </div>
+        <Plus size={Math.round(bs * 0.55)} strokeWidth={2.5} />
+      </div>
+    </motion.div>
   );
 }
+

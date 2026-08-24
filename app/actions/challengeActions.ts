@@ -1,7 +1,8 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, unstable_cache } from 'next/cache';
+import { cache } from 'react';
 import {
   DEFAULT_CHALLENGES,
   type GroupChallenge,
@@ -163,14 +164,8 @@ export async function completeGroupChallenge(
   };
 }
 
-/**
- * Returns the most recent pinned challenge for a group from the DB,
- * or null if no challenge has been pinned.
- */
-export async function getActiveGroupChallenge(
-  groupId: string
-): Promise<GroupChallenge | null> {
-  try {
+const getCachedChallenge = unstable_cache(
+  async (groupId: string) => {
     const service = createServiceClient();
     const { data, error } = await service
       .schema('cozy')
@@ -197,7 +192,26 @@ export async function getActiveGroupChallenge(
         ? data.completed_user_ids
         : [],
     };
+  },
+  ['active-group-challenge'],
+  {
+    tags: ['challenges', 'groups'],
+    revalidate: 60,
+  }
+);
+
+/**
+ * Returns the most recent pinned challenge for a group from the DB,
+ * or null if no challenge has been pinned.
+ * Uses request memoization and cross-request cache.
+ */
+export const getActiveGroupChallenge = cache(async (
+  groupId: string
+): Promise<GroupChallenge | null> => {
+  try {
+    return await getCachedChallenge(groupId);
   } catch {
     return null;
   }
-}
+});
+
