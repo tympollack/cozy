@@ -53,11 +53,11 @@ export function GroupDetailClient({
 
   const bgStyle = isFuturistic
     ? 'linear-gradient(160deg, #050810 0%, #080f1e 50%, #060c18 100%)'
-    : 'linear-gradient(160deg, #faf7f2 0%, #f5ede0 60%, #ede0cc 100%)';
+    : 'var(--cozy-bg-gradient)';
 
-  const textPrimary = isFuturistic ? '#e0f4ff' : '#1a1410';
-  const textSecondary = isFuturistic ? '#60a0bc' : '#8a7060';
-  const accentColor = isFuturistic ? '#00dcff' : '#f0c060';
+  const textPrimary = isFuturistic ? '#e0f4ff' : 'var(--cozy-text-primary)';
+  const textSecondary = isFuturistic ? '#60a0bc' : 'var(--cozy-text-muted)';
+  const accentColor = isFuturistic ? '#00dcff' : 'var(--cozy-amber)';
 
   // Sort members: admins first, then by points desc
   const sortedMembers = [...safeMembers].sort((a, b) => {

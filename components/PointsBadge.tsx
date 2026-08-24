@@ -41,16 +41,16 @@ export function PointsBadge() {
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-bold shadow-sm
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-600/50 font-800 shadow-xs transition-colors
         ${bouncing ? 'points-bounce' : ''}`}
       aria-label={`${points} points`}
     >
       <Star
-        size={14}
-        className="fill-amber-500 text-amber-500"
+        size={13}
+        className="fill-amber-500 text-amber-500 dark:fill-amber-400 dark:text-amber-400"
         aria-hidden="true"
       />
-      <span className="text-sm tabular-nums">
+      <span className="text-xs font-900 tabular-nums">
         <AnimatedCounter value={points} />
       </span>
     </div>

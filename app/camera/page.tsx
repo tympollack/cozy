@@ -143,10 +143,7 @@ export default function CameraPage() {
   }
 
   return (
-    <div
-      className="min-h-screen px-4 py-8"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8">
       <div className="max-w-lg mx-auto space-y-8">
         {/* Header */}
         <div className="text-center">

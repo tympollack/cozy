@@ -23,10 +23,7 @@ export default async function GroupsHubPage() {
   const myGroups = await getMyGroups();
 
   return (
-    <div
-      className="min-h-screen px-4 py-8 pb-24"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8 pb-24">
       <div className="max-w-xl mx-auto space-y-6">
         {/* Page header */}
         <div className="flex items-center justify-between">

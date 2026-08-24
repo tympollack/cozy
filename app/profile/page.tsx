@@ -44,10 +44,7 @@ export default async function ProfilePage() {
   const showStickerTutorial = posts.length > 0 && milestoneTokens >= 100;
 
   return (
-    <div
-      className="min-h-screen px-4 py-8 pb-20"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8 pb-20">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">

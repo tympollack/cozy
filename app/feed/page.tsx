@@ -19,9 +19,7 @@ export default async function FeedPage() {
   const { posts, nextCursor } = await getFeed();
 
   return (
-    <div className="flex-1 relative overflow-hidden w-full flex flex-col items-center px-4 pt-6 pb-6"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg flex-1 relative overflow-hidden w-full flex flex-col items-center px-4 pt-6 pb-6">
       {/* Heading */}
       <div className="w-full max-w-lg mb-6 text-center">
         <h1 className="text-2xl font-800 text-[--cozy-bark]">Your Feed</h1>
