@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Camera, User, Users } from 'lucide-react';
+import { Home, Camera, User, Users, Settings } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
 import { VibePill } from '@/components/VibePill';
 import { createServerClient } from '@/lib/supabase';
@@ -72,6 +72,15 @@ export async function Navbar() {
               </Link>
               <VibePill />
               <PointsBadge />
+              <Link
+                href="/settings"
+                id="nav-settings"
+                className="p-1.5 rounded-xl text-[--cozy-bark] hover:bg-amber-50/80 dark:hover:bg-zinc-800 transition-colors duration-150"
+                aria-label="Settings"
+                title="Settings & Hub Options"
+              >
+                <Settings size={16} aria-hidden="true" />
+              </Link>
             </>
           ) : (
             <Link
