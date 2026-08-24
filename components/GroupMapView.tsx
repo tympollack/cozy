@@ -19,8 +19,8 @@ interface ScaleConfig {
   label: string;    // density label (cosmetic)
   nameFontSize: number; // px font size for name tag
   avatarSize: number;   // px diameter for avatar/initials
-  roofW: number;    // half-width of CSS roof triangle
-  roofH: number;    // height of CSS roof triangle
+  roofW: number;    // half-width of roof triangle
+  roofH: number;    // height of roof triangle
   bodyW: number;    // house body width
   bodyH: number;    // house body height
   doorW: number;    // door width
@@ -29,18 +29,18 @@ interface ScaleConfig {
 
 function computeScaleConfig(memberCount: number): ScaleConfig {
   if (memberCount <= 4) {
-    return { tileW: 120, tileH: 66, depth: 20, gap: 1.6, cols: 2,  label: 'Hamlet',      nameFontSize: 10, avatarSize: 22, roofW: 22, roofH: 16, bodyW: 42, bodyH: 30, doorW: 8,  doorH: 11 };
+    return { tileW: 130, tileH: 72, depth: 22, gap: 1.65, cols: 2,  label: 'Hamlet',      nameFontSize: 11, avatarSize: 26, roofW: 24, roofH: 18, bodyW: 46, bodyH: 34, doorW: 9,  doorH: 12 };
   }
   if (memberCount <= 9) {
-    return { tileW: 104, tileH: 57, depth: 17, gap: 1.4, cols: 3,  label: 'Village',     nameFontSize: 9,  avatarSize: 19, roofW: 19, roofH: 14, bodyW: 36, bodyH: 26, doorW: 7,  doorH: 10 };
+    return { tileW: 112, tileH: 62, depth: 18, gap: 1.45, cols: 3,  label: 'Village',     nameFontSize: 10, avatarSize: 22, roofW: 20, roofH: 15, bodyW: 38, bodyH: 28, doorW: 8,  doorH: 10 };
   }
   if (memberCount <= 19) {
-    return { tileW: 92,  tileH: 50, depth: 14, gap: 1.25,cols: 3,  label: 'Town',        nameFontSize: 9,  avatarSize: 16, roofW: 16, roofH: 12, bodyW: 30, bodyH: 22, doorW: 6,  doorH: 8  };
+    return { tileW: 96,  tileH: 52, depth: 15, gap: 1.30, cols: 3,  label: 'Town',        nameFontSize: 9,  avatarSize: 18, roofW: 17, roofH: 13, bodyW: 32, bodyH: 24, doorW: 7,  doorH: 9  };
   }
   if (memberCount <= 35) {
-    return { tileW: 76,  tileH: 42, depth: 12, gap: 1.1, cols: 4,  label: 'City',        nameFontSize: 8,  avatarSize: 13, roofW: 13, roofH: 10, bodyW: 25, bodyH: 18, doorW: 5,  doorH: 7  };
+    return { tileW: 80,  tileH: 44, depth: 12, gap: 1.15, cols: 4,  label: 'City',        nameFontSize: 8,  avatarSize: 15, roofW: 14, roofH: 11, bodyW: 26, bodyH: 20, doorW: 5,  doorH: 7  };
   }
-  return   { tileW: 62,  tileH: 34, depth: 10, gap: 1.0, cols: 5,  label: 'Metropolis',  nameFontSize: 7,  avatarSize: 11, roofW: 11, roofH: 8,  bodyW: 20, bodyH: 14, doorW: 4,  doorH: 6  };
+  return   { tileW: 66,  tileH: 36, depth: 10, gap: 1.05, cols: 5,  label: 'Metropolis',  nameFontSize: 7,  avatarSize: 12, roofW: 12, roofH: 9,  bodyW: 22, bodyH: 16, doorW: 4,  doorH: 6  };
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ function isoOffset(
 ): { x: number; y: number } {
   return {
     x: (col - row) * (tileW / 2) * gap,
-    y: (col + row) * (tileH / 2.2) * gap,
+    y: (col + row) * (tileH / 2.1) * gap,
   };
 }
 
@@ -74,7 +74,7 @@ function buildGrid(maxPlots: number, cols: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Palette definitions
+// Theme palettes
 // ---------------------------------------------------------------------------
 
 const COZY_PALETTE = {
@@ -84,7 +84,7 @@ const COZY_PALETTE = {
   tileShadow: 'rgba(122,79,58,0.25)',
   emptyFill: 'rgba(240,192,96,0.18)',
   emptyBorder: '#f0c060',
-  avatarRing: '#e8a87c',
+  avatarRing: '#d97736',
   glowColor: 'rgba(240,192,96,0.55)',
   wallLeft: 'linear-gradient(180deg, #d89668 0%, #aa683e 100%)',
   wallRight: 'linear-gradient(180deg, #be7e52 0%, #8c4c24 100%)',
@@ -133,7 +133,7 @@ export type GroupMemberWithVibe = GroupMemberRow & {
 
 function StarField() {
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
       {Array.from({ length: 24 }).map((_, i) => {
         const size = 1 + Math.random() * 2;
         const x = Math.random() * 100;
@@ -155,130 +155,203 @@ function StarField() {
 }
 
 // ---------------------------------------------------------------------------
-// Miniature house / pod — fully proportional via ScaleConfig
+// 2.5D Dollhouse Cottage Model — High-Detail Storybook Architecture
 // ---------------------------------------------------------------------------
 
 function MiniHouseModel({
-  palette,
   isFuturistic,
   avatarUrl,
   initials,
   isRaincloud,
   scale,
 }: {
-  palette: typeof COZY_PALETTE;
+  palette: typeof COZY_PALETTE | typeof FUTURISTIC_PALETTE;
   isFuturistic: boolean;
   avatarUrl: string | null;
   initials: string;
   isRaincloud: boolean;
   scale: ScaleConfig;
 }) {
-  const { roofW, roofH, bodyW, bodyH, doorW, doorH, avatarSize } = scale;
+  const { bodyW, bodyH, avatarSize, nameFontSize } = scale;
 
   if (isFuturistic) {
     return (
-      <div className="flex flex-col items-center" style={{ marginTop: -Math.round(scale.tileH * 0.1) }}>
-        <div
-          className="relative flex items-center justify-center"
-          style={{
-            width: bodyW + 4,
-            height: bodyH,
-            clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
-            background: isRaincloud ? 'linear-gradient(135deg, #334155, #1e293b)' : palette.tileBase,
-            border: `1.5px solid ${isRaincloud ? '#64748b' : palette.houseRoof}`,
-            boxShadow: isRaincloud ? 'none' : `0 0 10px ${palette.glowColor}`,
-          }}
-        >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl}
-              alt="avatar"
-              className="rounded-full object-cover"
+      <div className="relative flex flex-col items-center select-none" style={{ marginTop: -Math.round(scale.tileH * 0.16) }}>
+        {/* Orbital Bio-Pod Structure */}
+        <div className="relative flex flex-col items-center">
+          {/* Antenna / Beacon */}
+          <div className="w-0.5 h-3 bg-cyan-400 animate-pulse" />
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#00dcff] -mt-1" />
+
+          {/* Pod Dome */}
+          <div
+            className="relative rounded-2xl overflow-hidden border-2 flex items-center justify-center shadow-xl backdrop-blur-md"
+            style={{
+              width: bodyW + 8,
+              height: bodyH + 4,
+              background: isRaincloud
+                ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+                : 'linear-gradient(180deg, rgba(15,29,54,0.95) 0%, rgba(5,12,24,0.98) 100%)',
+              borderColor: isRaincloud ? '#64748b' : '#00dcff',
+              boxShadow: isRaincloud ? 'none' : '0 0 16px rgba(0,220,255,0.45)',
+            }}
+          >
+            {/* Interior Biosphere Ambient Glow */}
+            <div
+              className="absolute inset-0 opacity-40"
               style={{
-                width: avatarSize,
-                height: avatarSize,
-                border: `1px solid ${isRaincloud ? '#64748b' : palette.avatarRing}`,
+                background: isRaincloud
+                  ? 'radial-gradient(circle, #64748b 0%, transparent 80%)'
+                  : 'radial-gradient(circle, #00dcff 0%, #0080ff 80%)',
               }}
             />
-          ) : (
-            <span
-              className="font-800"
-              style={{
-                fontSize: Math.max(scale.nameFontSize - 1, 6),
-                color: isRaincloud ? '#f8fafc' : palette.anchorText,
-              }}
-            >
-              {initials}
-            </span>
-          )}
+
+            {/* Avatar in Port */}
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt="Member"
+                className="rounded-full object-cover relative z-10 shadow-md"
+                style={{
+                  width: avatarSize + 2,
+                  height: avatarSize + 2,
+                  border: `1.5px solid ${isRaincloud ? '#64748b' : '#00dcff'}`,
+                }}
+              />
+            ) : (
+              <span
+                className="font-900 relative z-10"
+                style={{
+                  fontSize: Math.max(nameFontSize, 8),
+                  color: isRaincloud ? '#94a3b8' : '#a0e8ff',
+                }}
+              >
+                {initials}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Cozy house
+  // 🏡 2.5D Storybook Cozy Cottage Dollhouse
   return (
-    <div className="flex flex-col items-center" style={{ marginTop: -Math.round(scale.tileH * 0.08) }}>
-      {/* Roof triangle */}
+    <div className="relative flex flex-col items-center select-none" style={{ marginTop: -Math.round(scale.tileH * 0.22) }}>
+      {/* Chimney with subtle smoke */}
+      <div className="absolute -top-3.5 right-1.5 flex flex-col items-center pointer-events-none z-0">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-200/60 blur-[1px] animate-ping" />
+        <div
+          className="w-2.5 h-4 rounded-t-xs shadow-xs"
+          style={{
+            background: isRaincloud ? '#475569' : '#8c4c24',
+            border: '1px solid rgba(0,0,0,0.15)',
+          }}
+        />
+      </div>
+
+      {/* Layered Pitched Shingle Roof */}
+      <div className="relative flex flex-col items-center z-10">
+        <div
+          className="relative shadow-md"
+          style={{
+            width: bodyW + 14,
+            height: Math.round(scale.roofH * 1.3),
+            clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
+            background: isRaincloud
+              ? 'linear-gradient(180deg, #64748b 0%, #475569 100%)'
+              : 'linear-gradient(180deg, #c4704a 0%, #a34e28 100%)',
+            borderTop: '2px solid rgba(255,255,255,0.3)',
+          }}
+        >
+          {/* Shingle pattern overlay */}
+          <div className="absolute inset-0 opacity-25 bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,rgba(0,0,0,0.4)_4px)]" />
+        </div>
+      </div>
+
+      {/* Timber & Plaster Dollhouse Cottage Body */}
       <div
+        className="relative flex items-center justify-center overflow-hidden rounded-b-md shadow-lg -mt-0.5 z-10"
         style={{
-          width: 0,
-          height: 0,
-          borderLeft: `${roofW}px solid transparent`,
-          borderRight: `${roofW}px solid transparent`,
-          borderBottom: `${roofH}px solid ${isRaincloud ? '#64748b' : palette.houseRoof}`,
-          filter: isRaincloud ? 'none' : `drop-shadow(0 -1px 3px ${palette.glowColor})`,
-        }}
-      />
-      {/* House body */}
-      <div
-        className="relative flex items-center justify-center overflow-hidden"
-        style={{
-          width: bodyW,
-          height: bodyH,
-          background: isRaincloud ? '#334155' : palette.houseBody,
-          border: `1px solid ${isRaincloud ? '#475569' : palette.tileBorder}`,
-          borderRadius: '0 0 3px 3px',
+          width: bodyW + 4,
+          height: bodyH + 6,
+          background: isRaincloud
+            ? 'linear-gradient(180deg, #334155 0%, #1e293b 100%)'
+            : 'linear-gradient(180deg, #faf7f2 0%, #f3ece0 100%)',
+          border: `1.5px solid ${isRaincloud ? '#475569' : '#b8754b'}`,
+          boxShadow: isRaincloud ? 'none' : '0 4px 12px rgba(122,79,58,0.25)',
         }}
       >
+        {/* Interior Candlelight Ambient Glow */}
+        <div
+          className="absolute inset-0 opacity-60 pointer-events-none"
+          style={{
+            background: isRaincloud
+              ? 'radial-gradient(circle at 50% 30%, #64748b 0%, transparent 70%)'
+              : 'radial-gradient(circle at 50% 30%, rgba(245,158,11,0.35) 0%, transparent 80%)',
+          }}
+        />
+
+        {/* Member Picture Window / Avatar Portal */}
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
-            alt="avatar"
-            className="rounded-full object-cover absolute"
+            alt="Citizen Home"
+            className="rounded-full object-cover shadow-sm relative z-10"
             style={{
-              width: avatarSize,
-              height: avatarSize,
-              top: 2,
-              border: `1px solid ${isRaincloud ? '#64748b' : palette.avatarRing}`,
+              width: avatarSize + 2,
+              height: avatarSize + 2,
+              border: `1.5px solid ${isRaincloud ? '#64748b' : '#d97736'}`,
             }}
           />
         ) : (
-          <span
-            className="absolute font-800"
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center shadow-xs relative z-10"
             style={{
-              top: 2,
-              fontSize: Math.max(scale.nameFontSize - 2, 6),
-              color: isRaincloud ? '#94a3b8' : palette.anchorText,
+              background: isRaincloud ? '#1e293b' : '#fef3c7',
+              border: `1.5px solid ${isRaincloud ? '#475569' : '#d97736'}`,
             }}
           >
-            {initials}
-          </span>
+            <span
+              className="font-900"
+              style={{
+                fontSize: Math.max(nameFontSize, 8),
+                color: isRaincloud ? '#94a3b8' : '#92400e',
+              }}
+            >
+              {initials}
+            </span>
+          </div>
         )}
-        {/* Door */}
+
+        {/* Cottage Front Door */}
         <div
           className="absolute bottom-0"
           style={{
-            width: doorW,
-            height: doorH,
-            background: isRaincloud ? '#1e293b' : palette.houseDoor,
-            borderRadius: '2px 2px 0 0',
+            width: scale.doorW + 2,
+            height: scale.doorH + 2,
+            background: isRaincloud ? '#0f172a' : '#5c331e',
+            borderRadius: '3px 3px 0 0',
+            border: '1px solid rgba(0,0,0,0.2)',
             left: '50%',
             transform: 'translateX(-50%)',
           }}
-        />
+        >
+          {/* Little brass doorknob */}
+          <div className="w-1 h-1 rounded-full bg-amber-300 absolute top-2 right-0.5 shadow-xs" />
+        </div>
+      </div>
+
+      {/* Flowerbed & Stone Garden Foundation Base */}
+      <div
+        className="w-full flex items-center justify-between px-1 -mt-1 relative z-10 pointer-events-none"
+        style={{ width: bodyW + 12 }}
+      >
+        <span className="text-[9px] drop-shadow-xs" aria-hidden>🌸</span>
+        <span className="text-[8px] opacity-80" aria-hidden>🌱</span>
+        <span className="text-[9px] drop-shadow-xs" aria-hidden>🌺</span>
       </div>
     </div>
   );
@@ -393,47 +466,44 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
 
   const vibe: VibeStatus = member?.vibe_status || 'neutral';
   const isRaincloud = vibe === 'raincloud';
-  const isSunshine = vibe === 'sunshine';
-  const hasActivity = member && vibe !== 'neutral';
 
   return (
     <motion.div
       className="relative group cursor-pointer"
-      style={{ width: tileW, height: tileH + depth + Math.round(tileH * 1.2) }}
+      style={{ width: tileW, height: tileH + depth + Math.round(tileH * 1.4) }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: plotIndex * 0.03, ease: [0.34, 1.2, 0.64, 1] }}
-      whileHover={member ? { y: -5, scale: 1.06 } : { scale: 1.06 }}
+      whileHover={member ? { y: -6, scale: 1.08 } : { y: -3, scale: 1.05 }}
       onClick={() => {
         if (member && onSelectPeer) onSelectPeer(member.user_id, member.display_name);
       }}
     >
-      {/* Diamond top face */}
+      {/* 2.5D Diamond Base / Garden Plot Foundation */}
       <div
-        className="absolute inset-x-0 top-0 transition-all duration-200 group-hover:brightness-110 shadow-md"
+        className="absolute inset-x-0 top-0 transition-all duration-200 group-hover:brightness-110 shadow-lg"
         style={{
           height: tileH,
           clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-          background: isRaincloud ? 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)' : palette.tileBase,
-          border: `1.5px solid ${isRaincloud ? '#94a3b8' : palette.tileBorder}`,
-          boxShadow: isRaincloud ? '0 0 16px rgba(148,163,184,0.6)' : `0 4px 12px ${palette.tileShadow}`,
+          background: member
+            ? (isRaincloud
+                ? 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)'
+                : (isFuturistic
+                    ? 'linear-gradient(135deg, #0f1d36 0%, #091326 100%)'
+                    : 'linear-gradient(135deg, #e8d9c0 0%, #cfbba0 100%)'))
+            : (isFuturistic
+                ? 'rgba(0,220,255,0.08)'
+                : 'rgba(217,119,54,0.12)'),
+          border: member
+            ? `2px solid ${isRaincloud ? '#64748b' : (isFuturistic ? '#00dcff' : '#a36d47')}`
+            : `2px dashed ${isFuturistic ? '#00dcff' : '#d97736'}`,
+          boxShadow: isRaincloud
+            ? '0 0 16px rgba(148,163,184,0.5)'
+            : (isFuturistic ? '0 0 16px rgba(0,220,255,0.3)' : '0 4px 14px rgba(122,79,58,0.2)'),
         }}
       />
 
-      {/* Neon glow border for empty tiles */}
-      {!member && (
-        <div
-          className="iso-plot-glow absolute inset-x-0 top-0 pointer-events-none"
-          style={{
-            height: tileH,
-            clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-            border: `2px dashed ${palette.emptyBorder}`,
-            borderRadius: 8,
-          }}
-        />
-      )}
-
-      {/* Left wall */}
+      {/* 3D Left Wall of Plot Foundation */}
       <div
         className="absolute"
         style={{
@@ -442,11 +512,11 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
           width: tileW / 2,
           height: depth,
           clipPath: 'polygon(0% 0%, 100% 50%, 100% 100%, 0% 50%)',
-          background: palette.wallLeft,
+          background: isFuturistic ? '#081428' : '#8a5330',
         }}
       />
 
-      {/* Right wall */}
+      {/* 3D Right Wall of Plot Foundation */}
       <div
         className="absolute"
         style={{
@@ -455,17 +525,17 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
           width: tileW / 2,
           height: depth,
           clipPath: 'polygon(0% 50%, 100% 0%, 100% 50%, 0% 100%)',
-          background: palette.wallRight,
+          background: isFuturistic ? '#050e1f' : '#6b3e20',
         }}
       />
 
       {/* Weather aura */}
       {member && <WeatherAura vibe={vibe} isFuturistic={isFuturistic} />}
 
-      {/* Member content or invite badge */}
+      {/* Plot Content (Dollhouse Cottage or For-Sale/Invite Plot) */}
       <div className="absolute inset-0 flex flex-col items-center justify-start pointer-events-auto">
         {member ? (
-          <div className="flex flex-col items-center -mt-2 z-10">
+          <div className="flex flex-col items-center -mt-3 z-10">
             <MiniHouseModel
               palette={palette}
               isFuturistic={isFuturistic}
@@ -475,16 +545,28 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
               scale={scale}
             />
 
-            {/* Name + role */}
-            <div className="flex items-center gap-0.5 mt-0.5">
+            {/* Display Name + Admin Badge */}
+            <div className="flex items-center gap-1 mt-1">
               <span
-                className="font-800 leading-tight truncate text-center px-1.5 py-0.5 rounded-full backdrop-blur-md shadow-sm border"
+                className="font-900 leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border"
                 style={{
                   fontSize: scale.nameFontSize,
-                  maxWidth: scale.tileW * 0.7,
-                  background: isRaincloud ? 'rgba(51,65,85,0.90)' : isFuturistic ? 'rgba(5,12,24,0.85)' : 'rgba(255,252,248,0.90)',
-                  borderColor: isRaincloud ? '#64748b' : palette.tileBorder,
-                  color: isRaincloud ? '#f8fafc' : isFuturistic ? '#a0e8ff' : '#643c28',
+                  maxWidth: scale.tileW * 0.85,
+                  background: isRaincloud
+                    ? 'rgba(30,41,59,0.95)'
+                    : isFuturistic
+                    ? 'rgba(5,12,24,0.90)'
+                    : 'rgba(255,252,248,0.95)',
+                  borderColor: isRaincloud
+                    ? '#64748b'
+                    : isFuturistic
+                    ? 'rgba(0,220,255,0.40)'
+                    : 'rgba(217,119,54,0.30)',
+                  color: isRaincloud
+                    ? '#f8fafc'
+                    : isFuturistic
+                    ? '#a0e8ff'
+                    : '#451a03',
                 }}
               >
                 {(member.display_name || 'Cozy Neighbor').split(' ')[0]}
@@ -492,61 +574,45 @@ function PlotTile({ member, plotIndex, palette, isFuturistic, scale, onSelectPee
 
               {member.role === 'admin' && (
                 <span
-                  className="px-0.5 py-0.5 rounded-full border font-700"
+                  className="px-1 py-0.5 rounded-full border font-800 text-[9px] shadow-xs"
                   style={{
-                    fontSize: Math.max(scale.nameFontSize - 1, 6),
-                    background: 'rgba(251,191,36,0.18)',
-                    borderColor: 'rgba(251,191,36,0.45)',
-                    color: '#b45309',
+                    background: 'rgba(251,191,36,0.25)',
+                    borderColor: 'rgba(251,191,36,0.60)',
+                    color: '#92400e',
                   }}
+                  title="Group Admin"
                 >
                   👑
                 </span>
               )}
             </div>
-
-            {/* Activity dot */}
-            {hasActivity && !isRaincloud && (
-              <div
-                className="rounded-full mt-0.5 animate-pulse"
-                style={{
-                  width: scale.tileW <= 76 ? 4 : 6,
-                  height: scale.tileW <= 76 ? 4 : 6,
-                  background: isSunshine ? '#4ade80' : isFuturistic ? '#00dcff' : '#f0c060',
-                  boxShadow: isSunshine ? '0 0 4px #4ade80' : undefined,
-                }}
-              />
-            )}
           </div>
         ) : (
-          /* Empty — pulsing invite */
+          /* Empty Garden Plot Clearing with "+ Invite" Signboard */
           <div
-            className="z-10 flex flex-col items-center gap-0.5"
-            style={{ marginTop: scale.tileH * 0.25 }}
+            className="z-10 flex flex-col items-center gap-1"
+            style={{ marginTop: scale.tileH * 0.2 }}
           >
             <motion.div
-              className="rounded-full flex items-center justify-center font-900 shadow-sm"
-              animate={{ scale: [1, 1.25, 1] }}
-              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="rounded-2xl px-2.5 py-1 flex items-center gap-1 font-900 shadow-md backdrop-blur-md border cursor-pointer"
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               style={{
-                width: Math.max(scale.avatarSize - 4, 14),
-                height: Math.max(scale.avatarSize - 4, 14),
-                fontSize: scale.nameFontSize + 1,
-                background: palette.emptyFill,
-                color: isFuturistic ? '#00dcff' : '#c4704a',
-                border: `1.5px solid ${palette.emptyBorder}`,
+                fontSize: scale.nameFontSize,
+                background: isFuturistic ? 'rgba(0,20,40,0.85)' : 'rgba(255,252,248,0.90)',
+                color: isFuturistic ? '#00dcff' : '#b45309',
+                borderColor: isFuturistic ? '#00dcff' : '#f59e0b',
               }}
             >
-              +
+              <span className="text-xs">🏡</span>
+              <span>+ Invite</span>
             </motion.div>
-            {scale.tileW >= 76 && (
-              <span
-                className="font-700 opacity-60"
-                style={{ fontSize: Math.max(scale.nameFontSize - 2, 6), color: palette.emptyBorder }}
-              >
-                Invite
-              </span>
-            )}
+            <span
+              className="font-800 opacity-70 text-[9px]"
+              style={{ color: isFuturistic ? '#00dcff' : '#78350f' }}
+            >
+              Vacant Plot
+            </span>
           </div>
         )}
       </div>
@@ -640,7 +706,7 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
   const allOffsets = plots.map(({ col, row }) => isoOffset(col, row, tileW, tileH, gap));
   const minX = Math.min(...allOffsets.map((o) => o.x));
   const maxX = Math.max(...allOffsets.map((o) => o.x)) + tileW;
-  const maxY = Math.max(...allOffsets.map((o) => o.y)) + tileH + depth + Math.round(tileH * 1.2);
+  const maxY = Math.max(...allOffsets.map((o) => o.y)) + tileH + depth + Math.round(tileH * 1.4);
 
   const canvasW = Math.max(300, maxX - minX + PAD_X * 2);
   const canvasH = Math.max(300, maxY + PAD_Y * 2);
@@ -654,21 +720,34 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
     ? Math.min((completedCount / safeMembers.length) * 100, 100)
     : 0;
 
+  const bgImage = isFuturistic ? '/images/neighborhood-orbital.jpg' : '/images/neighborhood-village.jpg';
+
   return (
     <div
-      className="relative w-full rounded-3xl border-2 select-none"
+      className="relative w-full rounded-3xl border-2 select-none overflow-hidden"
       style={{
-        background: palette.bg,
-        borderColor: isFuturistic ? 'rgba(0,220,255,0.25)' : 'rgba(232,168,124,0.30)',
-        minHeight: Math.min(canvasH, 400),
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        borderColor: isFuturistic ? 'rgba(0,220,255,0.35)' : 'rgba(217,119,54,0.40)',
+        minHeight: Math.max(canvasH, 440),
         boxShadow: isFuturistic
-          ? '0 0 40px rgba(0,220,255,0.12), 0 20px 60px rgba(0,0,0,0.50)'
-          : '0 8px 40px rgba(122,79,58,0.18)',
-        // Allow horizontal scroll on large maps (option a — scroll like a village map)
-        overflowX: canvasW > 380 ? 'auto' : 'hidden',
+          ? '0 0 40px rgba(0,220,255,0.20), 0 20px 60px rgba(0,0,0,0.60)'
+          : '0 10px 40px rgba(122,79,58,0.22)',
+        overflowX: canvasW > 400 ? 'auto' : 'hidden',
         overflowY: 'hidden',
       }}
     >
+      {/* Soft Vignette Overlay to enhance contrast and focus on plots */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          background: isFuturistic
+            ? 'radial-gradient(circle at 50% 50%, rgba(5,12,24,0.35) 0%, rgba(5,12,24,0.75) 100%)'
+            : 'radial-gradient(circle at 50% 50%, rgba(250,240,224,0.20) 0%, rgba(84,50,32,0.35) 100%)',
+        }}
+      />
+
       {group?.type === 'space_station' && <StarField />}
 
       {/* Density label badge — top-left */}
@@ -676,13 +755,13 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
         <span
           className="text-xs font-800 px-3 py-1 rounded-full backdrop-blur-md shadow-sm"
           style={{
-            background: isFuturistic ? 'rgba(0,20,40,0.75)' : 'rgba(255,252,248,0.85)',
+            background: isFuturistic ? 'rgba(0,20,40,0.85)' : 'rgba(255,252,248,0.90)',
             color: isFuturistic ? '#00dcff' : '#7a4f3a',
-            border: isFuturistic ? '1px solid rgba(0,220,255,0.30)' : '1px solid rgba(196,112,74,0.30)',
+            border: isFuturistic ? '1px solid rgba(0,220,255,0.40)' : '1px solid rgba(196,112,74,0.40)',
           }}
         >
           {meta.emoji} {meta.label}
-          <span className="ml-1.5 opacity-50 font-600">· {scale.label}</span>
+          <span className="ml-1.5 opacity-60 font-700">· {scale.label}</span>
         </span>
       </div>
 
@@ -691,9 +770,9 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
         <span
           className="text-xs font-800 px-3 py-1 rounded-full backdrop-blur-md shadow-sm flex items-center gap-1.5"
           style={{
-            background: isFuturistic ? 'rgba(0,20,40,0.75)' : 'rgba(255,252,248,0.85)',
-            color: isFuturistic ? '#a855f7' : '#c4704a',
-            border: isFuturistic ? '1px solid rgba(168,85,247,0.30)' : '1px solid rgba(196,112,74,0.30)',
+            background: isFuturistic ? 'rgba(0,20,40,0.85)' : 'rgba(255,252,248,0.90)',
+            color: isFuturistic ? '#c084fc' : '#c4704a',
+            border: isFuturistic ? '1px solid rgba(168,85,247,0.40)' : '1px solid rgba(196,112,74,0.40)',
           }}
         >
           Tap 🌧️ to send cheer!
@@ -740,7 +819,7 @@ export function GroupMapView({ group, members = [], onSelectPeer, activeChalleng
 
       {/* Isometric Canvas — scrollable container */}
       <div
-        className="relative pt-10 pb-6"
+        className="relative pt-10 pb-6 z-10"
         style={{ width: canvasW, height: canvasH }}
       >
         {/* Central Landmark / Monument */}
