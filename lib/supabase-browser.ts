@@ -15,7 +15,17 @@ export function createBrowserClient() {
     );
   }
 
+  const isBrowser = typeof window !== 'undefined';
+  const isSunShadeDomain =
+    isBrowser &&
+    (window.location.hostname === 'sunshade.icu' || window.location.hostname.endsWith('.sunshade.icu'));
+
   return createSSRBrowserClient(url, key, {
-    cookieOptions: { domain: '.sunshade.icu' },
+    cookieOptions: {
+      path: '/',
+      sameSite: 'lax',
+      secure: true,
+      ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
+    },
   });
 }

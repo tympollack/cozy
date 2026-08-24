@@ -38,7 +38,7 @@ export async function Navbar() {
           </Link>
 
           <Link
-            href={user ? "/camera" : "https://hub.sunshade.icu/login"}
+            href={user ? "/camera" : "/login?next=/camera"}
             id="nav-camera"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-500
               text-[--cozy-bark] hover:bg-amber-50 transition-colors duration-150"
@@ -74,12 +74,12 @@ export async function Navbar() {
               <PointsBadge />
             </>
           ) : (
-            <a
-              href="https://hub.sunshade.icu/login"
+            <Link
+              href="/login?next=/feed"
               className="ml-2 text-sm font-700 bg-[--cozy-bark] text-white px-4 py-1.5 rounded-full hover:scale-105 transition-transform"
             >
               Sign In
-            </a>
+            </Link>
           )}
         </div>
       </nav>

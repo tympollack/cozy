@@ -21,7 +21,7 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('https://hub.sunshade.icu/login');
+    redirect('/login?next=/profile');
   }
 
   const {

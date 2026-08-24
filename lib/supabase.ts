@@ -9,7 +9,7 @@
  */
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createServerClient as createSSRServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 // ---------------------------------------------------------------------------
 // Environment variable helpers
@@ -36,12 +36,26 @@ function requireEnv(name: string): string {
 // ---------------------------------------------------------------------------
 export async function createServerClient() {
   const cookieStore = await cookies();
+  
+  let isSunShadeDomain = false;
+  try {
+    const headersList = await headers();
+    const host = headersList.get('x-forwarded-host') || headersList.get('host') || '';
+    isSunShadeDomain = host === 'sunshade.icu' || host.endsWith('.sunshade.icu');
+  } catch {
+    // ignore
+  }
 
   return createSSRServerClient(
     requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
     requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     {
-      cookieOptions: { domain: '.sunshade.icu' },
+      cookieOptions: {
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
+        ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -49,7 +63,13 @@ export async function createServerClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                path: '/',
+                sameSite: 'lax',
+                secure: true,
+                ...(isSunShadeDomain ? { domain: '.sunshade.icu' } : {}),
+              })
             );
           } catch {
             // setAll can throw in Server Components (read-only context) — safe to ignore
