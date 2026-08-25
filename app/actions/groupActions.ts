@@ -468,18 +468,27 @@ const getCachedGroupData = unstable_cache(
     const { data: usersData, error: usersError } = await service
       .schema('cozy')
       .from('users')
-      .select('id, display_name, points, shell_type, vibe_status')
+      .select('id, display_name, avatar_url, points, shell_type, vibe_status')
       .in('id', userIds);
 
     if (usersError) {
       console.error('[getGroupWithMembers] Users query error:', usersError.message);
     }
 
+    interface MemberUserRecord {
+      id: string;
+      display_name: string | null;
+      avatar_url: string | null;
+      points: number | null;
+      shell_type: string | null;
+      vibe_status: string | null;
+    }
+
     const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number; shell_type?: string; vibe_status?: 'sunshine' | 'neutral' | 'raincloud' }>();
-    (usersData ?? []).forEach((u) => {
+    ((usersData ?? []) as unknown as MemberUserRecord[]).forEach((u) => {
       userMap.set(u.id, {
         display_name: u.display_name || 'Cozy Neighbor',
-        avatar_url: null,
+        avatar_url: u.avatar_url || null,
         points: u.points ?? 0,
         shell_type: u.shell_type ?? undefined,
         vibe_status: (u.vibe_status as 'sunshine' | 'neutral' | 'raincloud') || 'neutral',

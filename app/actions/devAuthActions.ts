@@ -1,9 +1,8 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-import { isBypassAuthEnabled } from '@/lib/env';
+import { isBypassAuthEnabled, sanitizeNextUrl } from '@/lib/env';
 import { headers } from 'next/headers';
-import type { TestCitizen } from '@/lib/devCitizens';
 
 export interface DevBypassResult {
   success: boolean;
@@ -95,7 +94,7 @@ export async function devBypassLogin(
 
     return {
       success: true,
-      redirectUrl: returnUrl || '/feed',
+      redirectUrl: sanitizeNextUrl(returnUrl, '/feed'),
       user: {
         id: verifyData.user.id,
         email: verifyData.user.email,

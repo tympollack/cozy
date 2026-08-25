@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
-import { getHubLoginUrl, isBypassAuthEnabled, isLocalDevelopment } from '@/lib/env';
+import { getHubLoginUrl, isBypassAuthEnabled, isLocalDevelopment, sanitizeNextUrl } from '@/lib/env';
 
 import { LoginForm } from './LoginForm';
 
@@ -20,7 +20,7 @@ export default async function LoginPage({
   const { data: { user } } = await supabase.auth.getUser();
 
   const params = searchParams ? await searchParams : {};
-  const nextParam = typeof params.next === 'string' ? params.next : '/feed';
+  const nextParam = sanitizeNextUrl(typeof params.next === 'string' ? params.next : null, '/feed');
 
   if (user) {
     redirect(nextParam);

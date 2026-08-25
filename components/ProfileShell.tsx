@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useTransition, useOptimistic } from 'react';
+import React, { useState, useEffect, useTransition, useOptimistic } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Home, X, Check, ArrowRight, LayoutGrid,
+  Sparkles, X, Check, ArrowRight, LayoutGrid,
   Lock, Coins,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
@@ -13,7 +13,6 @@ import {
   getShellDefinition,
   getActiveSlots,
   getLockedSlots,
-  getAvailableShells,
   isSlotInShell,
   TIER_UNLOCK_COSTS,
   TIER_NAMES,
@@ -65,7 +64,7 @@ export function ProfileShell({
   currentUserId = null,
 }: ProfileShellProps) {
   const pathname = usePathname();
-  const { setExpansionTier, setMilestoneTokens } = useCozyStore();
+  const { setExpansionTier, setMilestoneTokens, setThemesUnlocked } = useCozyStore();
 
   const [shellType, setShellType] = useState(initialShellType);
   const [expansionTier, setLocalExpansionTier] = useState(initialExpansionTier);
@@ -75,6 +74,15 @@ export function ProfileShell({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
+
+  // Sync server-provided authoritative expansion state into the client Zustand store
+  useEffect(() => {
+    if (isOwner) {
+      setExpansionTier(initialExpansionTier);
+      setMilestoneTokens(initialMilestoneTokens);
+      setThemesUnlocked(themesUnlocked);
+    }
+  }, [initialExpansionTier, initialMilestoneTokens, themesUnlocked, isOwner, setExpansionTier, setMilestoneTokens, setThemesUnlocked]);
 
   // Optimistic state for posts assignment
   const [optimisticPosts, setOptimisticPosts] = useOptimistic(
@@ -109,7 +117,6 @@ export function ProfileShell({
   const currentShell = getShellDefinition(shellType);
   const activeSlots = getActiveSlots(currentShell, expansionTier);
   const lockedSlots = getLockedSlots(currentShell, expansionTier);
-  const availableShells = getAvailableShells(themesUnlocked);
 
   const unassignedPosts = optimisticPosts.filter(
     (p) => !p.shell_slot || !isSlotInShell(p.shell_slot, currentShell)
