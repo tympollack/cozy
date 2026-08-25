@@ -327,21 +327,23 @@ interface UserPlotNodeProps {
   plotSize: PlotSize;
   isFuturistic: boolean;
   plotIndex: number;
+  isSelf?: boolean;
   onSelectPeer?: (userId: string, name: string) => void;
 }
 
-export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSelectPeer }: UserPlotNodeProps) {
+export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, isSelf = false, onSelectPeer }: UserPlotNodeProps) {
   const tokens = SIZE_TOKENS[plotSize];
   const { spriteSize, avatarBadgeSize, nameFontSize, auraWidth } = tokens;
 
-  const initials    = (member.display_name || 'CN').slice(0, 2).toUpperCase();
+  const displayName = isSelf ? 'You' : (member.display_name || 'Cozy Neighbor');
+  const initials    = isSelf ? 'YOU' : (member.display_name || 'CN').slice(0, 2).toUpperCase();
   const vibe        = member.vibe_status ?? 'neutral';
   const isRaincloud = vibe === 'raincloud';
   const vibeEmoji   = vibe === 'sunshine' ? '☀️' : vibe === 'raincloud' ? '🌧️' : '☕';
 
-  const nameTagBg     = isRaincloud ? 'rgba(30,41,59,0.95)'    : isFuturistic ? 'rgba(5,12,24,0.90)'          : 'rgba(255,252,248,0.92)';
-  const nameTagBorder = isRaincloud ? 'rgba(100,116,139,0.50)' : isFuturistic ? 'rgba(0,220,255,0.40)'        : 'rgba(217,119,54,0.35)';
-  const nameTagColor  = isRaincloud ? '#f8fafc'                : isFuturistic ? '#a0e8ff'                     : '#451a03';
+  const nameTagBg     = isSelf ? (isFuturistic ? 'rgba(0,180,255,0.22)' : 'rgba(254,243,199,0.98)') : isRaincloud ? 'rgba(30,41,59,0.95)' : isFuturistic ? 'rgba(5,12,24,0.90)' : 'rgba(255,252,248,0.92)';
+  const nameTagBorder = isSelf ? (isFuturistic ? '#00dcff' : '#f59e0b') : isRaincloud ? 'rgba(100,116,139,0.50)' : isFuturistic ? 'rgba(0,220,255,0.40)' : 'rgba(217,119,54,0.35)';
+  const nameTagColor  = isSelf ? (isFuturistic ? '#00dcff' : '#92400e') : isRaincloud ? '#f8fafc' : isFuturistic ? '#a0e8ff' : '#451a03';
 
   return (
     <motion.div
@@ -349,7 +351,8 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 350, damping: 28, delay: plotIndex * 0.04 }}
-      onClick={() => onSelectPeer?.(member.user_id, member.display_name || 'Cozy Neighbor')}
+      onClick={() => onSelectPeer?.(member.user_id, displayName)}
+      title={isSelf ? 'Your Space (Tap to view)' : `${displayName} (Tap to support)`}
     >
       <div className="relative flex flex-col items-center">
         <VibeAuraRing vibe={vibe} isFuturistic={isFuturistic} auraWidth={auraWidth} />
@@ -367,7 +370,7 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
 
       <div className="flex items-center gap-1 mt-0.5">
         <span
-          className="font-black leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border flex items-center gap-1"
+          className={`font-black leading-tight truncate text-center px-2 py-0.5 rounded-full backdrop-blur-md shadow-md border flex items-center gap-1 ${isSelf ? 'ring-2 ring-amber-400/50' : ''}`}
           style={{
             fontSize: nameFontSize,
             maxWidth: spriteSize + 26,
@@ -379,7 +382,7 @@ export function UserPlotNode({ member, plotSize, isFuturistic, plotIndex, onSele
           <span className="text-[10px] leading-none shrink-0" title={`Feeling ${vibe}`}>
             {vibeEmoji}
           </span>
-          <span className="truncate">{(member.display_name || 'Cozy Neighbor').split(' ')[0]}</span>
+          <span className="truncate">{displayName.split(' ')[0]}</span>
         </span>
         {member.role === 'admin' && (
           <span

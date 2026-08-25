@@ -53,6 +53,7 @@ function StarField() {
 interface GroupMapViewProps {
   group: GroupRow;
   members: GroupMemberWithVibe[];
+  currentUserId?: string;
   onSelectPeer?: (userId: string, name: string) => void;
   onOpenInvite?: () => void;
   activeChallenge?: GroupChallenge | null;
@@ -61,6 +62,7 @@ interface GroupMapViewProps {
 export function GroupMapView({
   group,
   members = [],
+  currentUserId,
   onSelectPeer,
   onOpenInvite,
   activeChallenge = null,
@@ -173,6 +175,7 @@ export function GroupMapView({
                 plotSize={plotSize}
                 isFuturistic={isFuturistic}
                 plotIndex={i}
+                isSelf={member.user_id === currentUserId}
                 onSelectPeer={onSelectPeer}
               />
             ) : (

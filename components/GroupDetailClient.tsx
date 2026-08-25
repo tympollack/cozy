@@ -396,7 +396,12 @@ export function GroupDetailClient({
         <GroupMapView
           group={safeGroup}
           members={sortedMembers}
+          currentUserId={currentUserId}
           onSelectPeer={(id, name) => {
+            if (id === currentUserId) {
+              router.push('/profile');
+              return;
+            }
             const member = sortedMembers.find((m) => m.user_id === id);
             setSelectedPeer({
               id,
@@ -429,7 +434,8 @@ export function GroupDetailClient({
           </h2>
           <div className="space-y-2">
             {sortedMembers.map((member, i) => {
-              const memberName = member.display_name || 'Cozy Neighbor';
+              const isSelf = member.user_id === currentUserId;
+              const memberName = isSelf ? 'You' : (member.display_name || 'Cozy Neighbor');
               const memberPoints = Number(member.points) || 0;
               const memberVibe = member.vibe_status || 'neutral';
               const vibeIcon = memberVibe === 'sunshine' ? '☀️' : memberVibe === 'raincloud' ? '🌧️' : '☕';
@@ -437,18 +443,27 @@ export function GroupDetailClient({
               return (
                 <div
                   key={member.user_id}
-                  onClick={() =>
-                    setSelectedPeer({
-                      id: member.user_id,
-                      name: memberName,
-                      vibeStatus: member.vibe_status || 'neutral',
-                    })
-                  }
+                  onClick={() => {
+                    if (isSelf) {
+                      router.push('/profile');
+                    } else {
+                      setSelectedPeer({
+                        id: member.user_id,
+                        name: member.display_name || 'Cozy Neighbor',
+                        vibeStatus: member.vibe_status || 'neutral',
+                      });
+                    }
+                  }}
                   className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
                   style={{
-                    background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
-                    border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
+                    background: isSelf
+                      ? (isFuturistic ? 'rgba(0,180,255,0.12)' : 'rgba(254,243,199,0.55)')
+                      : isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
+                    border: isSelf
+                      ? (isFuturistic ? '1.5px solid rgba(0,220,255,0.50)' : '1.5px solid rgba(245,158,11,0.45)')
+                      : isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
                   }}
+                  title={isSelf ? 'Your Space (Tap to view)' : `${memberName} (Tap to send cheer)`}
                 >
                   {/* Avatar */}
                   {member.avatar_url ? (
@@ -457,20 +472,22 @@ export function GroupDetailClient({
                       src={member.avatar_url}
                       alt={memberName}
                       className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2"
-                      style={{ borderColor: isFuturistic ? '#00dcff' : '#e8a87c' }}
+                      style={{ borderColor: isSelf ? '#f59e0b' : (isFuturistic ? '#00dcff' : '#e8a87c') }}
                     />
                   ) : (
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-800 flex-shrink-0 border-2"
                       style={{
-                        background: isFuturistic
+                        background: isSelf
+                          ? (isFuturistic ? 'linear-gradient(135deg, #0d3060, #00b4d8)' : 'linear-gradient(135deg, #f59e0b, #d97706)')
+                          : isFuturistic
                           ? 'linear-gradient(135deg, #1e1060, #0d3060)'
                           : 'linear-gradient(135deg, #c4704a, #e8a87c)',
-                        borderColor: isFuturistic ? '#00dcff' : '#e8a87c',
-                        color: isFuturistic ? '#00dcff' : '#faf7f2',
+                        borderColor: isSelf ? '#f59e0b' : (isFuturistic ? '#00dcff' : '#e8a87c'),
+                        color: isSelf ? '#ffffff' : (isFuturistic ? '#00dcff' : '#faf7f2'),
                       }}
                     >
-                      {memberName.slice(0, 2).toUpperCase()}
+                      {isSelf ? 'YOU' : memberName.slice(0, 2).toUpperCase()}
                     </div>
                   )}
 
@@ -485,12 +502,17 @@ export function GroupDetailClient({
                       >
                         {memberName}
                       </span>
+                      {isSelf && (
+                        <span className="text-[10px] font-800 px-2 py-0.5 rounded-full bg-amber-400/25 text-amber-900 dark:text-amber-200 border border-amber-400/50">
+                          You
+                        </span>
+                      )}
                       {member.role === 'admin' && (
                         <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
                       )}
                     </div>
                     <p className="text-xs font-500" style={{ color: textSecondary }}>
-                      {memberPoints.toLocaleString()} personal pts · Tap to send cheer
+                      {memberPoints.toLocaleString()} personal pts · {isSelf ? 'Tap to view your space' : 'Tap to send cheer'}
                     </p>
                   </div>
 
