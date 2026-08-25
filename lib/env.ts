@@ -89,12 +89,12 @@ export function isBypassAuthEnabled(host?: string): boolean {
     return false;
   }
 
-  // In production, bypass authentication is disabled unless explicitly enabled via env var
-  if (process.env.NODE_ENV === 'production') {
-    return false;
+  // Allow bypass in local dev, staging, and preview environments (*.vercel.app, *-stag.sunshade.icu)
+  if (isLocalDevelopment(host) || isStagingEnvironment(host)) {
+    return true;
   }
 
-  return isLocalDevelopment(host);
+  return false;
 }
 
 /**
