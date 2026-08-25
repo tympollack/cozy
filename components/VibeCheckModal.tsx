@@ -88,12 +88,15 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
           const supabase = createBrowserClient();
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            // Send broadcast on active channels
             const channel = supabase.channel('cozy-global-broadcast');
-            await channel.send({
-              type: 'broadcast',
-              event: 'vibe_updated',
-              payload: { userId: user.id, vibe_status: status },
+            channel.subscribe((subStatus) => {
+              if (subStatus === 'SUBSCRIBED') {
+                channel.send({
+                  type: 'broadcast',
+                  event: 'vibe_updated',
+                  payload: { userId: user.id, vibe_status: status },
+                }).catch(() => {});
+              }
             });
           }
         } catch {

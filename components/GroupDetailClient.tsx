@@ -66,38 +66,13 @@ export function GroupDetailClient({
   const { vibeStatus: storeVibeStatus, setVibeStatus } = useCozyStore();
 
   // Live real-time members state
-  const [liveMembers, setLiveMembers] = useState<GroupMemberRow[]>(() => {
-    return (members || []).map((m) =>
-      m.user_id === currentUserId && storeVibeStatus
-        ? { ...m, vibe_status: storeVibeStatus as 'sunshine' | 'neutral' | 'raincloud' }
-        : m
-    );
-  });
+  const [liveMembers, setLiveMembers] = useState<GroupMemberRow[]>(members || []);
 
-  // Sync logged-in user's vibe status from server database ONLY on initial mount if not already set
-  const hasInitializedVibeRef = useRef(false);
-  useEffect(() => {
-    if (!hasInitializedVibeRef.current && members && members.length > 0) {
-      hasInitializedVibeRef.current = true;
-      const self = members.find((m) => m.user_id === currentUserId);
-      if (self?.vibe_status) {
-        setVibeStatus(self.vibe_status as 'sunshine' | 'neutral' | 'raincloud');
-      }
-    }
-  }, [members, currentUserId, setVibeStatus]);
-
-  // Keep liveMembers synchronized when incoming server members prop changes
   useEffect(() => {
     if (members && members.length > 0) {
-      setLiveMembers(
-        members.map((m) =>
-          m.user_id === currentUserId && storeVibeStatus
-            ? { ...m, vibe_status: storeVibeStatus as 'sunshine' | 'neutral' | 'raincloud' }
-            : m
-        )
-      );
+      setLiveMembers(members);
     }
-  }, [members, currentUserId, storeVibeStatus]);
+  }, [members]);
 
   // Adjust state when incoming server prop changes
   if (group?.id && group.id !== prevPropGroupId) {

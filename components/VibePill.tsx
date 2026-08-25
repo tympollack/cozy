@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { VibeCheckModal } from '@/components/VibeCheckModal';
+import { createBrowserClient } from '@/lib/supabase-browser';
 
 const VIBE_META: Record<string, { emoji: string; label: string; bg: string }> = {
   sunshine: {
