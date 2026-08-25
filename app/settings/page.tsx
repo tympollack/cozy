@@ -7,13 +7,19 @@ import {
   ArrowLeft, Moon, Sun, Monitor, Settings as SettingsIcon,
   Shield, Bell, Sparkles, LogOut, Trash2, CheckCircle,
   ExternalLink, Key, Check, Compass, User, RefreshCw, Hexagon,
-  ShoppingBag, History
+  ShoppingBag, History, Sliders, MapPin, Mail, Radio
 } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { getHubBaseUrl } from '@/lib/env';
 import { StickerStoreDrawer } from '@/components/StickerStoreDrawer';
 import { TransactionHistoryModal } from '@/components/TransactionHistoryModal';
+
+interface HubPreferences {
+  mapPresenceVisibility: boolean;
+  porchDeliveryMode: boolean;
+  edgeMeshSharing: boolean;
+}
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -38,6 +44,14 @@ export default function SettingsPage() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(false);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+
+  // Hub Preferences state
+  const [hubPreferences, setHubPreferences] = useState<HubPreferences>({
+    mapPresenceVisibility: true,
+    porchDeliveryMode: true,
+    edgeMeshSharing: false,
+  });
+  const [hubSavedIndicator, setHubSavedIndicator] = useState(false);
 
   // Auth code request state (mirrors Hub options)
   const [requestCodeSubmitted, setRequestCodeSubmitted] = useState(false);
@@ -68,15 +82,30 @@ export default function SettingsPage() {
               if (shellRow.themes_unlocked !== undefined) setThemesUnlocked(shellRow.themes_unlocked);
             }
 
+            if (user.user_metadata?.hub_preferences) {
+              setHubPreferences((prev) => ({
+                ...prev,
+                ...user.user_metadata.hub_preferences,
+              }));
+            }
+
             const { data: userData } = await supabase
               .schema('cozy')
               .from('users')
-              .select('points')
+              .select('points, hub_preferences')
               .eq('id', user.id)
               .maybeSingle();
 
-            if (userData && userData.points !== undefined) {
-              setPoints(userData.points);
+            if (userData) {
+              if (userData.points !== undefined) {
+                setPoints(userData.points);
+              }
+              if (userData.hub_preferences) {
+                setHubPreferences((prev) => ({
+                  ...prev,
+                  ...userData.hub_preferences,
+                }));
+              }
             }
           }
         }
@@ -90,6 +119,32 @@ export default function SettingsPage() {
       ignore = true;
     };
   }, [setExpansionTier, setMilestoneTokens, setThemesUnlocked, setPoints]);
+
+  const handleToggleHubPref = async (key: keyof HubPreferences) => {
+    const updated: HubPreferences = {
+      ...hubPreferences,
+      [key]: !hubPreferences[key],
+    };
+    setHubPreferences(updated);
+
+    try {
+      const supabase = createBrowserClient();
+      if (userId) {
+        await supabase
+          .schema('cozy')
+          .from('users')
+          .update({ hub_preferences: updated })
+          .eq('id', userId);
+      }
+      await supabase.auth.updateUser({
+        data: { hub_preferences: updated },
+      });
+      setHubSavedIndicator(true);
+      setTimeout(() => setHubSavedIndicator(false), 2200);
+    } catch (err) {
+      console.warn('[Settings] Error saving hub preferences:', err);
+    }
+  };
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -259,7 +314,111 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── 2. Appearance & Theme ────────────────────────────────────── */}
+        {/* ── 2. Hub Preferences ───────────────────────────────────────── */}
+        <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-[var(--cozy-border-subtle)] pb-3">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-[var(--cozy-rust)]" />
+              <h2 className="text-xs font-900 text-[var(--cozy-text-primary)] uppercase tracking-wider">
+                Hub Preferences
+              </h2>
+            </div>
+            {hubSavedIndicator && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-600/40 animate-in fade-in">
+                <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> Saved to Profile
+              </span>
+            )}
+          </div>
+
+          <p className="text-xs font-500 text-[var(--cozy-text-muted)] leading-relaxed">
+            Configure how your habitat and node interact with the SunShade ecosystem mesh and neighborhood village maps.
+          </p>
+
+          <div className="space-y-3 pt-1">
+            {/* 1. Map Presence Visibility */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-100/90 dark:bg-[#201813] border border-stone-200 dark:border-stone-800">
+              <div className="flex items-center gap-3 pr-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <MapPin size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-700 text-[var(--cozy-text-primary)] truncate">Map Presence Visibility</p>
+                  <p className="text-[10px] text-[var(--cozy-text-muted)] line-clamp-1">Show live avatar & active habitat on group village maps</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleToggleHubPref('mapPresenceVisibility')}
+                className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+                  hubPreferences.mapPresenceVisibility ? 'bg-emerald-600' : 'bg-stone-300 dark:bg-stone-700'
+                }`}
+                aria-label="Toggle Map Presence Visibility"
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
+                    hubPreferences.mapPresenceVisibility ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* 2. Porch Delivery Mode */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-100/90 dark:bg-[#201813] border border-stone-200 dark:border-stone-800">
+              <div className="flex items-center gap-3 pr-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <Mail size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-700 text-[var(--cozy-text-primary)] truncate">Porch Delivery Mode</p>
+                  <p className="text-[10px] text-[var(--cozy-text-muted)] line-clamp-1">Quiet delivery holding pen (delivers peer notes & cheers without loud push alerts)</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleToggleHubPref('porchDeliveryMode')}
+                className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+                  hubPreferences.porchDeliveryMode ? 'bg-emerald-600' : 'bg-stone-300 dark:bg-stone-700'
+                }`}
+                aria-label="Toggle Porch Delivery Mode"
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
+                    hubPreferences.porchDeliveryMode ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* 3. Edge Mesh Sharing */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-100/90 dark:bg-[#201813] border border-stone-200 dark:border-stone-800">
+              <div className="flex items-center gap-3 pr-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <Radio size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-700 text-[var(--cozy-text-primary)] truncate">Edge Mesh Sharing</p>
+                  <p className="text-[10px] text-[var(--cozy-text-muted)] line-clamp-1">Decentralized P2P mesh replication & cached peer discovery</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleToggleHubPref('edgeMeshSharing')}
+                className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+                  hubPreferences.edgeMeshSharing ? 'bg-emerald-600' : 'bg-stone-300 dark:bg-stone-700'
+                }`}
+                aria-label="Toggle Edge Mesh Sharing"
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
+                    hubPreferences.edgeMeshSharing ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3. Appearance & Theme ────────────────────────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 border-b border-[var(--cozy-border-subtle)] pb-3">
             <Sparkles className="w-5 h-5 text-[var(--cozy-gold)]" />
@@ -313,7 +472,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── 3. SunShade Auth Code & Cross-Device Access ────────────────── */}
+        {/* ── 4. SunShade Auth Code & Cross-Device Access ────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 border-b border-[var(--cozy-border-subtle)] pb-3">
             <Key className="w-5 h-5 text-[var(--cozy-rust)]" />
@@ -346,7 +505,7 @@ export default function SettingsPage() {
           )}
         </section>
 
-        {/* ── 4. Group & Peer Support Notifications ─────────────────────── */}
+        {/* ── 5. Group & Peer Support Notifications ─────────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 border-b border-[var(--cozy-border-subtle)] pb-3">
             <Bell className="w-5 h-5 text-[var(--cozy-rust)]" />
@@ -381,7 +540,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── 5. Privacy & Location Obfuscation ─────────────────────────── */}
+        {/* ── 6. Privacy & Location Obfuscation ─────────────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 border-b border-[var(--cozy-border-subtle)] pb-3">
             <Shield className="w-5 h-5 text-[var(--cozy-rust)]" />
@@ -423,7 +582,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── 6. Storage & Session Controls (Sign Out) ─────────────────── */}
+        {/* ── 7. Storage & Session Controls (Sign Out) ─────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center justify-between border-b border-[var(--cozy-border-subtle)] pb-3">
             <div className="flex items-center gap-2">

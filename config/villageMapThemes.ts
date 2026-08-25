@@ -52,10 +52,10 @@ const MOSSY_HEARTH_VILLAGE: VillageMapTheme = {
     'radial-gradient(circle at 50% 50%, rgba(250,240,224,0.10) 0%, rgba(84,50,32,0.30) 100%)',
   anchors: [
     // ── Inner ring (4 fenced plot pads adjacent to the central fountain path)
-    { x: 34, y: 29 },
-    { x: 64, y: 26 },
-    { x: 70, y: 57 },
-    { x: 30, y: 60 },
+    { x: 31, y: 24 }, // top-left
+    { x: 73, y: 28 }, // top-right
+    { x: 76, y: 60 }, // bottom-right
+    { x: 28, y: 60 }, // bottom-left
     // ── Outer ring (8 garden plots along the outer stone wall)
     { x: 49, y: 13 },
     { x: 80, y: 29 },
