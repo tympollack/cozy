@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useTransition, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers } from 'lucide-react';
+import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers, Check } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { getStickerCatalog, purchaseSticker, type StoreSticker } from '@/app/actions/storeActions';
 import { ParticleBurst } from '@/components/ParticleBurst';
@@ -50,8 +50,9 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
   const [catalog, setCatalog] = useState<StoreSticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState<number | 'all'>('all');
+  const [confirmingSticker, setConfirmingSticker] = useState<StoreSticker | null>(null);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string; sticker?: StoreSticker } | null>(null);
   const [burstLocation, setBurstLocation] = useState<{ x: number; y: number } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -80,24 +81,30 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
     };
   }, [isOpen]);
 
-  const handlePurchase = async (sticker: StoreSticker, event: React.MouseEvent) => {
+  const handleOpenConfirm = (sticker: StoreSticker) => {
+    setConfirmingSticker(sticker);
+    setFeedback(null);
+  };
+
+  const handleConfirmPurchase = async (sticker: StoreSticker, event: React.MouseEvent) => {
     if (points < sticker.cost || purchasingId) return;
 
-    // Trigger burst near the clicked item
+    // Trigger burst near modal center
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     setBurstLocation({ x: rect.left + rect.width / 2, y: rect.top });
 
     setPurchasingId(sticker.id);
-    setFeedback(null);
 
     startTransition(async () => {
       try {
         const result = await purchaseSticker(sticker.id);
         if (result.success && result.newPoints !== undefined) {
           setPoints(result.newPoints);
+          setConfirmingSticker(null);
           setFeedback({
             type: 'success',
-            message: `Acquired "${sticker.name}"! Added to your cozy collection. ✨`,
+            message: `Acquired "${sticker.name}"! Ready to place on your cozy spaces. ✨`,
+            sticker,
           });
           onPurchased?.(sticker, result.newPoints);
         } else {
@@ -261,7 +268,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                   className="px-6 pt-3"
                 >
                   <div
-                    className={`flex items-center gap-2 p-3 rounded-2xl text-xs font-700 border shadow-xs ${
+                    className={`flex items-center gap-2.5 p-3 rounded-2xl text-xs font-700 border shadow-xs ${
                       feedback.type === 'success'
                         ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-300 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-200'
                         : 'bg-red-50 dark:bg-red-950/70 border-red-300 dark:border-red-500/40 text-red-950 dark:text-red-200'
@@ -272,7 +279,19 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                     ) : (
                       <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0" />
                     )}
-                    <span>{feedback.message}</span>
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-2 flex-wrap">
+                      <span>{feedback.message}</span>
+                      {feedback.type === 'success' && (
+                        <a
+                          href="/feed"
+                          onClick={onClose}
+                          className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-800 text-[11px] transition-all hover:scale-105 active:scale-95 shrink-0 inline-flex items-center gap-1 shadow-xs"
+                        >
+                          <span>Place on Spaces</span>
+                          <Sparkles size={11} />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -359,29 +378,18 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                           </div>
                         </div>
 
-                        {/* Bottom: Purchase Button */}
+                        {/* Bottom: Purchase / Trade Button */}
                         <button
-                          onClick={(e) => handlePurchase(item, e)}
-                          disabled={!canAfford || isPurchasing || isPending}
-                          className={`w-full py-2 px-3 rounded-2xl text-xs font-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          onClick={() => handleOpenConfirm(item)}
+                          disabled={isPending}
+                          className={`w-full py-2.5 px-3 rounded-2xl text-xs font-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                             canAfford
                               ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 shadow-sm hover:brightness-105 active:scale-95'
-                              : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-not-allowed'
+                              : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-300 dark:hover:bg-stone-700'
                           }`}
                         >
-                          {isPurchasing ? (
-                            <>
-                              <RefreshCw size={13} className="animate-spin" />
-                              <span>Acquiring...</span>
-                            </>
-                          ) : canAfford ? (
-                            <>
-                              <Sparkles size={13} />
-                              <span>Purchase</span>
-                            </>
-                          ) : (
-                            <span className="text-[10px]">Need {(item.cost - points).toLocaleString()} pts</span>
-                          )}
+                          <Sparkles size={13} />
+                          <span>Trade Sticker</span>
                         </button>
                       </motion.div>
                     );
@@ -411,6 +419,138 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
               </div>
             </div>
           </motion.div>
+
+          {/* ── Trade Confirmation Modal ────────────────────────────────────── */}
+          <AnimatePresence>
+            {confirmingSticker && (
+              <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => !purchasingId && setConfirmingSticker(null)}
+                  className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+                />
+
+                <motion.div
+                  initial={{ scale: 0.92, opacity: 0, y: 12 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.92, opacity: 0, y: 12 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                  className="relative w-full max-w-sm rounded-[32px] p-6 bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 border border-amber-900/15 dark:border-amber-500/30 shadow-2xl space-y-4"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-700 dark:text-amber-400">
+                        <ShoppingBag size={16} />
+                      </div>
+                      <h3 className="text-sm font-900 text-stone-900 dark:text-amber-50">Confirm Trade</h3>
+                    </div>
+                    <button
+                      onClick={() => setConfirmingSticker(null)}
+                      disabled={purchasingId !== null}
+                      className="p-1 rounded-full text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-amber-100 transition-colors cursor-pointer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Sticker Preview */}
+                  <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-amber-50/90 dark:bg-[#251c17] border border-amber-200/80 dark:border-amber-600/30">
+                    <img
+                      src={confirmingSticker.image_url}
+                      alt={confirmingSticker.name}
+                      className="w-14 h-14 object-contain drop-shadow-md shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm font-900 text-stone-900 dark:text-amber-50 truncate">
+                          {confirmingSticker.name}
+                        </h4>
+                        <span className={`text-[9px] font-800 px-1.5 py-0.5 rounded-full border ${TIER_LABELS[confirmingSticker.tier]?.badgeClass}`}>
+                          {TIER_LABELS[confirmingSticker.tier]?.icon} {TIER_LABELS[confirmingSticker.tier]?.label}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-600 text-stone-600 dark:text-amber-300/80 mt-0.5">
+                        Decay: ~{Math.round(confirmingSticker.decay_rate_per_day * 100)}%/day • Re-up anytime
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Before & After Balance Calculation */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-[#140e0b] border border-amber-900/10 dark:border-amber-500/20 space-y-2 text-xs">
+                    <div className="flex items-center justify-between font-600 text-stone-600 dark:text-amber-200/80">
+                      <span>Current Balance:</span>
+                      <span className="font-mono font-bold text-stone-900 dark:text-amber-100">
+                        ⭐ {points.toLocaleString()} pts
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between font-600 text-amber-700 dark:text-amber-400">
+                      <span>Sticker Trade Cost:</span>
+                      <span className="font-mono font-bold">
+                        - {confirmingSticker.cost.toLocaleString()} pts
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-amber-900/10 dark:bg-amber-500/20 my-1" />
+
+                    <div className="flex items-center justify-between font-900 text-sm">
+                      <span className="text-stone-900 dark:text-amber-50">Remaining Balance:</span>
+                      <span
+                        className={`font-mono font-extrabold ${
+                          points - confirmingSticker.cost < 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-emerald-700 dark:text-emerald-400'
+                        }`}
+                      >
+                        ⭐ {(points - confirmingSticker.cost).toLocaleString()} pts
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Insufficient points error if balance is too low */}
+                  {points < confirmingSticker.cost && (
+                    <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300 text-xs font-700 text-center flex items-center justify-center gap-1.5">
+                      <AlertCircle size={14} className="shrink-0" />
+                      <span>Need {(confirmingSticker.cost - points).toLocaleString()} more points to complete trade.</span>
+                    </div>
+                  )}
+
+                  {/* Modal Action Buttons */}
+                  <div className="flex items-center gap-2.5 pt-1">
+                    <button
+                      onClick={() => setConfirmingSticker(null)}
+                      disabled={purchasingId !== null}
+                      className="flex-1 py-3 px-4 rounded-2xl text-xs font-800 bg-stone-100 dark:bg-[#281e19] text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-[#342821] border border-amber-900/10 dark:border-amber-500/20 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      onClick={(e) => handleConfirmPurchase(confirmingSticker, e)}
+                      disabled={purchasingId !== null || points < confirmingSticker.cost}
+                      className="flex-1 py-3 px-4 rounded-2xl text-xs font-900 bg-amber-500 hover:bg-amber-600 text-amber-950 shadow-md hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {purchasingId === confirmingSticker.id ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>Trading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check size={15} />
+                          <span>Confirm & Trade</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </AnimatePresence>,

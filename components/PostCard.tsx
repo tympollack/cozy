@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useTransition, useRef } from 'react';
+import Link from 'next/link';
 import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, Sparkles, X, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ParticleBurst } from './ParticleBurst';
@@ -273,12 +274,22 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
             </span>
           </motion.button>
 
+          {/* Decorate Button */}
+          <Link
+            href={`/post/${post.id}`}
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-xs font-bold text-amber-200 transition-all active:scale-95 shadow-sm"
+            title="Decorate with Stickers & View Space"
+          >
+            <Sparkles size={13} className="text-amber-300" />
+            <span>Decorate</span>
+          </Link>
+
           {/* Send Warmth Button */}
           <button
             onClick={() => setShowWarmthModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-stone-200 transition-all active:scale-95"
+            className="flex items-center space-x-2 px-3 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-stone-200 transition-all active:scale-95"
           >
-            <span>☕ Send Warmth</span>
+            <span>☕ Warmth</span>
           </button>
 
           {/* Calling Card Button */}

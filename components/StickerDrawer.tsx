@@ -1,8 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, Sparkles, Star } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
+
+const emptySubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Sticker Catalog
@@ -223,15 +233,17 @@ interface StickerDrawerProps {
 }
 
 export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps) {
+  const isClient = useIsClient();
   const points = useCozyStore((s) => s.points);
   const [tab, setTab] = useState<DrawerTab>('season');
 
-  return (
+  if (!isClient || !isOpen) return null;
+
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300
-          ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -241,27 +253,26 @@ export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps)
         role="dialog"
         aria-modal="true"
         aria-label="Sticker marketplace"
-        className={`fixed bottom-0 inset-x-0 z-50 rounded-t-3xl
-          backdrop-blur-md bg-white/20 dark:bg-black/40 border-t border-white/20 shadow-lg
-          transition-transform duration-400 ease-out
-          ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className="fixed bottom-0 inset-x-0 z-[10000] rounded-t-[32px] sm:rounded-t-[36px] max-w-xl mx-auto
+          bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 border-t border-amber-900/15 dark:border-amber-500/30 shadow-2xl
+          animate-in slide-in-from-bottom duration-300 ease-out flex flex-col"
         style={{ maxHeight: '80dvh' }}
       >
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-[--cozy-muted]/30" />
+          <div className="w-12 h-1.5 rounded-full bg-stone-300 dark:bg-stone-700" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-2 pb-3">
+        <div className="flex items-center justify-between px-6 pt-2 pb-3 border-b border-amber-900/10 dark:border-amber-500/20">
           <div>
-            <h2 className="text-lg font-800 text-[--cozy-bark] flex items-center gap-1.5">
-              <Sparkles size={18} className="text-[--cozy-gold]" />
-              Sticker Market
+            <h2 className="text-lg font-900 text-stone-900 dark:text-amber-50 flex items-center gap-2">
+              <Sparkles size={18} className="text-amber-600 dark:text-amber-400" />
+              <span>Choose Sticker to Place</span>
             </h2>
-            <p className="text-xs text-[--cozy-muted] mt-0.5">
-              You have{' '}
-              <span className="font-700 text-[--cozy-rust]">
+            <p className="text-xs font-600 text-stone-600 dark:text-amber-200/80 mt-0.5">
+              Available Balance:{' '}
+              <span className="font-extrabold text-amber-700 dark:text-amber-300">
                 ⭐ {points.toLocaleString()} pts
               </span>
             </p>
@@ -269,53 +280,52 @@ export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps)
           <button
             onClick={onClose}
             aria-label="Close sticker drawer"
-            className="w-8 h-8 rounded-full bg-[--cozy-warm] flex items-center justify-center
-              hover:bg-[--cozy-amber]/20 transition-colors"
+            className="w-8 h-8 rounded-full bg-stone-200/70 dark:bg-[#281e19] flex items-center justify-center text-stone-700 dark:text-amber-200 hover:bg-stone-300 dark:hover:bg-[#342821] transition-colors cursor-pointer"
           >
-            <X size={16} className="text-[--cozy-bark]" />
+            <X size={16} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 px-5 pb-3">
+        <div className="flex gap-2 px-6 pt-3 pb-2 border-b border-amber-900/10 dark:border-amber-500/20">
           <button
             onClick={() => setTab('season')}
-            className={`px-4 py-1.5 rounded-full text-sm font-600 transition-colors
-              ${tab === 'season'
-                ? 'bg-[--cozy-bark] text-white'
-                : 'bg-[--cozy-warm] text-[--cozy-muted] hover:bg-[--cozy-amber]/20'
-              }`}
+            className={`px-4 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer ${
+              tab === 'season'
+                ? 'bg-stone-900 dark:bg-amber-400 text-white dark:text-stone-950 shadow-xs'
+                : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-amber-50 dark:hover:bg-[#342821]'
+            }`}
           >
             <Star size={12} className="inline mr-1" />
-            Season 1
+            Season 1 ({STICKER_CATALOG.length})
           </button>
 
           {/* Submit tab — greyed out, future feature */}
           <div className="relative group">
             <button
               disabled
-              className="px-4 py-1.5 rounded-full text-sm font-600
-                bg-[--cozy-warm]/60 text-[--cozy-muted]/50 cursor-not-allowed
-                flex items-center gap-1"
+              className="px-4 py-1.5 rounded-full text-xs font-800
+                bg-stone-100 dark:bg-[#281e19] text-stone-400 dark:text-stone-600 cursor-not-allowed
+                flex items-center gap-1 border border-stone-200/60 dark:border-stone-800/60"
             >
               <Lock size={12} />
               Submit Sticker
             </button>
             {/* Tooltip */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-              bg-[--cozy-night] text-white text-xs font-500 px-3 py-1.5 rounded-xl
+              bg-stone-900 text-white text-xs font-600 px-3 py-1.5 rounded-xl
               whitespace-nowrap pointer-events-none opacity-0
-              group-hover:opacity-100 transition-opacity duration-200 shadow-lg">
+              group-hover:opacity-100 transition-opacity duration-200 shadow-lg z-50">
               Community submissions open soon! 🎨
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4
-                border-transparent border-t-[--cozy-night]" />
+                border-transparent border-t-stone-900" />
             </div>
           </div>
         </div>
 
         {/* Season 1 grid */}
-        <div className="overflow-y-auto px-4 pb-8" style={{ maxHeight: '50dvh' }}>
-          <div className="grid grid-cols-4 gap-3">
+        <div className="flex-1 overflow-y-auto px-6 py-4 pb-8 space-y-4" style={{ maxHeight: '55dvh' }}>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
             {STICKER_CATALOG.map((item) => {
               const canAfford = points >= item.cost;
               return (
@@ -325,37 +335,38 @@ export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps)
                   onClick={() => canAfford && onSelect(item)}
                   disabled={!canAfford}
                   aria-label={`${item.name} — ${item.cost} points, ${item.description}`}
-                  className={`flex flex-col items-center gap-1.5 p-2.5 rounded-2xl
-                    border transition-all duration-150 group
-                    ${canAfford
-                      ? 'bg-white border-[--cozy-amber]/20 hover:border-[--cozy-amber] hover:shadow-md active:scale-95 cursor-pointer'
-                      : 'bg-[--cozy-warm]/40 border-transparent opacity-50 cursor-not-allowed'
-                    }`}
+                  className={`flex flex-col items-center justify-between gap-1.5 p-3 rounded-2xl
+                    border transition-all duration-150 group ${
+                    canAfford
+                      ? 'bg-white dark:bg-[#201813] border-amber-900/15 dark:border-amber-500/25 hover:border-amber-500 hover:shadow-md hover:scale-105 active:scale-95 cursor-pointer'
+                      : 'bg-stone-100/60 dark:bg-[#1a1411] border-stone-200 dark:border-stone-800 opacity-40 cursor-not-allowed'
+                  }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={item.imageUrl}
                     alt={item.name}
-                    className="w-10 h-10 object-contain group-hover:scale-110 transition-transform duration-150"
+                    className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-150 select-none"
                     loading="lazy"
                   />
-                  <span className="text-[10px] font-600 text-[--cozy-bark] text-center leading-tight">
+                  <span className="text-[11px] font-800 text-stone-900 dark:text-amber-100 text-center leading-tight truncate max-w-full">
                     {item.name}
                   </span>
-                  <span className={`text-[10px] font-700 ${canAfford ? 'text-[--cozy-rust]' : 'text-[--cozy-muted]'}`}>
+                  <span className={`text-[10px] font-extrabold ${canAfford ? 'text-amber-700 dark:text-amber-300' : 'text-stone-500 dark:text-stone-400'}`}>
                     ⭐ {item.cost}
                   </span>
-                  <span className="text-[9px] text-[--cozy-muted]">{item.description}</span>
+                  <span className="text-[9px] font-600 text-stone-500 dark:text-amber-300/60">{item.description}</span>
                 </button>
               );
             })}
           </div>
 
-          <p className="text-center text-[10px] text-[--cozy-muted] mt-4 pb-2">
+          <p className="text-center text-[10px] font-600 text-stone-500 dark:text-amber-200/70 pt-2 pb-2">
             Stickers fade over time — Re-Up to restore them ✨
           </p>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

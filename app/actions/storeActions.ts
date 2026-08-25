@@ -29,7 +29,7 @@ export interface PurchaseStickerResult {
 const TWEMOJI = (code: string) =>
   `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${code}.png`;
 
-export const FALLBACK_STICKER_CATALOG: StoreSticker[] = [
+const FALLBACK_STICKER_CATALOG: StoreSticker[] = [
   // ── Tier 1: Cozy Commons (50 - 100 pts) ──────────────────────────────────
   {
     id: 'f001-warm-mug',
