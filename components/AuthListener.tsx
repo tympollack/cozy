@@ -33,13 +33,17 @@ export function AuthListener() {
 
     // Initialize current user ID ref
     supabase.auth.getSession().then(({ data: { session } }) => {
-      lastUserIdRef.current = session?.user?.id ?? null;
+      if (lastUserIdRef.current === null) {
+        lastUserIdRef.current = session?.user?.id ?? null;
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUserId = session?.user?.id ?? null;
 
-      if (event === 'SIGNED_OUT') {
+      if (event === 'INITIAL_SESSION') {
+        lastUserIdRef.current = currentUserId;
+      } else if (event === 'SIGNED_OUT') {
         lastUserIdRef.current = null;
         router.refresh();
       } else if (event === 'SIGNED_IN') {

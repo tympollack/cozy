@@ -89,11 +89,24 @@ export function isBypassAuthEnabled(host?: string): boolean {
     return false;
   }
 
-  // Allow bypass in local dev, staging, and preview environments (*.vercel.app, *-stag.sunshade.icu)
-  if (isLocalDevelopment(host) || isStagingEnvironment(host)) {
+  // Local development is always allowed
+  if (process.env.NODE_ENV === 'development') {
     return true;
   }
 
+  // Trusted server/deployment environment variables (cannot be spoofed via client request headers)
+  const env = (
+    process.env.NEXT_PUBLIC_ENVIRONMENT ||
+    process.env.NEXT_PUBLIC_VERCEL_ENV ||
+    process.env.VERCEL_ENV ||
+    ''
+  ).toLowerCase().trim();
+
+  if (env === 'staging' || env === 'preview' || env === 'development') {
+    return true;
+  }
+
+  // In production, never allow dev authentication bypass based on untrusted host headers
   return false;
 }
 

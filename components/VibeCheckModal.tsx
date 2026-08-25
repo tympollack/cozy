@@ -83,20 +83,48 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
     try {
       const res = await updateVibeStatus(status);
       if (res.success) {
-        // Broadcast to realtime group channels so peers see the update instantly
+        // Broadcast to realtime channels so peers see the update instantly
         try {
           const supabase = createBrowserClient();
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            const channel = supabase.channel('cozy-global-broadcast');
-            channel.subscribe((subStatus) => {
-              if (subStatus === 'SUBSCRIBED') {
-                channel.send({
-                  type: 'broadcast',
-                  event: 'vibe_updated',
-                  payload: { userId: user.id, vibe_status: status },
-                }).catch(() => {});
-              }
+            const activeGroupId = useCozyStore.getState().groupId;
+            const targetChannels = ['cozy-global-broadcast'];
+            if (activeGroupId) {
+              targetChannels.push(`cozy-group-room-${activeGroupId}`);
+            }
+
+            targetChannels.forEach((chName) => {
+              const channel = supabase.channel(chName);
+              let cleanupTimer: NodeJS.Timeout | null = null;
+              const cleanup = () => {
+                if (cleanupTimer) {
+                  clearTimeout(cleanupTimer);
+                  cleanupTimer = null;
+                }
+                supabase.removeChannel(channel);
+              };
+
+              cleanupTimer = setTimeout(cleanup, 4000);
+
+              channel.subscribe((subStatus) => {
+                if (subStatus === 'SUBSCRIBED') {
+                  channel
+                    .send({
+                      type: 'broadcast',
+                      event: 'vibe_updated',
+                      payload: { userId: user.id, vibe_status: status },
+                    })
+                    .then(cleanup)
+                    .catch(cleanup);
+                } else if (
+                  subStatus === 'CHANNEL_ERROR' ||
+                  subStatus === 'TIMED_OUT' ||
+                  subStatus === 'CLOSED'
+                ) {
+                  cleanup();
+                }
+              });
             });
           }
         } catch {

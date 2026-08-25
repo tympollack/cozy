@@ -101,32 +101,30 @@ export function GroupDetailClient({
     if (!activeGroupId) return;
 
     const supabase = createBrowserClient();
-    const channelName = `cozy-group-room-${activeGroupId}`;
-    const channel = supabase.channel(channelName);
+    const groupChannelName = `cozy-group-room-${activeGroupId}`;
+    const groupChannel = supabase.channel(groupChannelName);
+    const globalChannel = supabase.channel('cozy-global-broadcast');
 
-    channel
-      .on('broadcast', { event: 'vibe_updated' }, (payload) => {
-        const data = payload.payload as {
-          userId?: string;
-          vibe_status?: 'sunshine' | 'neutral' | 'raincloud';
-          points?: number;
-          shell_type?: string;
-        };
-        if (data?.userId) {
-          setLiveMembers((prev) =>
-            prev.map((m) =>
-              m.user_id === data.userId
-                ? {
-                    ...m,
-                    ...(data.vibe_status ? { vibe_status: data.vibe_status } : {}),
-                    ...(data.points !== undefined ? { points: data.points } : {}),
-                    ...(data.shell_type ? { shell_type: data.shell_type } : {}),
-                  }
-                : m
-            )
-          );
-        }
-      })
+    const handleVibeBroadcast = (payload: { payload: { userId?: string; vibe_status?: 'sunshine' | 'neutral' | 'raincloud'; points?: number; shell_type?: string } }) => {
+      const data = payload.payload;
+      if (data?.userId) {
+        setLiveMembers((prev) =>
+          prev.map((m) =>
+            m.user_id === data.userId
+              ? {
+                  ...m,
+                  ...(data.vibe_status ? { vibe_status: data.vibe_status } : {}),
+                  ...(data.points !== undefined ? { points: data.points } : {}),
+                  ...(data.shell_type ? { shell_type: data.shell_type } : {}),
+                }
+              : m
+          )
+        );
+      }
+    };
+
+    groupChannel
+      .on('broadcast', { event: 'vibe_updated' }, handleVibeBroadcast)
       .on(
         'postgres_changes',
         { event: '*', schema: 'cozy', table: 'users' },
@@ -157,8 +155,13 @@ export function GroupDetailClient({
       )
       .subscribe();
 
+    globalChannel
+      .on('broadcast', { event: 'vibe_updated' }, handleVibeBroadcast)
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(groupChannel);
+      supabase.removeChannel(globalChannel);
     };
   }, [activeGroupId]);
 

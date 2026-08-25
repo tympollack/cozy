@@ -34,7 +34,7 @@ export default async function LoginPage({
 
 
   const isStag = isStagingEnvironment(host);
-  const isBypass = isBypassAuthEnabled(host) || isStag || params.bypass === 'true' || params.local === 'true';
+  const isBypass = isBypassAuthEnabled();
 
   // Only auto-redirect to central Hub in production when not on staging or bypass
   if (!isBypass && !isStag && params.direct !== 'true') {
