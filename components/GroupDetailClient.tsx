@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Crown } from 'lucide-react';
-import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
+import type { GroupRow, GroupMemberRow, MyGroupEntry } from '@/app/actions/groupActions';
+import { getGroupPageBundle } from '@/app/actions/groupActions';
+import type { GroupChallenge } from '@/lib/challengeDefaults';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
 import { GroupBank } from '@/components/GroupBank';
@@ -12,12 +15,28 @@ import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
 import { InviteCodePill } from '@/components/InviteCodePill';
 import { AdminGroupModal } from '@/components/AdminGroupModal';
 
+interface GroupBundleData {
+  group: GroupRow;
+  members: GroupMemberRow[];
+  currentUserRole: 'admin' | 'member' | null;
+  memberCount: number;
+  activeChallenge: GroupChallenge | null;
+  cachedAt: number;
+}
+
+// Module-level in-memory client cache preserved across route navigation
+const groupBundleCache = new Map<string, GroupBundleData>();
+
+import { useCozyStore } from '@/store/useCozyStore';
+
 interface GroupDetailClientProps {
   group: GroupRow;
   members: GroupMemberRow[];
   currentUserRole: 'admin' | 'member' | null;
   memberCount: number;
   currentUserId: string;
+  activeChallenge?: GroupChallenge | null;
+  myGroups?: MyGroupEntry[];
 }
 
 export function GroupDetailClient({
@@ -26,11 +45,52 @@ export function GroupDetailClient({
   currentUserRole,
   memberCount,
   currentUserId,
+  activeChallenge = null,
+  myGroups = [],
 }: GroupDetailClientProps) {
+  const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [selectedPeer, setSelectedPeer] = useState<{ id: string; name: string } | null>(null);
+  const [selectedPeer, setSelectedPeer] = useState<{
+    id: string;
+    name: string;
+    vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
+  } | null>(null);
+  const [inviteHighlight, setInviteHighlight] = useState(false);
+  const invitePillRef = useRef<HTMLDivElement>(null);
 
-  const safeGroup = group || {
+  // Active group ID for instant client-side cycling
+  const [activeGroupId, setActiveGroupId] = useState<string>(group?.id || '');
+
+  // Synchronously seed the client cache with incoming server props
+  if (group?.id) {
+    groupBundleCache.set(group.id, {
+      group,
+      members,
+      currentUserRole,
+      memberCount,
+      activeChallenge,
+      cachedAt: Date.now(),
+    });
+  }
+
+  // Keep activeGroupId in sync if a full server navigation prop changes
+  useEffect(() => {
+    if (group?.id && group.id !== activeGroupId) {
+      setActiveGroupId(group.id);
+    }
+  }, [group?.id]);
+
+  // Retrieve active group data from cache (or fallback to props)
+  const activeBundle = groupBundleCache.get(activeGroupId) || {
+    group,
+    members,
+    currentUserRole,
+    memberCount,
+    activeChallenge,
+    cachedAt: Date.now(),
+  };
+
+  const safeGroup = activeBundle.group || group || {
     id: '',
     name: 'Cozy Group',
     type: 'household',
@@ -42,26 +102,164 @@ export function GroupDetailClient({
     created_at: new Date().toISOString(),
   };
 
-  const safeMembers = Array.isArray(members) ? members : [];
-  const safeCount = memberCount ?? safeMembers.length ?? 1;
+  const safeMembers = Array.isArray(activeBundle.members) ? activeBundle.members : [];
+  const safeCount = activeBundle.memberCount ?? memberCount ?? safeMembers.length ?? 1;
+  const currentRole = activeBundle.currentUserRole ?? currentUserRole;
+  const currentChallenge = activeBundle.activeChallenge !== undefined ? activeBundle.activeChallenge : activeChallenge;
 
   const meta = GROUP_TYPE_META[safeGroup.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
 
   const bgStyle = isFuturistic
     ? 'linear-gradient(160deg, #050810 0%, #080f1e 50%, #060c18 100%)'
-    : 'linear-gradient(160deg, #faf7f2 0%, #f5ede0 60%, #ede0cc 100%)';
+    : 'var(--cozy-bg-gradient)';
 
-  const textPrimary = isFuturistic ? '#e0f4ff' : '#1a1410';
-  const textSecondary = isFuturistic ? '#60a0bc' : '#8a7060';
-  const accentColor = isFuturistic ? '#00dcff' : '#f0c060';
+  const { vibeStatus: storeVibeStatus } = useCozyStore();
+  const textPrimary = isFuturistic ? '#e0f4ff' : 'var(--cozy-text-primary)';
+  const textSecondary = isFuturistic ? '#60a0bc' : 'var(--cozy-text-muted)';
+  const accentColor = isFuturistic ? '#00dcff' : 'var(--cozy-amber)';
 
-  // Sort members: admins first, then by points desc
-  const sortedMembers = [...safeMembers].sort((a, b) => {
-    if (a.role === 'admin' && b.role !== 'admin') return -1;
-    if (b.role === 'admin' && a.role !== 'admin') return 1;
-    return (b.points || 0) - (a.points || 0);
-  });
+  // Sort members: admins first, then by points desc, dynamically reflecting store vibe
+  const sortedMembers = [...safeMembers]
+    .map((m) => {
+      if (m.user_id === currentUserId && storeVibeStatus) {
+        return { ...m, vibe_status: storeVibeStatus as 'sunshine' | 'neutral' | 'raincloud' };
+      }
+      return m;
+    })
+    .sort((a, b) => {
+      if (a.role === 'admin' && b.role !== 'admin') return -1;
+      if (b.role === 'admin' && a.role !== 'admin') return 1;
+      return (b.points || 0) - (a.points || 0);
+    });
+
+  // Group Switcher calculations
+  const safeMyGroups = Array.isArray(myGroups) ? myGroups : [];
+  const currentGroupIndex = safeMyGroups.findIndex((g) => g.group.id === safeGroup.id);
+  const hasMultipleGroups = safeMyGroups.length > 1;
+
+  const prevGroup = hasMultipleGroups && currentGroupIndex !== -1
+    ? safeMyGroups[(currentGroupIndex - 1 + safeMyGroups.length) % safeMyGroups.length].group
+    : null;
+  const nextGroup = hasMultipleGroups && currentGroupIndex !== -1
+    ? safeMyGroups[(currentGroupIndex + 1) % safeMyGroups.length].group
+    : null;
+
+  // Instant group switch handler
+  const handleSwitchGroup = useCallback((targetGroupId: string) => {
+    if (!targetGroupId || targetGroupId === activeGroupId) return;
+
+    if (groupBundleCache.has(targetGroupId)) {
+      // 0ms instant switch!
+      setActiveGroupId(targetGroupId);
+      window.history.pushState(null, '', `/groups/${targetGroupId}`);
+
+      // Silent background revalidation if cache is older than 30s
+      const cached = groupBundleCache.get(targetGroupId);
+      if (cached && Date.now() - cached.cachedAt > 30000) {
+        getGroupPageBundle(targetGroupId).then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(targetGroupId, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+            setActiveGroupId((curr) => (curr === targetGroupId ? targetGroupId : curr));
+          }
+        }).catch(() => {});
+      }
+    } else {
+      // Not yet in cache — fetch quickly and transition
+      getGroupPageBundle(targetGroupId)
+        .then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(targetGroupId, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+            setActiveGroupId(targetGroupId);
+            window.history.pushState(null, '', `/groups/${targetGroupId}`);
+          } else {
+            router.push(`/groups/${targetGroupId}`);
+          }
+        })
+        .catch(() => {
+          router.push(`/groups/${targetGroupId}`);
+        });
+    }
+  }, [activeGroupId, router]);
+
+  // Background prefetch all other user groups on mount for instant cycling
+  useEffect(() => {
+    if (!safeMyGroups.length) return;
+
+    safeMyGroups.forEach((entry) => {
+      const gid = entry.group.id;
+      // Router prefetch for Next.js RSC route cache
+      router.prefetch(`/groups/${gid}`);
+
+      // Preload data into client bundle cache
+      if (!groupBundleCache.has(gid)) {
+        getGroupPageBundle(gid).then((res) => {
+          if (res.groupWithMembers) {
+            groupBundleCache.set(gid, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+            });
+          }
+        }).catch(() => {});
+      }
+    });
+  }, [safeMyGroups, router]);
+
+  // Handle browser Back / Forward buttons seamlessly from cache
+  useEffect(() => {
+    const handlePopState = () => {
+      const parts = window.location.pathname.split('/');
+      const id = parts[2];
+      if (id && groupBundleCache.has(id)) {
+        setActiveGroupId(id);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Keyboard navigation for jumping to previous/next group with arrow keys
+  useEffect(() => {
+    if (!hasMultipleGroups) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === 'ArrowLeft' && prevGroup) {
+        handleSwitchGroup(prevGroup.id);
+      } else if (e.key === 'ArrowRight' && nextGroup) {
+        handleSwitchGroup(nextGroup.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasMultipleGroups, prevGroup, nextGroup, handleSwitchGroup]);
+
+  const handleOpenInvite = () => {
+    setInviteHighlight(true);
+    invitePillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => setInviteHighlight(false), 2500);
+  };
 
   return (
     <div
@@ -69,31 +267,95 @@ export function GroupDetailClient({
       style={{ background: bgStyle }}
     >
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Back link */}
-        <Link
-          href="/groups"
-          className="inline-flex items-center gap-1.5 text-sm font-600 transition-opacity hover:opacity-70"
-          style={{ color: textSecondary }}
-        >
-          <ChevronLeft size={16} />
-          All Groups
-        </Link>
+        {/* Top Navigation Row: Back Link & Group Switcher */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/groups"
+            className="inline-flex items-center gap-1.5 text-sm font-700 transition-opacity hover:opacity-80"
+            style={{ color: textSecondary }}
+          >
+            <ChevronLeft size={16} />
+            <span>All Groups</span>
+          </Link>
+
+          {/* Previous / Next Group Switcher */}
+          {hasMultipleGroups && prevGroup && nextGroup && (
+            <div className="flex items-center gap-1 bg-white/85 dark:bg-[#1a1410]/90 backdrop-blur-md px-2 py-1 rounded-full border border-amber-900/15 dark:border-amber-500/25 shadow-xs">
+              <Link
+                href={`/groups/${prevGroup.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSwitchGroup(prevGroup.id);
+                }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
+                title={`Previous Group: ${prevGroup.name} (←)`}
+                aria-label="Previous group"
+              >
+                <ChevronLeft size={16} />
+              </Link>
+              <span className="text-[11px] font-800 px-1 text-stone-700 dark:text-amber-300">
+                {currentGroupIndex + 1} / {safeMyGroups.length}
+              </span>
+              <Link
+                href={`/groups/${nextGroup.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSwitchGroup(nextGroup.id);
+                }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-stone-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-[#281e19] transition-colors"
+                title={`Next Group: ${nextGroup.name} (→)`}
+                aria-label="Next group"
+              >
+                <ChevronRight size={16} />
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Group header */}
         <div className="space-y-2">
           <div className="flex items-start gap-3">
             <span className="text-4xl mt-0.5">{meta.emoji}</span>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
-                {safeGroup.name}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-800 leading-tight" style={{ color: textPrimary }}>
+                  {safeGroup.name}
+                </h1>
+                {/* Fast Next/Prev Chevrons right next to Title */}
+                {hasMultipleGroups && prevGroup && nextGroup && (
+                  <div className="flex items-center gap-0.5 opacity-75 hover:opacity-100">
+                    <Link
+                      href={`/groups/${prevGroup.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSwitchGroup(prevGroup.id);
+                      }}
+                      className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
+                      title={`Previous: ${prevGroup.name}`}
+                    >
+                      <ChevronLeft size={18} style={{ color: accentColor }} />
+                    </Link>
+                    <Link
+                      href={`/groups/${nextGroup.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSwitchGroup(nextGroup.id);
+                      }}
+                      className="p-1 rounded-lg hover:bg-amber-500/15 transition-colors"
+                      title={`Next: ${nextGroup.name}`}
+                    >
+                      <ChevronRight size={18} style={{ color: accentColor }} />
+                    </Link>
+                  </div>
+                )}
+              </div>
               <p className="text-sm font-500 mt-0.5" style={{ color: textSecondary }}>
                 {meta.label} · {safeCount} / {safeGroup.max_members} members
               </p>
             </div>
 
             {/* Admin Badge — Click to manage group */}
-            {currentUserRole === 'admin' && (
+            {currentRole === 'admin' && (
               <button
                 onClick={() => setShowAdminModal(true)}
                 className="flex-shrink-0 flex items-center gap-1.5 text-xs font-800 px-3 py-1.5 rounded-2xl mt-1 transition-all hover:scale-105 active:scale-95 shadow-md border cursor-pointer"
@@ -110,8 +372,16 @@ export function GroupDetailClient({
             )}
           </div>
 
-          {/* Interactive Invite Code Pill */}
-          <div className="pt-1">
+          {/* Interactive Invite Code Pill — highlighted when a vacant plot is tapped */}
+          <div
+            ref={invitePillRef}
+            className="pt-1 rounded-2xl transition-all duration-300"
+            style={inviteHighlight ? {
+              outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
+              outlineOffset: '4px',
+              boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
+            } : {}}
+          >
             <InviteCodePill
               code={safeGroup.invite_code}
               groupName={safeGroup.name}
@@ -122,24 +392,38 @@ export function GroupDetailClient({
           </div>
         </div>
 
-        {/* 2.5D Isometric Map with Atmospheric Vibe Check */}
+        {/* Anchor-based 2.5D Group Map with Habitat Renderers & Vibe Auras */}
         <GroupMapView
           group={safeGroup}
           members={sortedMembers}
-          onSelectPeer={(id, name) => setSelectedPeer({ id, name })}
+          currentUserId={currentUserId}
+          onSelectPeer={(id, name) => {
+            if (id === currentUserId) {
+              router.push('/profile');
+              return;
+            }
+            const member = sortedMembers.find((m) => m.user_id === id);
+            setSelectedPeer({
+              id,
+              name,
+              vibeStatus: member?.vibe_status || 'neutral',
+            });
+          }}
+          onOpenInvite={handleOpenInvite}
+          activeChallenge={currentChallenge}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}
         <CommunityBulletinBoard
           groupId={safeGroup.id}
           isFuturistic={isFuturistic}
-          isAdmin={currentUserRole === 'admin'}
+          isAdmin={currentRole === 'admin'}
         />
 
         {/* Group Bank */}
         <GroupBank
           group={safeGroup}
-          currentUserRole={currentUserRole}
+          currentUserRole={currentRole}
           memberCount={safeCount}
         />
 
@@ -150,18 +434,36 @@ export function GroupDetailClient({
           </h2>
           <div className="space-y-2">
             {sortedMembers.map((member, i) => {
-              const memberName = member.display_name || 'Cozy Neighbor';
+              const isSelf = member.user_id === currentUserId;
+              const memberName = isSelf ? 'You' : (member.display_name || 'Cozy Neighbor');
               const memberPoints = Number(member.points) || 0;
+              const memberVibe = member.vibe_status || 'neutral';
+              const vibeIcon = memberVibe === 'sunshine' ? '☀️' : memberVibe === 'raincloud' ? '🌧️' : '☕';
 
               return (
                 <div
                   key={member.user_id}
-                  onClick={() => setSelectedPeer({ id: member.user_id, name: memberName })}
+                  onClick={() => {
+                    if (isSelf) {
+                      router.push('/profile');
+                    } else {
+                      setSelectedPeer({
+                        id: member.user_id,
+                        name: member.display_name || 'Cozy Neighbor',
+                        vibeStatus: member.vibe_status || 'neutral',
+                      });
+                    }
+                  }}
                   className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
                   style={{
-                    background: isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
-                    border: isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
+                    background: isSelf
+                      ? (isFuturistic ? 'rgba(0,180,255,0.12)' : 'rgba(254,243,199,0.55)')
+                      : isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
+                    border: isSelf
+                      ? (isFuturistic ? '1.5px solid rgba(0,220,255,0.50)' : '1.5px solid rgba(245,158,11,0.45)')
+                      : isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
                   }}
+                  title={isSelf ? 'Your Space (Tap to view)' : `${memberName} (Tap to send cheer)`}
                 >
                   {/* Avatar */}
                   {member.avatar_url ? (
@@ -170,37 +472,47 @@ export function GroupDetailClient({
                       src={member.avatar_url}
                       alt={memberName}
                       className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2"
-                      style={{ borderColor: isFuturistic ? '#00dcff' : '#e8a87c' }}
+                      style={{ borderColor: isSelf ? '#f59e0b' : (isFuturistic ? '#00dcff' : '#e8a87c') }}
                     />
                   ) : (
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-800 flex-shrink-0 border-2"
                       style={{
-                        background: isFuturistic
+                        background: isSelf
+                          ? (isFuturistic ? 'linear-gradient(135deg, #0d3060, #00b4d8)' : 'linear-gradient(135deg, #f59e0b, #d97706)')
+                          : isFuturistic
                           ? 'linear-gradient(135deg, #1e1060, #0d3060)'
                           : 'linear-gradient(135deg, #c4704a, #e8a87c)',
-                        borderColor: isFuturistic ? '#00dcff' : '#e8a87c',
-                        color: isFuturistic ? '#00dcff' : '#faf7f2',
+                        borderColor: isSelf ? '#f59e0b' : (isFuturistic ? '#00dcff' : '#e8a87c'),
+                        color: isSelf ? '#ffffff' : (isFuturistic ? '#00dcff' : '#faf7f2'),
                       }}
                     >
-                      {memberName.slice(0, 2).toUpperCase()}
+                      {isSelf ? 'YOU' : memberName.slice(0, 2).toUpperCase()}
                     </div>
                   )}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs shrink-0" title={`Feeling ${memberVibe}`}>
+                        {vibeIcon}
+                      </span>
                       <span
                         className="text-sm font-700 truncate"
                         style={{ color: textPrimary }}
                       >
                         {memberName}
                       </span>
+                      {isSelf && (
+                        <span className="text-[10px] font-800 px-2 py-0.5 rounded-full bg-amber-400/25 text-amber-900 dark:text-amber-200 border border-amber-400/50">
+                          You
+                        </span>
+                      )}
                       {member.role === 'admin' && (
                         <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
                       )}
                     </div>
                     <p className="text-xs font-500" style={{ color: textSecondary }}>
-                      {memberPoints.toLocaleString()} personal pts · Tap to send cheer
+                      {memberPoints.toLocaleString()} personal pts · {isSelf ? 'Tap to view your space' : 'Tap to send cheer'}
                     </p>
                   </div>
 
@@ -224,6 +536,7 @@ export function GroupDetailClient({
           <PeerSupportDrawer
             recipientId={selectedPeer.id}
             recipientName={selectedPeer.name}
+            vibeStatus={selectedPeer.vibeStatus}
             isOpen={!!selectedPeer}
             onClose={() => setSelectedPeer(null)}
           />
@@ -232,7 +545,7 @@ export function GroupDetailClient({
         {/* Admin Management Modal */}
         {showAdminModal && (
           <AdminGroupModal
-            group={group}
+            group={safeGroup}
             members={sortedMembers}
             currentUserId={currentUserId}
             onClose={() => setShowAdminModal(false)}

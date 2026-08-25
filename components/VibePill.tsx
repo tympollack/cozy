@@ -5,9 +5,21 @@ import { useCozyStore } from '@/store/useCozyStore';
 import { VibeCheckModal } from '@/components/VibeCheckModal';
 
 const VIBE_META: Record<string, { emoji: string; label: string; bg: string }> = {
-  sunshine: { emoji: '☀️', label: 'Sunshine', bg: 'bg-amber-100/90 text-amber-900 border-amber-300' },
-  neutral: { emoji: '☕', label: 'Cozy', bg: 'bg-amber-50 text-amber-900 border-amber-200' },
-  raincloud: { emoji: '🌧️', label: 'Raincloud', bg: 'bg-slate-200 text-slate-800 border-slate-300' },
+  sunshine: {
+    emoji: '☀️',
+    label: 'Sunshine',
+    bg: 'bg-amber-100 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 border-amber-300 dark:border-amber-600/50',
+  },
+  neutral: {
+    emoji: '☕',
+    label: 'Cozy',
+    bg: 'bg-orange-50 dark:bg-orange-950/60 text-stone-900 dark:text-orange-200 border-orange-200 dark:border-orange-600/40',
+  },
+  raincloud: {
+    emoji: '🌧️',
+    label: 'Raincloud',
+    bg: 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-200 border-slate-300 dark:border-slate-600',
+  },
 };
 
 export function VibePill() {

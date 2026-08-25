@@ -3,6 +3,7 @@ import './globals.css';
 import { Navbar } from '@/components/Navbar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { OnboardingCarousel } from '@/components/OnboardingCarousel';
+import { AuthListener } from '@/components/AuthListener';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://cozy-stag.sunshade.icu';
 
@@ -16,8 +17,16 @@ export const metadata: Metadata = {
     'A positivity-only community where you share Light & Dark photos of your living spaces and pool points with your group.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
     shortcut: '/favicon.ico',
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   appleWebApp: {
     capable: true,
@@ -67,6 +76,7 @@ export default function RootLayout({
       </head>
       <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-cream)] dark:bg-zinc-950 transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthListener />
           <Navbar />
           <main className="flex-1 flex flex-col relative overflow-y-auto w-full pt-14">{children}</main>
           <OnboardingCarousel />

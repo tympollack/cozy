@@ -9,7 +9,7 @@ import { ProfileShell } from '@/components/ProfileShell';
 import { PorchHoldingPen } from '@/components/PorchHoldingPen';
 import { ProfileGrid } from './ProfileGrid';
 import { StickerTutorialCallout } from './StickerTutorialCallout';
-import { Sparkles, Home, Archive } from 'lucide-react';
+import { Sparkles, Home, Archive, Settings } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'My Spaces & Shell — Cozy',
@@ -21,7 +21,7 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('https://hub.sunshade.icu/login');
+    redirect('/login?next=/profile');
   }
 
   const {
@@ -44,10 +44,7 @@ export default async function ProfilePage() {
   const showStickerTutorial = posts.length > 0 && milestoneTokens >= 100;
 
   return (
-    <div
-      className="min-h-screen px-4 py-8 pb-20"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8 pb-20">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -63,15 +60,26 @@ export default async function ProfilePage() {
             </p>
           </div>
 
-          <Link
-            href="/camera"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
-              font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
-              shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
-          >
-            <Sparkles size={14} className="fill-stone-900 text-stone-900" />
-            <span>New Space</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings"
+              className="p-2 rounded-full bg-white dark:bg-[#281e19] text-stone-800 dark:text-amber-200 border border-amber-900/15 dark:border-amber-500/30 shadow-xs hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title="Settings & Hub Options"
+              aria-label="Settings"
+            >
+              <Settings size={16} className="text-amber-700 dark:text-amber-400" />
+            </Link>
+
+            <Link
+              href="/camera"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
+                font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
+                shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
+            >
+              <Sparkles size={14} className="fill-stone-900 text-stone-900" />
+              <span>New Space</span>
+            </Link>
+          </div>
         </div>
 
         {/* Sticker Tutorial Callout (client component — checks Zustand flag) */}

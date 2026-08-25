@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Home, X, Check, ArrowRight, LayoutGrid,
-  Lock, Maximize2, Minimize2, Coins,
+  Lock, Coins,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import {
@@ -71,8 +71,8 @@ export function ProfileShell({
   const [expansionTier, setLocalExpansionTier] = useState(initialExpansionTier);
   const [milestoneTokens, setLocalMilestoneTokens] = useState(initialMilestoneTokens);
   const [selectedSlotForAssignment, setSelectedSlotForAssignment] = useState<ShellSlot | null>(null);
+  const [expandedPost, setExpandedPost] = useState<{ post: UserPost; slot: ShellSlot } | null>(null);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
 
@@ -121,9 +121,6 @@ export function ProfileShell({
       slottedPostMap.set(p.shell_slot, p);
     }
   });
-
-  // The focused slot is always the first active slot (tier-1 corner)
-  const focusedSlot = activeSlots[0];
 
   // Next unlock info
   const nextTier = expansionTier < 3 ? expansionTier + 1 : null;
@@ -197,14 +194,14 @@ export function ProfileShell({
               {TIER_BADGES[expansionTier]}
             </span>
             <div>
-              <h2 className="text-base font-800 text-[--cozy-bark] leading-tight flex items-center gap-1.5">
+              <h2 className="text-base font-900 text-stone-900 dark:text-amber-50 leading-tight flex items-center gap-1.5">
                 {currentShell.name}
-                <span className="text-[10px] font-700 px-1.5 py-0.5 rounded-full
-                  bg-[--cozy-amber]/15 text-[--cozy-rust] border border-[--cozy-amber]/30">
+                <span className="text-[10px] font-800 px-2 py-0.5 rounded-full
+                  bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-600/40">
                   {TIER_NAMES[expansionTier]}
                 </span>
               </h2>
-              <p className="text-xs text-[--cozy-muted]">
+              <p className="text-xs font-500 text-stone-600 dark:text-amber-200/75">
                 {slottedPostMap.size} of {activeSlots.length} nooks occupied
               </p>
             </div>
@@ -212,28 +209,13 @@ export function ProfileShell({
 
           <div className="flex items-center gap-2">
             {/* Token balance */}
-            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full
-              bg-[--cozy-gold]/15 border border-[--cozy-gold]/30 text-xs font-700 text-[--cozy-bark]"
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+              bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-xs font-900 text-amber-950 dark:text-amber-200 shadow-xs"
               title="Milestone tokens"
             >
-              <Coins size={12} className="text-[--cozy-gold]" />
+              <Coins size={13} className="text-amber-600 dark:text-amber-400" />
               <span>{milestoneTokens}</span>
             </div>
-
-            {/* Focus Mode Toggle */}
-            <button
-              onClick={() => setIsFocusMode((prev) => !prev)}
-              title={isFocusMode ? 'View full estate' : 'Focus on active nook'}
-              aria-label={isFocusMode ? 'Exit focus mode' : 'Enter focus mode'}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-700
-                bg-white/80 dark:bg-zinc-800/80 text-[--cozy-bark]
-                border border-[--cozy-amber]/30 cozy-shadow
-                hover:scale-105 active:scale-95 transition-transform"
-            >
-              {isFocusMode
-                ? <Minimize2 size={13} className="text-[--cozy-rust]" />
-                : <Maximize2 size={13} className="text-[--cozy-muted]" />}
-            </button>
 
             {/* Theme Switcher Button (Owner Only) */}
             {isOwner && (
@@ -241,12 +223,12 @@ export function ProfileShell({
                 <button
                   onClick={() => setIsThemeMenuOpen((prev) => !prev)}
                   disabled={isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-700
-                    bg-white/80 dark:bg-zinc-800/80 text-[--cozy-bark]
-                    border border-[--cozy-amber]/30 cozy-shadow
-                    hover:scale-105 active:scale-95 transition-transform"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-800
+                    bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100
+                    border border-amber-900/15 dark:border-amber-500/30 shadow-xs
+                    hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
                 >
-                  <Sparkles size={13} className="text-[--cozy-gold]" />
+                  <Sparkles size={13} className="text-amber-600 dark:text-amber-400" />
                   <span>Shell</span>
                 </button>
 
@@ -259,9 +241,9 @@ export function ProfileShell({
                       exit={{ opacity: 0, y: 4, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 top-full mt-2 z-50 w-60 rounded-2xl p-2
-                        cozy-glass border border-[--cozy-amber]/30 shadow-2xl space-y-1"
+                        cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-1"
                     >
-                      <p className="text-[10px] font-700 text-[--cozy-muted] uppercase px-2 py-1">
+                      <p className="text-[10px] font-800 text-stone-700 dark:text-amber-300 uppercase px-2 py-1 tracking-wider">
                         Choose Architecture
                       </p>
                       {Object.values(SHELL_DEFINITIONS).map((def) => {
@@ -272,12 +254,12 @@ export function ProfileShell({
                             key={def.id}
                             onClick={() => !isThemeLocked && handleSelectShellType(def.id)}
                             disabled={isThemeLocked}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-600 text-left transition-colors ${
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-700 text-left transition-colors cursor-pointer ${
                               isThemeLocked
-                                ? 'opacity-40 cursor-not-allowed text-[--cozy-muted]'
+                                ? 'opacity-40 cursor-not-allowed text-stone-500 dark:text-stone-400'
                                 : isSelected
-                                ? 'bg-[--cozy-rust] text-white shadow-sm'
-                                : 'text-[--cozy-night] hover:bg-[--cozy-warm]'
+                                ? 'bg-amber-500 text-stone-950 font-800 shadow-sm'
+                                : 'text-stone-800 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-amber-950/60'
                             }`}
                           >
                             <div className="flex items-center gap-2">
@@ -285,7 +267,7 @@ export function ProfileShell({
                               <span>{def.name}</span>
                             </div>
                             {isThemeLocked ? (
-                              <Lock size={11} className="text-[--cozy-muted]" />
+                              <Lock size={11} className="text-stone-500" />
                             ) : isSelected ? (
                               <Check size={14} />
                             ) : null}
@@ -293,7 +275,7 @@ export function ProfileShell({
                         );
                       })}
                       {!themesUnlocked && (
-                        <p className="text-[9px] text-[--cozy-muted] px-2 py-1 italic">
+                        <p className="text-[9px] text-stone-500 dark:text-amber-400/80 px-2 py-1 italic">
                           Upload your first space to unlock all themes
                         </p>
                       )}
@@ -315,26 +297,26 @@ export function ProfileShell({
               className="overflow-hidden"
             >
               <div className="flex items-center justify-between px-4 py-3 rounded-2xl
-                bg-white/40 dark:bg-black/20 backdrop-blur-md
-                border border-[--cozy-amber]/25"
+                bg-amber-50/90 dark:bg-[#231a15] backdrop-blur-md
+                border border-amber-200/90 dark:border-amber-600/30 shadow-xs"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="text-xl flex-shrink-0">{TIER_BADGES[nextTier]}</span>
                   <div className="min-w-0">
-                    <p className="text-xs font-800 text-[--cozy-bark] truncate">
+                    <p className="text-xs font-900 text-stone-900 dark:text-amber-100 truncate">
                       Unlock {TIER_NAMES[nextTier]}
                     </p>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center gap-1.5 mt-0.5">
                       {/* Token progress bar */}
-                      <div className="flex-1 h-1.5 rounded-full bg-[--cozy-warm] overflow-hidden max-w-[80px]">
+                      <div className="flex-1 h-2 rounded-full bg-amber-200/80 dark:bg-stone-800 overflow-hidden max-w-[90px]">
                         <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-[--cozy-amber] to-[--cozy-gold]"
+                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-600"
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min((milestoneTokens / (nextTierCost ?? 1)) * 100, 100)}%` }}
                           transition={{ duration: 0.6, ease: 'easeOut' }}
                         />
                       </div>
-                      <span className="text-[10px] text-[--cozy-muted] font-600 flex-shrink-0">
+                      <span className="text-[10px] text-amber-950 dark:text-amber-300 font-800 flex-shrink-0">
                         {milestoneTokens}/{nextTierCost} 🪙
                       </span>
                     </div>
@@ -345,10 +327,10 @@ export function ProfileShell({
                   whileTap={{ scale: 0.95 }}
                   onClick={handleUnlockTier}
                   disabled={!canUnlock || isPending}
-                  className={`flex-shrink-0 ml-3 px-3.5 py-2 rounded-xl text-xs font-800
-                    transition-all ${canUnlock
-                      ? 'bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber] text-white shadow-md hover:opacity-90'
-                      : 'bg-[--cozy-warm] text-[--cozy-muted] cursor-not-allowed'
+                  className={`flex-shrink-0 ml-3 px-3.5 py-2 rounded-xl text-xs font-900
+                    transition-all cursor-pointer ${canUnlock
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 shadow-md hover:opacity-95'
+                      : 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-400 cursor-not-allowed'
                     }`}
                 >
                   {canUnlock ? 'Unlock ✨' : 'Save up 🪙'}
@@ -364,68 +346,64 @@ export function ProfileShell({
             shadow-2xl border-4 border-white/40 dark:border-zinc-800/40 select-none"
           style={{ background: currentShell.bgGradient }}
         >
-          {/* Roof / Crown Architecture Banner */}
-          <div
-            className="absolute top-0 left-0 right-0 h-10 z-0 flex items-center justify-center opacity-80"
-            style={{ background: currentShell.roofGradient }}
-          >
-            <div className="w-24 h-1 rounded-full bg-white/30" />
-          </div>
-
-          {/* Ambient Wall Partition Grid Lines (2.5D Room Structure) */}
-          <div className="absolute inset-0 z-0 pointer-events-none p-4">
-            <div className="w-full h-full rounded-2xl border-2 border-white/10 flex flex-col justify-between">
-              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent my-auto" />
+          {/* ── Layer 1: Illustrated 2.5D Cutaway Interior Background ───────── */}
+          {currentShell.interiorImage ? (
+            <div className="absolute inset-0 z-0 pointer-events-none">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentShell.interiorImage}
+                alt={currentShell.name}
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+              <div className="absolute inset-0 bg-black/15" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
             </div>
-            <div className="absolute inset-y-4 left-1/2 w-0.5 bg-gradient-to-b from-transparent via-white/20 to-transparent -translate-x-1/2" />
-          </div>
-
-          {/* Focus Mode overlay — zooms into the active corner slot */}
-          <AnimatePresence>
-            {isFocusMode && focusedSlot && (
-              <motion.div
-                key="focus-overlay"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-30 bg-[--cozy-night]/80 backdrop-blur-sm
-                  flex items-center justify-center"
-                onClick={() => setIsFocusMode(false)}
+          ) : (
+            <>
+              {/* Fallback procedural roof / walls */}
+              <div
+                className="absolute top-0 left-0 right-0 h-12 z-0 flex items-center justify-center"
+                style={{ background: currentShell.roofGradient }}
               >
-                <motion.div
-                  initial={{ scale: 0.7, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.7, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-                  className="relative w-[72%] aspect-square"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ShellNook
-                    slot={{
-                      ...focusedSlot,
-                      // Override position to fill the focus container
-                      x: 0, y: 0, w: 100, h: 100,
-                    }}
-                    post={slottedPostMap.get(focusedSlot.id)}
-                    isOwner={isOwner}
-                    isLocked={false}
-                    onSelectEmptySlot={(s) => {
-                      setIsFocusMode(false);
-                      setSelectedSlotForAssignment(s);
-                    }}
-                    onUnassignPost={handleUnassignPost}
-                    onViewPost={(p) => {
-                      setIsFocusMode(false);
-                      onPostSelect?.(p);
-                    }}
-                  />
-                </motion.div>
-                <p className="absolute bottom-4 text-xs text-white/50 font-600">
-                  Tap outside to exit focus
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-10 h-[2px] rounded-full bg-white/25" />
+                  <span className="text-xs opacity-40 select-none" aria-hidden>
+                    {currentShell.badge.split(' ')[0]}
+                  </span>
+                  <div className="w-10 h-[2px] rounded-full bg-white/25" />
+                </div>
+              </div>
+              <div
+                className="absolute inset-0 z-0 pointer-events-none"
+                style={{ background: currentShell.wallTexture }}
+              />
+              <div
+                className="absolute bottom-0 left-0 right-0 h-16 z-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(to top, ${currentShell.themeColor}55 0%, transparent 100%)`,
+                }}
+              />
+            </>
+          )}
+
+          {/* ── Per-slot ambient glow spots ─────────────────────────────── */}
+          {activeSlots.map((slot) => (
+            <div
+              key={`glow-${slot.id}`}
+              className="nook-ambient-glow absolute z-0 pointer-events-none rounded-full"
+              style={{
+                left: `${slot.x + slot.w / 2}%`,
+                top: `${slot.y + slot.h / 2}%`,
+                width: `${slot.w * 0.7}%`,
+                height: `${slot.h * 0.7}%`,
+                transform: 'translate(-50%, -50%)',
+                background: `radial-gradient(ellipse, ${currentShell.accentColor}22 0%, transparent 70%)`,
+              }}
+            />
+          ))}
+
+
 
           {/* ── Dollhouse Mailbox (bottom-left) ── */}
           <div
@@ -455,7 +433,10 @@ export function ProfileShell({
                 isLocked={false}
                 onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
                 onUnassignPost={handleUnassignPost}
-                onViewPost={(p) => onPostSelect?.(p)}
+                onViewPost={(p) => {
+                  setExpandedPost({ post: p, slot });
+                  onPostSelect?.(p);
+                }}
               />
             );
           })}
@@ -473,6 +454,134 @@ export function ProfileShell({
             />
           ))}
         </div>
+
+        {/* ── Expanded Post Lightbox Modal (Shared Element Zoom) ─────────── */}
+        <AnimatePresence>
+          {expandedPost && (
+            <motion.div
+              key="lightbox-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+              onClick={() => setExpandedPost(null)}
+            >
+              <motion.div
+                layoutId={`nook-frame-${expandedPost.post.id}`}
+                transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.75 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-3xl overflow-hidden bg-white dark:bg-[#1f1713] border border-amber-300/40 shadow-2xl flex flex-col max-h-[90vh]"
+              >
+                {/* Lightbox Header */}
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  transition={{ delay: 0.08, duration: 0.18 }}
+                  className="flex items-center justify-between px-5 py-3.5 bg-amber-50/90 dark:bg-[#281e19] border-b border-amber-200/50 dark:border-amber-600/30"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{expandedPost.slot.icon}</span>
+                    <div>
+                      <h3 className="text-sm font-800 text-stone-900 dark:text-amber-100">
+                        {expandedPost.slot.label}
+                      </h3>
+                      <p className="text-[11px] font-500 text-stone-600 dark:text-amber-300/70">
+                        Featured in your {currentShell.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setExpandedPost(null)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </motion.div>
+
+                {/* Expanded Photo Container */}
+                <div className="relative flex-1 min-h-[260px] max-h-[55vh] bg-stone-950 flex items-center justify-center overflow-hidden">
+                  {expandedPost.post.light_img_url || expandedPost.post.dark_img_url ? (
+                    <motion.img
+                      layoutId={`nook-img-${expandedPost.post.id}`}
+                      src={getOptimizedImageUrl(
+                        expandedPost.post.light_img_url || expandedPost.post.dark_img_url || '',
+                        1000
+                      )}
+                      alt={expandedPost.slot.label}
+                      className="w-full h-full object-contain max-h-[55vh]"
+                    />
+                  ) : (
+                    <div className="text-center py-16 text-amber-200 space-y-2">
+                      <span className="text-5xl">{expandedPost.slot.icon}</span>
+                      <p className="text-sm font-700">{expandedPost.slot.label}</p>
+                    </div>
+                  )}
+
+                  {/* Stickers layer */}
+                  {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                      transition={{ delay: 0.1 }}
+                      className="absolute inset-0 pointer-events-none"
+                    >
+                      {expandedPost.post.stickers.map((st) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={st.id}
+                          src={st.sticker_url}
+                          alt="Sticker"
+                          className="absolute w-8 h-8 object-contain drop-shadow-md"
+                          style={{
+                            left: `${st.x_percent}%`,
+                            top: `${st.y_percent}%`,
+                            transform: `translate(-50%, -50%) rotate(${st.rotation_degrees}deg)`,
+                          }}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Lightbox Footer Actions */}
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  transition={{ delay: 0.08, duration: 0.18 }}
+                  className="px-5 py-4 bg-amber-50/95 dark:bg-[#241a15] border-t border-amber-200/50 dark:border-amber-600/30 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-full text-xs font-900 bg-amber-400 text-stone-950 shadow-sm flex items-center gap-1">
+                      ♥ {expandedPost.post.cheer_count} Cheers
+                    </span>
+                    {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
+                      <span className="text-xs font-600 text-stone-600 dark:text-amber-200/80">
+                        {expandedPost.post.stickers.length} sticker{expandedPost.post.stickers.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        const postId = expandedPost.post.id;
+                        setExpandedPost(null);
+                        handleUnassignPost(postId);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-300 dark:border-red-700/40 transition-colors cursor-pointer"
+                    >
+                      Unsnap Space
+                    </button>
+                  )}
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Assign Post Picker Modal ────────────────────────────────────── */}
         <AnimatePresence>

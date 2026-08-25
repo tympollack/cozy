@@ -92,24 +92,24 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-white/60 dark:bg-black/60">
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center text-center relative overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60">
+      <div className="cozy-glass rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-amber-300/40 dark:border-amber-600/30 flex flex-col items-center text-center relative overflow-hidden">
         
         {/* Step 1: Proximity */}
         {step === 1 && (
           <div className="flex flex-col items-center w-full animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6">
-              <MapPin className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 rounded-full flex items-center justify-center mb-6">
+              <MapPin className="w-8 h-8 text-amber-700 dark:text-amber-400" />
             </div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-900 text-stone-900 dark:text-amber-50 mb-2">
               Tier 1: GPS Verification
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-8 leading-relaxed">
+            <p className="text-stone-700 dark:text-amber-200/80 mb-8 leading-relaxed text-sm font-500">
               To claim this space, we first need to verify that you are physically standing within 50 meters of the property.
             </p>
             
             {errorMsg && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm w-full">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300 rounded-xl text-xs font-700 w-full">
                 {errorMsg}
               </div>
             )}
@@ -117,14 +117,14 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
             <button
               onClick={handleProximityCheck}
               disabled={isLoading}
-              className="w-full py-4 px-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-4 px-6 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-900 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-md"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify My Location'}
             </button>
             <button
               onClick={onClose}
               disabled={isLoading}
-              className="mt-4 text-sm font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+              className="mt-4 text-xs font-700 text-stone-600 dark:text-amber-300/80 hover:text-stone-900 dark:hover:text-amber-100 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -134,18 +134,18 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
         {/* Step 2: Interior Proof */}
         {step === 2 && (
           <div className="flex flex-col items-center w-full animate-in slide-in-from-right-8 duration-300">
-            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-6">
-              <Camera className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 rounded-full flex items-center justify-center mb-6">
+              <Camera className="w-8 h-8 text-amber-700 dark:text-amber-400" />
             </div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-900 text-stone-900 dark:text-amber-50 mb-2">
               Tier 2: Interior Proof
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-8 leading-relaxed">
+            <p className="text-stone-700 dark:text-amber-200/80 mb-8 leading-relaxed text-sm font-500">
               GPS verified! Now, please take a live photo of the interior of the space. You cannot upload from your camera roll.
             </p>
 
             {errorMsg && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm w-full">
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300 rounded-xl text-xs font-700 w-full">
                 {errorMsg}
               </div>
             )}
@@ -161,7 +161,7 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
               />
               <button
                 disabled={isLoading}
-                className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-600/20"
+                className="w-full py-4 px-6 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-900 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg cursor-pointer"
               >
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Open Camera'}
               </button>
@@ -169,7 +169,7 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
             <button
               onClick={onClose}
               disabled={isLoading}
-              className="mt-4 text-sm font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors"
+              className="mt-4 text-xs font-700 text-stone-600 dark:text-amber-300/80 hover:text-stone-900 dark:hover:text-amber-100 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -179,22 +179,22 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
         {/* Step 3: Success / Postcard Triggered */}
         {step === 3 && (
           <div className="flex flex-col items-center w-full animate-in slide-in-from-right-8 duration-300">
-            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6 relative">
-              <ShieldCheck className="w-10 h-10 text-green-600 dark:text-green-400" />
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white dark:bg-zinc-900 rounded-full flex items-center justify-center shadow-sm">
-                <Mail className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-600/40 rounded-full flex items-center justify-center mb-6 relative">
+              <ShieldCheck className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white dark:bg-[#201813] border border-emerald-300 dark:border-emerald-600/40 rounded-full flex items-center justify-center shadow-xs">
+                <Mail className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-4">
+            <h2 className="text-2xl font-900 text-stone-900 dark:text-amber-50 mb-4">
               Interior Proof Submitted
             </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-8 leading-relaxed">
+            <p className="text-stone-700 dark:text-amber-200/80 mb-8 leading-relaxed text-sm font-500">
               If further verification is needed, a postcard with a 6-digit PIN will be sent to this physical address via Lob.com.
             </p>
             
             <button
               onClick={onClose}
-              className="w-full py-4 px-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold rounded-2xl hover:scale-[1.02] active:scale-95 transition-transform"
+              className="w-full py-4 px-6 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-900 rounded-2xl hover:scale-[1.02] active:scale-95 transition-transform shadow-md cursor-pointer"
             >
               Got it
             </button>

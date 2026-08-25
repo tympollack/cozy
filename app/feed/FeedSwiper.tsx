@@ -102,7 +102,7 @@ export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = fals
           Join Cozy to keep swiping, share your own space, and cheer on others!
         </p>
         <a 
-          href="https://hub.sunshade.icu/login"
+          href="/login?next=/feed"
           className="bg-[--cozy-bark] text-white px-8 py-3 rounded-full font-700 shadow-md hover:scale-105 transition-transform"
         >
           Sign in with Sunshade Hub

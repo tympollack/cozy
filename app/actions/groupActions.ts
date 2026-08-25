@@ -1,7 +1,8 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, unstable_cache } from 'next/cache';
+import { cache } from 'react';
 
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 export type { GroupTypeMeta } from '@/config/groupDefinitions';
@@ -29,6 +30,17 @@ export interface GroupMemberRow {
   display_name: string;
   avatar_url: string | null;
   points: number;
+  /**
+   * The member's active shell/habitat type (e.g. 'default_dollhouse', 'cozy_campsite', 'stone_castle').
+   * Sourced from cozy.users.shell_type — column already exists (written by shellActions, read by profileActions).
+   * No migration required. Note for sunshade-db-platform: preserve this column in any future users table alterations.
+   */
+  shell_type?: string;
+  /**
+   * The member's current emotional vibe status: 'sunshine' | 'neutral' | 'raincloud'.
+   * Sourced from cozy.users.vibe_status.
+   */
+  vibe_status?: 'sunshine' | 'neutral' | 'raincloud';
 }
 
 export interface GroupWithMembers {
@@ -331,10 +343,75 @@ export async function contributeToGroup(
 }
 
 // ---------------------------------------------------------------------------
-// getMyGroups (server helper)
+// ---------------------------------------------------------------------------
+// getMyGroups (server helper with multi-tier caching)
 // ---------------------------------------------------------------------------
 
-export async function getMyGroups(): Promise<MyGroupEntry[]> {
+const getCachedUserGroups = unstable_cache(
+  async (userId: string): Promise<MyGroupEntry[]> => {
+    const service = createServiceClient();
+
+    // 1. Fetch user's group memberships
+    const { data: memberships, error: memberError } = await service
+      .schema('cozy')
+      .from('group_members')
+      .select('group_id, role')
+      .eq('user_id', userId);
+
+    if (memberError || !memberships || memberships.length === 0) {
+      if (memberError) console.error('[getMyGroups] Memberships query error:', memberError.message);
+      return [];
+    }
+
+    const groupIds = memberships.map((m) => m.group_id);
+
+    // 2. Fetch groups & member counts in parallel
+    const [groupsRes, countsRes] = await Promise.all([
+      service
+        .schema('cozy')
+        .from('groups')
+        .select('id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at')
+        .in('id', groupIds),
+      service
+        .schema('cozy')
+        .from('group_members')
+        .select('group_id')
+        .in('group_id', groupIds),
+    ]);
+
+    if (groupsRes.error || !groupsRes.data) {
+      console.error('[getMyGroups] Groups query error:', groupsRes.error?.message);
+      return [];
+    }
+
+    const countMap: Record<string, number> = {};
+    (countsRes.data ?? []).forEach((row: { group_id: string }) => {
+      countMap[row.group_id] = (countMap[row.group_id] ?? 0) + 1;
+    });
+
+    const groupMap = new Map<string, GroupRow>();
+    groupsRes.data.forEach((g) => groupMap.set(g.id, g as GroupRow));
+
+    return memberships
+      .map((m) => {
+        const group = groupMap.get(m.group_id);
+        if (!group) return null;
+        return {
+          group,
+          role: m.role as 'admin' | 'member',
+          memberCount: countMap[m.group_id] ?? 0,
+        };
+      })
+      .filter((entry): entry is MyGroupEntry => entry !== null);
+  },
+  ['user-my-groups-cache'],
+  {
+    tags: ['groups'],
+    revalidate: 60,
+  }
+);
+
+export const getMyGroups = cache(async (): Promise<MyGroupEntry[]> => {
   const supabase = await createServerClient();
 
   const {
@@ -343,133 +420,111 @@ export async function getMyGroups(): Promise<MyGroupEntry[]> {
 
   if (!user) return [];
 
-  const service = createServiceClient();
+  return getCachedUserGroups(user.id);
+});
 
-  // 1. Fetch user's group memberships
-  const { data: memberships, error: memberError } = await service
-    .schema('cozy')
-    .from('group_members')
-    .select('group_id, role')
-    .eq('user_id', user.id);
+// ---------------------------------------------------------------------------
+// getGroupWithMembers (server helper with multi-tier caching)
+// ---------------------------------------------------------------------------
 
-  if (memberError || !memberships || memberships.length === 0) {
-    if (memberError) console.error('[getMyGroups] Memberships query error:', memberError.message);
-    return [];
-  }
-
-  // 2. Fetch groups
-  const groupIds = memberships.map((m) => m.group_id);
-  const { data: groups, error: groupsError } = await service
-    .schema('cozy')
-    .from('groups')
-    .select('id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at')
-    .in('id', groupIds);
-
-  if (groupsError || !groups) {
-    console.error('[getMyGroups] Groups query error:', groupsError?.message);
-    return [];
-  }
-
-  // 3. Fetch member counts for each group
-  const { data: memberCounts } = await service
-    .schema('cozy')
-    .from('group_members')
-    .select('group_id')
-    .in('group_id', groupIds);
-
-  const countMap: Record<string, number> = {};
-  (memberCounts ?? []).forEach((row: { group_id: string }) => {
-    countMap[row.group_id] = (countMap[row.group_id] ?? 0) + 1;
-  });
-
-  const groupMap = new Map<string, GroupRow>();
-  groups.forEach((g) => groupMap.set(g.id, g as GroupRow));
-
-  return memberships
-    .map((m) => {
-      const group = groupMap.get(m.group_id);
-      if (!group) return null;
-      return {
-        group,
-        role: m.role as 'admin' | 'member',
-        memberCount: countMap[m.group_id] ?? 0,
-      };
-    })
-    .filter((entry): entry is MyGroupEntry => entry !== null);
+interface RawGroupBundle {
+  group: GroupRow;
+  members: GroupMemberRow[];
 }
 
-// ---------------------------------------------------------------------------
-// getGroupWithMembers (server helper)
-// ---------------------------------------------------------------------------
+const getCachedGroupData = unstable_cache(
+  async (groupId: string): Promise<RawGroupBundle | null> => {
+    const service = createServiceClient();
 
-export async function getGroupWithMembers(
+    // 1. Fetch group & members in parallel
+    const [groupRes, memberRes] = await Promise.all([
+      service
+        .schema('cozy')
+        .from('groups')
+        .select('id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at')
+        .eq('id', groupId)
+        .maybeSingle(),
+      service
+        .schema('cozy')
+        .from('group_members')
+        .select('user_id, role, joined_at')
+        .eq('group_id', groupId),
+    ]);
+
+    if (groupRes.error || !groupRes.data) {
+      if (groupRes.error) console.error('[getGroupWithMembers] Group fetch error:', groupRes.error.message);
+      return null;
+    }
+
+    const group = groupRes.data as GroupRow;
+    const memberships = memberRes.data ?? [];
+
+    if (memberships.length === 0) {
+      return { group, members: [] };
+    }
+
+    // 2. Fetch user profiles for all member user_ids
+    const userIds = memberships.map((m) => m.user_id);
+    const { data: usersData, error: usersError } = await service
+      .schema('cozy')
+      .from('users')
+      .select('id, display_name, points, shell_type, vibe_status')
+      .in('id', userIds);
+
+    if (usersError) {
+      console.error('[getGroupWithMembers] Users query error:', usersError.message);
+    }
+
+    const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number; shell_type?: string; vibe_status?: 'sunshine' | 'neutral' | 'raincloud' }>();
+    (usersData ?? []).forEach((u) => {
+      userMap.set(u.id, {
+        display_name: u.display_name || 'Cozy Neighbor',
+        avatar_url: null,
+        points: u.points ?? 0,
+        shell_type: u.shell_type ?? undefined,
+        vibe_status: (u.vibe_status as 'sunshine' | 'neutral' | 'raincloud') || 'neutral',
+      });
+    });
+
+    const members: GroupMemberRow[] = memberships.map((m) => {
+      const u = userMap.get(m.user_id);
+      return {
+        user_id: m.user_id,
+        role: m.role as 'admin' | 'member',
+        joined_at: m.joined_at,
+        display_name: u?.display_name || 'Cozy Neighbor',
+        avatar_url: u?.avatar_url || null,
+        points: u?.points ?? 0,
+        shell_type: u?.shell_type,
+        vibe_status: u?.vibe_status || 'neutral',
+      };
+    });
+
+    return {
+      group,
+      members,
+    };
+  },
+  ['group-data-bundle-cache'],
+  {
+    tags: ['groups'],
+    revalidate: 60,
+  }
+);
+
+export const getGroupWithMembers = cache(async (
   groupId: string
-): Promise<GroupWithMembers | null> {
+): Promise<GroupWithMembers | null> => {
   const supabase = await createServerClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const service = createServiceClient();
+  const data = await getCachedGroupData(groupId);
+  if (!data) return null;
 
-  // 1. Fetch group
-  const { data: group, error: groupError } = await service
-    .schema('cozy')
-    .from('groups')
-    .select('id, name, type, min_members, max_members, pooled_points, theme_id, invite_code, created_at')
-    .eq('id', groupId)
-    .single();
-
-  if (groupError || !group) {
-    console.error('[getGroupWithMembers] Group fetch error:', groupError?.message);
-    return null;
-  }
-
-  // 2. Fetch group members
-  const { data: memberships, error: memberError } = await service
-    .schema('cozy')
-    .from('group_members')
-    .select('user_id, role, joined_at')
-    .eq('group_id', groupId);
-
-  if (memberError || !memberships) {
-    console.error('[getGroupWithMembers] Member query error:', memberError?.message);
-    return null;
-  }
-
-  // 3. Fetch user profiles for all member user_ids
-  const userIds = memberships.map((m) => m.user_id);
-  const { data: usersData, error: usersError } = await service
-    .schema('cozy')
-    .from('users')
-    .select('id, display_name, avatar_url, points')
-    .in('id', userIds);
-
-  if (usersError) {
-    console.error('[getGroupWithMembers] Users query error:', usersError.message);
-  }
-
-  const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number }>();
-  (usersData ?? []).forEach((u) => {
-    userMap.set(u.id, {
-      display_name: u.display_name || 'Cozy Neighbor',
-      avatar_url: u.avatar_url || null,
-      points: u.points ?? 0,
-    });
-  });
-
-  const members: GroupMemberRow[] = memberships.map((m) => {
-    const u = userMap.get(m.user_id);
-    return {
-      user_id: m.user_id,
-      role: m.role as 'admin' | 'member',
-      joined_at: m.joined_at,
-      display_name: u?.display_name || 'Cozy Neighbor',
-      avatar_url: u?.avatar_url || null,
-      points: u?.points ?? 0,
-    };
-  });
+  const { group, members } = data;
 
   const currentUserRole =
     user
@@ -477,10 +532,30 @@ export async function getGroupWithMembers(
       : null;
 
   return {
-    group: group as GroupRow,
+    group,
     members,
     currentUserRole,
     memberCount: members.length,
+  };
+});
+
+/**
+ * Fast unified server action to fetch a complete group bundle (group details + active challenge)
+ * in a single request for client-side prefetching and cycling.
+ */
+export async function getGroupPageBundle(groupId: string): Promise<{
+  groupWithMembers: GroupWithMembers | null;
+  activeChallenge: import('@/lib/challengeDefaults').GroupChallenge | null;
+}> {
+  const { getActiveGroupChallenge } = await import('@/app/actions/challengeActions');
+  const [groupWithMembers, activeChallenge] = await Promise.all([
+    getGroupWithMembers(groupId),
+    getActiveGroupChallenge(groupId),
+  ]);
+
+  return {
+    groupWithMembers,
+    activeChallenge,
   };
 }
 

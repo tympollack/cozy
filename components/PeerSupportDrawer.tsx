@@ -10,6 +10,7 @@ import { ParticleBurst } from '@/components/ParticleBurst';
 interface PeerSupportDrawerProps {
   recipientId: string;
   recipientName: string;
+  vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
   isOpen: boolean;
   onClose: () => void;
 }
@@ -23,9 +24,34 @@ const COMFORT_STICKERS = [
   { emoji: '💛', name: 'Golden Spark' },
 ];
 
+const VIBE_BADGE_CONFIG: Record<
+  'sunshine' | 'neutral' | 'raincloud',
+  { emoji: string; label: string; badgeClass: string; subtitle: string }
+> = {
+  sunshine: {
+    emoji: '☀️',
+    label: 'Sunshine',
+    badgeClass: 'bg-amber-100/90 text-amber-900 border-amber-300',
+    subtitle: 'Share positive energy & celebrate together',
+  },
+  neutral: {
+    emoji: '☕',
+    label: 'Cozy',
+    badgeClass: 'bg-amber-50 text-amber-900 border-amber-200',
+    subtitle: 'Send warmth & peer cheer to stay connected',
+  },
+  raincloud: {
+    emoji: '🌧️',
+    label: 'Raincloud',
+    badgeClass: 'bg-slate-200/80 text-slate-700 border-slate-300',
+    subtitle: 'Send warmth & peer cheer to brighten their day',
+  },
+};
+
 export function PeerSupportDrawer({
   recipientId,
   recipientName,
+  vibeStatus = 'neutral',
   isOpen,
   onClose,
 }: PeerSupportDrawerProps) {
@@ -37,6 +63,9 @@ export function PeerSupportDrawer({
   const [showParticles, setShowParticles] = useState(false);
 
   const { addPoints } = useCozyStore();
+
+  const currentVibe = vibeStatus || 'neutral';
+  const vibeMeta = VIBE_BADGE_CONFIG[currentVibe] ?? VIBE_BADGE_CONFIG.neutral;
 
   if (!isOpen) return null;
 
@@ -134,12 +163,12 @@ export function PeerSupportDrawer({
               <div>
                 <h3 className="text-base font-800 text-amber-950 flex items-center gap-1.5 leading-tight">
                   Support {recipientName}
-                  <span className="text-xs font-700 px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700 border border-slate-300">
-                    🌧️ Raincloud
+                  <span className={`text-xs font-700 px-2 py-0.5 rounded-full border ${vibeMeta.badgeClass}`}>
+                    {vibeMeta.emoji} {vibeMeta.label}
                   </span>
                 </h3>
                 <p className="text-xs text-amber-800/80 font-500">
-                  Send warmth & peer cheer to brighten their space
+                  {vibeMeta.subtitle}
                 </p>
               </div>
             </div>

@@ -1,55 +1,13 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-import { revalidatePath } from 'next/cache';
-
-export interface GroupChallenge {
-  id: string;
-  groupId: string;
-  title: string;
-  description: string;
-  multiplier: number; // e.g. 1.25, 1.5, 2.0
-  createdBy: string;
-  createdAt: string;
-  completedUserIds: string[];
-}
-
-export interface ChallengeActionResult {
-  success: boolean;
-  newPersonalPoints?: number;
-  newGroupPoints?: number;
-  error?: string;
-}
-
-/**
- * Default preset positive weekly challenges if none created yet for a group.
- */
-export const DEFAULT_CHALLENGES: Omit<GroupChallenge, 'groupId' | 'createdBy'>[] = [
-  {
-    id: 'c1',
-    title: 'Desk & Workspace Refresh 🧹',
-    description: 'Tidy up your main desk surface, wipe down your screen, and take a 5-minute breather.',
-    multiplier: 1.5,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-  {
-    id: 'c2',
-    title: 'Hydrate & Hydrate Plant 🌿',
-    description: 'Drink a full glass of water and give your houseplants or outdoor greenery a quick watering.',
-    multiplier: 1.25,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-  {
-    id: 'c3',
-    title: 'Digital Sunshine Break ☀️',
-    description: 'Step outside for 10 minutes of natural sunlight without looking at any notifications.',
-    multiplier: 2.0,
-    createdAt: new Date().toISOString(),
-    completedUserIds: [],
-  },
-];
+import { revalidatePath, unstable_cache } from 'next/cache';
+import { cache } from 'react';
+import {
+  DEFAULT_CHALLENGES,
+  type GroupChallenge,
+  type ChallengeActionResult,
+} from '@/lib/challengeDefaults';
 
 /**
  * Creates and pins a new weekly positive challenge for a group. Only admins can create.
@@ -104,7 +62,8 @@ export async function createGroupChallenge(
 
 /**
  * Completes a weekly positive challenge for the current user.
- * Grants +15 personal points and adds a multiplier boost to the group bank.
+ * Grants +15 personal points, records the user's completion in DB,
+ * and adds the dynamic multiplier boost to the group bank.
  */
 export async function completeGroupChallenge(
   groupId: string,
@@ -122,7 +81,52 @@ export async function completeGroupChallenge(
 
   const service = createServiceClient();
 
-  // 1. Award +15 personal points
+  // 1. Fetch the target challenge if it exists in the DB
+  let multiplier = 1.5;
+  const { data: challenge } = await service
+    .schema('cozy')
+    .from('group_challenges')
+    .select('*')
+    .eq('id', challengeId)
+    .maybeSingle();
+
+  if (challenge) {
+    multiplier = challenge.multiplier ?? 1.5;
+    const completedList: string[] = Array.isArray(challenge.completed_user_ids)
+      ? challenge.completed_user_ids
+      : [];
+
+    if (completedList.includes(user.id)) {
+      return { success: false, error: 'Challenge already completed by user.' };
+    }
+
+    const updatedCompleted = [...completedList, user.id];
+    await service
+      .schema('cozy')
+      .from('group_challenges')
+      .update({ completed_user_ids: updatedCompleted })
+      .eq('id', challenge.id);
+  } else {
+    // If challengeId is a default preset (e.g. 'c1', 'c2', 'c3')
+    const preset = DEFAULT_CHALLENGES.find((c) => c.id === challengeId);
+    if (preset) {
+      multiplier = preset.multiplier ?? 1.5;
+      try {
+        await service.schema('cozy').from('group_challenges').insert({
+          group_id: groupId,
+          title: preset.title,
+          description: preset.description,
+          multiplier: preset.multiplier,
+          created_by: user.id,
+          completed_user_ids: [user.id],
+        });
+      } catch (err: unknown) {
+        console.info('[completeGroupChallenge] Fallback insert note:', err);
+      }
+    }
+  }
+
+  // 2. Award +15 personal points
   const { data: userData } = await service
     .schema('cozy')
     .from('users')
@@ -133,7 +137,7 @@ export async function completeGroupChallenge(
   const newPersonal = (userData?.points ?? 0) + 15;
   await service.schema('cozy').from('users').update({ points: newPersonal }).eq('id', user.id);
 
-  // 2. Multiplier boost to group pooled_points (+25 * multiplier)
+  // 3. Multiplier boost to group pooled_points (+25 * multiplier)
   const { data: groupData } = await service
     .schema('cozy')
     .from('groups')
@@ -142,7 +146,7 @@ export async function completeGroupChallenge(
     .single();
 
   const currentGroupPts = groupData?.pooled_points ?? 0;
-  const bonus = Math.round(25 * 1.5);
+  const bonus = Math.round(25 * multiplier);
   const newGroupPts = currentGroupPts + bonus;
 
   await service
@@ -159,3 +163,55 @@ export async function completeGroupChallenge(
     newGroupPoints: newGroupPts,
   };
 }
+
+const getCachedChallenge = unstable_cache(
+  async (groupId: string) => {
+    const service = createServiceClient();
+    const { data, error } = await service
+      .schema('cozy')
+      .from('group_challenges')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      groupId: data.group_id,
+      title: data.title,
+      description: data.description,
+      multiplier: data.multiplier ?? 1.5,
+      createdBy: data.created_by,
+      createdAt: data.created_at,
+      completedUserIds: Array.isArray(data.completed_user_ids)
+        ? data.completed_user_ids
+        : [],
+    };
+  },
+  ['active-group-challenge'],
+  {
+    tags: ['challenges', 'groups'],
+    revalidate: 60,
+  }
+);
+
+/**
+ * Returns the most recent pinned challenge for a group from the DB,
+ * or null if no challenge has been pinned.
+ * Uses request memoization and cross-request cache.
+ */
+export const getActiveGroupChallenge = cache(async (
+  groupId: string
+): Promise<GroupChallenge | null> => {
+  try {
+    return await getCachedChallenge(groupId);
+  } catch {
+    return null;
+  }
+});
+
