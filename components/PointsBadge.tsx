@@ -89,15 +89,15 @@ export function PointsBadge() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-2 z-50 w-52 rounded-2xl p-1.5
-                cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-1"
+              className="absolute right-0 top-full mt-2 z-50 w-56 rounded-2xl p-1.5
+                bg-white dark:bg-[#201814] text-stone-900 dark:text-amber-100 border border-amber-900/15 dark:border-amber-500/30 shadow-2xl space-y-1"
             >
-              <div className="px-3 py-1.5 border-b border-amber-900/10 dark:border-amber-500/20">
-                <span className="text-[10px] font-800 text-stone-500 dark:text-amber-300/80 uppercase tracking-wider block">
+              <div className="px-3 py-2 border-b border-stone-200 dark:border-amber-500/20 bg-stone-50 dark:bg-[#1a1310] rounded-xl mb-1">
+                <span className="text-[10px] font-800 text-stone-500 dark:text-amber-300 uppercase tracking-wider block">
                   Cozy Economy
                 </span>
-                <span className="text-xs font-900 text-amber-950 dark:text-amber-100 flex items-center gap-1 mt-0.5">
-                  <Star size={12} className="fill-amber-500 text-amber-500" />
+                <span className="text-xs font-900 text-stone-900 dark:text-amber-50 flex items-center gap-1.5 mt-0.5">
+                  <Star size={13} className="fill-amber-500 text-amber-500 shrink-0" />
                   {points.toLocaleString()} Points Available
                 </span>
               </div>
@@ -107,12 +107,14 @@ export function PointsBadge() {
                   setMenuOpen(false);
                   setIsStoreOpen(true);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-700 text-stone-800 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-stone-900 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-[#2e221c] transition-colors cursor-pointer text-left"
               >
-                <ShoppingBag size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/80 flex items-center justify-center shrink-0 border border-amber-300/60 dark:border-amber-600/40">
+                  <ShoppingBag size={14} className="text-amber-700 dark:text-amber-400" />
+                </div>
                 <div className="min-w-0">
-                  <span className="font-800 block">Sticker Store</span>
-                  <span className="text-[10px] text-stone-500 dark:text-amber-200/70 block">Buy decorations</span>
+                  <span className="font-800 block text-stone-900 dark:text-amber-100">Sticker Store</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 block">Buy decorations</span>
                 </div>
               </button>
 
@@ -121,12 +123,14 @@ export function PointsBadge() {
                   setMenuOpen(false);
                   setIsHistoryOpen(true);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-700 text-stone-800 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-amber-950/60 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-stone-900 dark:text-amber-100 hover:bg-amber-100/70 dark:hover:bg-[#2e221c] transition-colors cursor-pointer text-left"
               >
-                <History size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/80 flex items-center justify-center shrink-0 border border-amber-300/60 dark:border-amber-600/40">
+                  <History size={14} className="text-amber-700 dark:text-amber-400" />
+                </div>
                 <div className="min-w-0">
-                  <span className="font-800 block">Transaction Ledger</span>
-                  <span className="text-[10px] text-stone-500 dark:text-amber-200/70 block">View point history</span>
+                  <span className="font-800 block text-stone-900 dark:text-amber-100">Transaction Ledger</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 block">View point history</span>
                 </div>
               </button>
             </motion.div>

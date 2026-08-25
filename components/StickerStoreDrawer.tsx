@@ -1,12 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { getStickerCatalog, purchaseSticker, type StoreSticker } from '@/app/actions/storeActions';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+
+const emptySubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 interface StickerStoreDrawerProps {
   isOpen: boolean;
@@ -33,6 +43,7 @@ const TIER_LABELS: Record<number, { label: string; badgeClass: string; icon: str
 };
 
 export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStoreDrawerProps) {
+  const isClient = useIsClient();
   const points = useCozyStore((s) => s.points);
   const setPoints = useCozyStore((s) => s.setPoints);
 
@@ -48,24 +59,24 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
   useEffect(() => {
     if (!isOpen) return;
 
-    let mounted = true;
+    let isSubscribed = true;
     const loadCatalog = async () => {
       setLoading(true);
       try {
         const data = await getStickerCatalog();
-        if (mounted) {
+        if (isSubscribed) {
           setCatalog(data);
         }
       } catch (err) {
         console.error('Failed to load sticker catalog:', err);
       } finally {
-        if (mounted) setLoading(false);
+        if (isSubscribed) setLoading(false);
       }
     };
 
     loadCatalog();
     return () => {
-      mounted = false;
+      isSubscribed = false;
     };
   }, [isOpen]);
 
@@ -111,10 +122,12 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
     ? catalog
     : catalog.filter((item) => item.tier === selectedTier);
 
-  return (
+  if (!isClient) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -122,14 +135,14 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             aria-hidden="true"
           />
 
           {/* Celebration Burst */}
           {burstLocation && (
             <div
-              className="fixed pointer-events-none z-50"
+              className="fixed pointer-events-none z-[10000]"
               style={{ left: burstLocation.x, top: burstLocation.y }}
             >
               <ParticleBurst count={12} emojis={['⭐', '✨', '🎨', '🌟']} radius={65} />
@@ -146,7 +159,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
             exit={{ y: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 350, damping: 32 }}
             className="relative w-full max-w-xl max-h-[88dvh] flex flex-col rounded-t-[32px] sm:rounded-[32px]
-              cozy-glass shadow-2xl overflow-hidden border-t sm:border border-amber-900/15 dark:border-amber-500/30"
+              bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 shadow-2xl overflow-hidden border-t sm:border border-amber-900/15 dark:border-amber-500/30"
           >
             {/* Handle bar */}
             <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing sm:hidden">
@@ -278,9 +291,11 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                 </div>
               ) : filteredCatalog.length === 0 ? (
                 <div className="text-center py-14 space-y-2">
-                  <ShoppingBag size={32} className="mx-auto text-stone-400" />
-                  <p className="text-sm font-700 text-stone-700 dark:text-amber-200">No stickers found</p>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">Try selecting a different tier filter</p>
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center mx-auto text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-600/40">
+                    <ShoppingBag size={24} />
+                  </div>
+                  <p className="text-sm font-800 text-stone-900 dark:text-amber-100">No stickers in this tier</p>
+                  <p className="text-xs text-stone-600 dark:text-stone-400">Select &quot;All Stickers&quot; or another tier to view more catalog items.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -398,6 +413,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

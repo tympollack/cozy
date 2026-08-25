@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useTransition } from 'react';
+import React, { useState, useEffect, useCallback, useTransition, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, History, Star, ArrowUpRight, ArrowDownLeft,
@@ -10,6 +11,15 @@ import {
 import { useCozyStore } from '@/store/useCozyStore';
 import { getTransactionHistory, type PointTransaction } from '@/app/actions/ledgerActions';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+
+const emptySubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 interface TransactionHistoryModalProps {
   isOpen: boolean;
@@ -78,6 +88,7 @@ function formatTransactionDate(isoString: string): string {
 }
 
 export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryModalProps) {
+  const isClient = useIsClient();
   const points = useCozyStore((s) => s.points);
   const setPoints = useCozyStore((s) => s.setPoints);
 
@@ -163,10 +174,12 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
     .filter((tx) => tx.amount < 0)
     .reduce((acc, tx) => acc + Math.abs(tx.amount), 0);
 
-  return (
+  if (!isClient) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -174,7 +187,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             aria-hidden="true"
           />
 
@@ -188,7 +201,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
             exit={{ opacity: 0, scale: 0.94, y: 16 }}
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
             className="relative w-full max-w-lg max-h-[85dvh] flex flex-col rounded-[32px]
-              cozy-glass shadow-2xl overflow-hidden border border-amber-900/15 dark:border-amber-500/30"
+              bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 shadow-2xl overflow-hidden border border-amber-900/15 dark:border-amber-500/30"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-amber-900/10 dark:border-amber-500/20">
@@ -419,6 +432,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
