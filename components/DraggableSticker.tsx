@@ -54,7 +54,7 @@ export function DraggableSticker({
     // Plop animation before saving
     await controls.start({
       scale: [1, 1.25, 1],
-      transition: { type: 'spring', stiffness: 500, damping: 15, duration: 0.3 }
+      transition: { duration: 0.28, times: [0, 0.5, 1], ease: 'easeInOut' }
     });
 
     const containerRect = containerRef.current.getBoundingClientRect();

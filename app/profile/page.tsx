@@ -44,16 +44,16 @@ export default async function ProfilePage() {
   const showStickerTutorial = posts.length > 0 && milestoneTokens >= 100;
 
   return (
-    <div className="cozy-page-bg px-4 py-8 pb-20">
+    <div className="min-h-screen bg-[#faf7f2] dark:bg-[#14100e] text-stone-900 dark:text-stone-100 px-4 py-8 pb-20 transition-colors duration-200">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-800 text-[--cozy-bark] flex items-center gap-2">
-              <Home className="text-[--cozy-rust]" size={24} />
-              My Cozy Shell & Spaces
+            <h1 className="text-2xl font-900 text-stone-900 dark:text-stone-100 flex items-center gap-2">
+              <Home className="text-amber-800 dark:text-amber-400" size={24} />
+              <span>My Cozy Shell & Spaces</span>
             </h1>
-            <p className="text-sm text-[--cozy-muted] mt-1">
+            <p className="text-sm font-700 text-stone-700 dark:text-stone-300 mt-1">
               {posts.length === 0
                 ? "You haven't shared any spaces yet."
                 : `${posts.length} space${posts.length !== 1 ? 's' : ''} total • ${slottedPosts.length} assigned to nooks`}
@@ -67,7 +67,7 @@ export default async function ProfilePage() {
               title="Settings & Hub Options"
               aria-label="Settings"
             >
-              <Settings size={16} className="text-amber-700 dark:text-amber-400" />
+              <Settings size={16} className="text-amber-800 dark:text-amber-400" />
             </Link>
 
             <Link
@@ -95,19 +95,18 @@ export default async function ProfilePage() {
         )}
 
         {posts.length === 0 ? (
-          <div className="text-center py-20 space-y-4 bg-white/50 backdrop-blur-md rounded-3xl border border-[--cozy-amber]/20 p-8">
+          <div className="text-center py-20 space-y-4 bg-white/70 dark:bg-[#1f1713] rounded-3xl border border-amber-900/15 dark:border-amber-500/25 p-8 shadow-sm">
             <div className="text-6xl animate-bounce" role="img" aria-label="House">
               🪴
             </div>
-            <h3 className="text-lg font-700 text-[--cozy-bark]">Your Corner Awaits</h3>
-            <p className="text-sm text-[--cozy-muted] max-w-sm mx-auto">
+            <h3 className="text-lg font-900 text-stone-900 dark:text-stone-100">Your Corner Awaits</h3>
+            <p className="text-sm font-700 text-stone-700 dark:text-stone-300 max-w-sm mx-auto">
               Share your first cozy space photo to claim your corner and earn your first 100 tokens!
             </p>
             <Link
               href="/camera"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl
-                font-700 text-white bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
-                cozy-shadow hover:opacity-90 transition-opacity"
+                font-800 text-stone-950 bg-amber-400 hover:bg-amber-300 shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
             >
               Claim Your Corner ✨
             </Link>
@@ -127,24 +126,24 @@ export default async function ProfilePage() {
             </div>
 
             {/* Unassigned / Archive Spaces Grid */}
-            <div className="pt-6 border-t border-[--cozy-amber]/20 space-y-4">
-              <div className="flex items-center justify-between px-1">
+            <div className="pt-6 border-t border-amber-900/15 dark:border-amber-500/20 space-y-4">
+              <div className="flex items-center justify-between px-1 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Archive size={18} className="text-[--cozy-rust]" />
-                  <h2 className="text-lg font-800 text-[--cozy-bark]">
+                  <Archive size={18} className="text-amber-800 dark:text-amber-400" />
+                  <h2 className="text-lg font-900 text-stone-900 dark:text-stone-100">
                     Unsorted Spaces ({unassignedPosts.length})
                   </h2>
                 </div>
                 {unassignedPosts.length > 0 && (
-                  <p className="text-xs text-[--cozy-muted]">
+                  <p className="text-xs font-700 text-stone-700 dark:text-stone-300">
                     Tap + on an empty nook above to feature these
                   </p>
                 )}
               </div>
 
               {unassignedPosts.length === 0 ? (
-                <div className="text-center py-10 bg-white/40 backdrop-blur-sm rounded-2xl border border-[--cozy-amber]/15">
-                  <p className="text-xs font-600 text-[--cozy-muted]">
+                <div className="text-center py-10 bg-white/70 dark:bg-[#1f1713] rounded-2xl border border-amber-900/15 dark:border-amber-500/25 shadow-xs">
+                  <p className="text-xs font-800 text-stone-800 dark:text-amber-200">
                     ✨ All your spaces are assigned to interactive nooks!
                   </p>
                 </div>

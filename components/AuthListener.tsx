@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
 
 export function AuthListener() {
   const router = useRouter();
+  const lastUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const supabase = createBrowserClient();
@@ -30,10 +31,30 @@ export function AuthListener() {
       }
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        router.refresh();
+    // Initialize current user ID ref
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (lastUserIdRef.current === null) {
+        lastUserIdRef.current = session?.user?.id ?? null;
       }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const currentUserId = session?.user?.id ?? null;
+
+      if (event === 'INITIAL_SESSION') {
+        lastUserIdRef.current = currentUserId;
+      } else if (event === 'SIGNED_OUT') {
+        lastUserIdRef.current = null;
+        router.refresh();
+      } else if (event === 'SIGNED_IN') {
+        // Only refresh server components if the user ID actually changed (e.g. logging in)
+        if (currentUserId && currentUserId !== lastUserIdRef.current) {
+          lastUserIdRef.current = currentUserId;
+          router.refresh();
+        }
+      }
+      // Note: TOKEN_REFRESHED, INITIAL_SESSION, and tab focus events refresh tokens in the background silently
+      // and do NOT trigger full page/server component reloads.
     });
 
     return () => {

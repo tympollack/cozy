@@ -436,7 +436,7 @@ const getCachedGroupData = unstable_cache(
   async (groupId: string): Promise<RawGroupBundle | null> => {
     const service = createServiceClient();
 
-    // 1. Fetch group & members in parallel
+    // 1. Fetch group & members in parallel directly from DB
     const [groupRes, memberRes] = await Promise.all([
       service
         .schema('cozy')
@@ -463,7 +463,7 @@ const getCachedGroupData = unstable_cache(
       return { group, members: [] };
     }
 
-    // 2. Fetch user profiles for all member user_ids
+    // 2. Fetch user profiles for all member user_ids directly from cozy.users
     const userIds = memberships.map((m) => m.user_id);
     const { data: usersData, error: usersError } = await service
       .schema('cozy')

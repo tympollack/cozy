@@ -114,9 +114,10 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
             role="dialog"
             aria-label={`Item details: ${pin.title}`}
             className="absolute left-1/2 bottom-full mb-4
-              w-max max-w-[210px]
-              cozy-glass border border-[--cozy-amber]/30
-              rounded-2xl p-3.5 shadow-2xl"
+              w-max max-w-[220px]
+              bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-stone-100
+              border border-amber-900/20 dark:border-amber-500/30
+              rounded-2xl p-3.5 shadow-2xl z-50"
             style={{ transform: 'translateX(-50%)' }}
             initial={{ opacity: 0, y: 8, scale: 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -125,8 +126,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Title */}
-            <p className="text-[13px] font-700 text-[--cozy-night] leading-snug mb-2.5
-              text-center line-clamp-2">
+            <p className="text-[13px] font-900 text-stone-900 dark:text-stone-100 leading-snug mb-3 text-center line-clamp-2">
               {pin.title}
             </p>
 
@@ -137,15 +137,14 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-1.5
-                  px-3 py-2 rounded-xl font-700 text-xs
-                  bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
-                  text-white shadow-[0_3px_12px_rgba(196,112,74,0.35)]
-                  hover:shadow-[0_4px_18px_rgba(196,112,74,0.5)]
-                  hover:scale-105 active:scale-95 transition-all duration-150"
+                  px-3.5 py-2 rounded-xl font-900 text-xs
+                  bg-amber-500 hover:bg-amber-400
+                  text-stone-950 shadow-md
+                  hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
               >
-                <ShoppingBag size={11} />
-                Shop
-                <ExternalLink size={10} className="opacity-70" />
+                <ShoppingBag size={12} className="text-stone-950" />
+                <span>Shop</span>
+                <ExternalLink size={10} className="text-stone-950/80" />
               </a>
 
               {/* Delete — only for the post owner */}
@@ -155,18 +154,19 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
                   disabled={isPending}
                   aria-label="Remove this pin"
                   className="w-8 h-8 rounded-xl flex items-center justify-center
-                    text-[--cozy-muted] border border-[--cozy-amber]/20
-                    hover:bg-red-50 hover:text-red-500 hover:border-red-200
-                    active:scale-90 transition-all duration-150 disabled:opacity-40"
+                    bg-white dark:bg-[#281e19] text-stone-700 dark:text-stone-300
+                    border border-amber-900/15 dark:border-amber-500/30
+                    hover:bg-red-50 dark:hover:bg-red-950/60 hover:text-red-600 hover:border-red-300
+                    active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40"
                 >
-                  <X size={13} />
+                  <X size={14} />
                 </button>
               )}
             </div>
 
             {/* Delete error inline feedback */}
             {deleteError && (
-              <p className="mt-2 text-[10px] text-red-500 text-center font-600">
+              <p className="mt-2 text-[10px] text-red-600 dark:text-red-400 text-center font-bold">
                 Could not remove — try again.
               </p>
             )}
@@ -175,7 +175,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
             <div
               className="absolute -bottom-[7px] left-1/2 -translate-x-1/2
                 w-3.5 h-3.5 rotate-45
-                bg-[--cozy-cream]/90 border-r border-b border-[--cozy-amber]/25"
+                bg-[#faf7f2] dark:bg-[#1c1613] border-r border-b border-amber-900/20 dark:border-amber-500/30"
             />
           </motion.div>
         )}
