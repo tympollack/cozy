@@ -37,6 +37,11 @@ export function isStagingEnvironment(host?: string): boolean {
  * Handles IPv4, IPv6 localhost (::1), 127.0.0.1, 0.0.0.0, .local, and local LAN addresses.
  */
 export function isLocalDevelopment(host?: string): boolean {
+  // Production environment is never local development, regardless of client host headers
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+
   if (process.env.NODE_ENV === 'development') {
     return true;
   }
@@ -47,7 +52,7 @@ export function isLocalDevelopment(host?: string): boolean {
   ).toLowerCase().trim();
 
   if (!rawHost) {
-    return process.env.NODE_ENV !== 'production';
+    return false;
   }
 
   // Strip port if present (e.g. localhost:3000 -> localhost, [::1]:3000 -> [::1])
@@ -84,7 +89,30 @@ export function isBypassAuthEnabled(host?: string): boolean {
     return false;
   }
 
+  // In production, bypass authentication is disabled unless explicitly enabled via env var
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
+
   return isLocalDevelopment(host);
+}
+
+/**
+ * Sanitizes redirect paths to prevent Open Redirect vulnerabilities.
+ * Ensures the target is a relative same-origin pathname and not an absolute or protocol-relative URL.
+ */
+export function sanitizeNextUrl(next?: string | null, fallback: string = '/feed'): string {
+  if (!next || typeof next !== 'string') return fallback;
+  const trimmed = next.trim();
+  if (
+    trimmed.startsWith('/') &&
+    !trimmed.startsWith('//') &&
+    !trimmed.startsWith('/\\') &&
+    !trimmed.includes('://')
+  ) {
+    return trimmed;
+  }
+  return fallback;
 }
 
 export function getHubBaseUrl(host?: string): string {
@@ -94,10 +122,11 @@ export function getHubBaseUrl(host?: string): string {
 
 export function getHubLoginUrl(returnToPath: string = '/feed', host?: string): string {
   const hubBase = getHubBaseUrl(host);
+  const safeReturn = sanitizeNextUrl(returnToPath);
   
-  let targetReturnUrl = returnToPath;
-  if (typeof window !== 'undefined' && returnToPath.startsWith('/')) {
-    targetReturnUrl = `${window.location.origin}${returnToPath}`;
+  let targetReturnUrl = safeReturn;
+  if (typeof window !== 'undefined' && safeReturn.startsWith('/')) {
+    targetReturnUrl = `${window.location.origin}${safeReturn}`;
   }
 
   return `${hubBase}/login?redirect_to=${encodeURIComponent(targetReturnUrl)}`;

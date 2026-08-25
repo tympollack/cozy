@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
@@ -60,25 +60,29 @@ export function GroupDetailClient({
 
   // Active group ID for instant client-side cycling
   const [activeGroupId, setActiveGroupId] = useState<string>(group?.id || '');
+  const [prevPropGroupId, setPrevPropGroupId] = useState<string>(group?.id || '');
 
-  // Synchronously seed the client cache with incoming server props
-  if (group?.id) {
-    groupBundleCache.set(group.id, {
-      group,
-      members,
-      currentUserRole,
-      memberCount,
-      activeChallenge,
-      cachedAt: Date.now(),
-    });
+  // Adjust state when incoming server prop changes
+  if (group?.id && group.id !== prevPropGroupId) {
+    setPrevPropGroupId(group.id);
+    setActiveGroupId(group.id);
   }
 
-  // Keep activeGroupId in sync if a full server navigation prop changes
+  // Keep cache in sync when server navigation props change
   useEffect(() => {
-    if (group?.id && group.id !== activeGroupId) {
-      setActiveGroupId(group.id);
+    if (group?.id) {
+      const now = Date.now();
+      const existing = groupBundleCache.get(group.id);
+      groupBundleCache.set(group.id, {
+        group,
+        members,
+        currentUserRole,
+        memberCount,
+        activeChallenge,
+        cachedAt: existing ? existing.cachedAt : now,
+      });
     }
-  }, [group?.id]);
+  }, [group, members, currentUserRole, memberCount, activeChallenge]);
 
   // Retrieve active group data from cache (or fallback to props)
   const activeBundle = groupBundleCache.get(activeGroupId) || {
@@ -87,7 +91,7 @@ export function GroupDetailClient({
     currentUserRole,
     memberCount,
     activeChallenge,
-    cachedAt: Date.now(),
+    cachedAt: 0,
   };
 
   const safeGroup = activeBundle.group || group || {
@@ -134,7 +138,7 @@ export function GroupDetailClient({
     });
 
   // Group Switcher calculations
-  const safeMyGroups = Array.isArray(myGroups) ? myGroups : [];
+  const safeMyGroups = useMemo(() => (Array.isArray(myGroups) ? myGroups : []), [myGroups]);
   const currentGroupIndex = safeMyGroups.findIndex((g) => g.group.id === safeGroup.id);
   const hasMultipleGroups = safeMyGroups.length > 1;
 

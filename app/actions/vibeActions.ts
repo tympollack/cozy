@@ -115,7 +115,7 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
     revalidatePath('/groups');
     revalidatePath('/groups/[id]', 'page');
     revalidatePath('/profile');
-  } catch (e) {
+  } catch {
     // Ignore error if invoked outside request lifecycle
   }
 

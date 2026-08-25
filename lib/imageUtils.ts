@@ -10,7 +10,11 @@
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.82;
 
-async function fileToCanvasBlob(file: Blob, maxDim: number = MAX_DIMENSION): Promise<Blob | null> {
+async function fileToCanvasBlob(
+  file: Blob,
+  maxDim: number = MAX_DIMENSION,
+  outputType: string = 'image/jpeg'
+): Promise<Blob | null> {
   let imgBitmap: ImageBitmap | null = null;
   try {
     imgBitmap = await createImageBitmap(file);
@@ -45,7 +49,11 @@ async function fileToCanvasBlob(file: Blob, maxDim: number = MAX_DIMENSION): Pro
   imgBitmap.close();
 
   return new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', JPEG_QUALITY);
+    canvas.toBlob(
+      (blob) => resolve(blob),
+      outputType,
+      outputType === 'image/png' ? undefined : JPEG_QUALITY
+    );
   });
 }
 
@@ -56,12 +64,19 @@ export async function processImageFile(file: File): Promise<File> {
     file.type === 'image/heic' ||
     file.type === 'image/heif';
 
+  const isPng =
+    !isHeic &&
+    (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png'));
+
+  const outputMime = isPng ? 'image/png' : 'image/jpeg';
+  const outputExt = isPng ? '.png' : '.jpg';
+
   let currentBlob: Blob = file;
 
   // Step 1: Handle HEIC decoding / conversion
   if (isHeic) {
     // Try native decoding first (fast hardware-accelerated path on iOS Safari)
-    const nativeResized = await fileToCanvasBlob(file);
+    const nativeResized = await fileToCanvasBlob(file, MAX_DIMENSION, 'image/jpeg');
     if (nativeResized) {
       const newName = file.name.replace(/\.heic|\.heif/i, '.jpg');
       return new File([nativeResized], newName, { type: 'image/jpeg' });
@@ -81,12 +96,12 @@ export async function processImageFile(file: File): Promise<File> {
     }
   }
 
-  // Step 2: Compress and resize JPEG/PNG/Converted HEIC to 1600px max
+  // Step 2: Compress and resize image to 1600px max (preserving PNG alpha if PNG)
   try {
-    const resizedBlob = await fileToCanvasBlob(currentBlob);
+    const resizedBlob = await fileToCanvasBlob(currentBlob, MAX_DIMENSION, outputMime);
     if (resizedBlob) {
-      const outputName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
-      return new File([resizedBlob], outputName, { type: 'image/jpeg' });
+      const outputName = file.name.replace(/\.[^/.]+$/, '') + outputExt;
+      return new File([resizedBlob], outputName, { type: outputMime });
     }
   } catch (err) {
     console.error('Image compression error:', err);

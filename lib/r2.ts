@@ -65,13 +65,25 @@ export async function uploadToR2(
   contentType: string
 ): Promise<string> {
   const isLocal = isLocalDevelopment();
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   const bucketName = process.env.R2_BUCKET_NAME;
   const publicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 
-  // Always use local disk storage in development or if R2 credentials are AWS keys (length !== 32)
-  if (isLocal || !accessKeyId || accessKeyId.length !== 32 || !bucketName || !publicUrl) {
+  const hasR2Credentials = Boolean(accountId && accessKeyId && secretAccessKey && bucketName && publicUrl);
+
+  // If local development without full R2 credentials, save to local uploads directory
+  if (isLocal && !hasR2Credentials) {
     return saveToLocalUploads(fileBuffer, key);
+  }
+
+  // In production, require R2 configuration
+  if (!hasR2Credentials) {
+    if (isLocal) {
+      return saveToLocalUploads(fileBuffer, key);
+    }
+    throw new Error('Cloudflare R2 is not configured in production. Missing required R2 environment variables.');
   }
 
   try {
@@ -89,8 +101,12 @@ export async function uploadToR2(
 
     return `${publicUrl}/${key}`;
   } catch (err: unknown) {
-    console.warn('[uploadToR2] R2 upload failed, falling back to local disk storage:', (err as Error)?.message);
-    return saveToLocalUploads(fileBuffer, key);
+    console.error('[uploadToR2] R2 upload failed:', (err as Error)?.message);
+    if (isLocal) {
+      console.warn('[uploadToR2] Falling back to local disk storage in local dev environment.');
+      return saveToLocalUploads(fileBuffer, key);
+    }
+    throw new Error(`Failed to upload media to storage: ${(err as Error)?.message || 'Storage error'}`);
   }
 }
 

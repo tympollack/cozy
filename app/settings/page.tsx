@@ -21,8 +21,12 @@ export default function SettingsPage() {
   const router = useRouter();
 
   const points = useCozyStore((s) => s.points);
+  const setPoints = useCozyStore((s) => s.setPoints);
   const milestoneTokens = useCozyStore((s) => s.milestoneTokens);
+  const setMilestoneTokens = useCozyStore((s) => s.setMilestoneTokens);
   const expansionTier = useCozyStore((s) => s.expansionTier);
+  const setExpansionTier = useCozyStore((s) => s.setExpansionTier);
+  const setThemesUnlocked = useCozyStore((s) => s.setThemesUnlocked);
   const groupNotifications = useCozyStore((s) => s.groupNotifications);
   const toggleGroupNotifications = useCozyStore((s) => s.toggleGroupNotifications);
 
@@ -40,23 +44,52 @@ export default function SettingsPage() {
   const [isRequestingCode, setIsRequestingCode] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    let ignore = false;
     const fetchUser = async () => {
       try {
         const supabase = createBrowserClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUserEmail(user.email ?? null);
-          setUserId(user.id);
-          const name = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Citizen';
-          setDisplayName(name);
+        if (!ignore) {
+          setMounted(true);
+          if (user) {
+            setUserEmail(user.email ?? null);
+            setUserId(user.id);
+            const name = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Citizen';
+            setDisplayName(name);
+
+            // Fetch authoritative profile/expansion state from DB
+            const { data: shellData } = await supabase
+              .schema('cozy')
+              .rpc('get_user_shell', { p_user_id: user.id });
+            const shellRow = Array.isArray(shellData) ? shellData[0] : shellData;
+            if (shellRow) {
+              if (shellRow.expansion_tier !== undefined) setExpansionTier(shellRow.expansion_tier);
+              if (shellRow.milestone_tokens !== undefined) setMilestoneTokens(shellRow.milestone_tokens);
+              if (shellRow.themes_unlocked !== undefined) setThemesUnlocked(shellRow.themes_unlocked);
+            }
+
+            const { data: userData } = await supabase
+              .schema('cozy')
+              .from('users')
+              .select('points')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            if (userData && userData.points !== undefined) {
+              setPoints(userData.points);
+            }
+          }
         }
       } catch (err) {
         console.warn('[Settings] Error fetching user profile:', err);
+        if (!ignore) setMounted(true);
       }
     };
     fetchUser();
-  }, []);
+    return () => {
+      ignore = true;
+    };
+  }, [setExpansionTier, setMilestoneTokens, setThemesUnlocked, setPoints]);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;

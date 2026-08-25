@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-import { revalidatePath, unstable_cache } from 'next/cache';
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import {
   DEFAULT_CHALLENGES,
@@ -56,6 +56,10 @@ export async function createGroupChallenge(
     console.info('[createGroupChallenge] Fallback note:', err);
   }
 
+  try {
+    revalidateTag('challenges', 'default');
+    revalidateTag('groups', 'default');
+  } catch {}
   revalidatePath(`/groups/${groupId}`);
   return { success: true };
 }
@@ -81,19 +85,38 @@ export async function completeGroupChallenge(
 
   const service = createServiceClient();
 
-  // 1. Fetch the target challenge if it exists in the DB
-  let multiplier = 1.5;
-  const { data: challenge } = await service
-    .schema('cozy')
-    .from('group_challenges')
-    .select('*')
-    .eq('id', challengeId)
-    .maybeSingle();
+  // 1. Fetch the target challenge if it exists in the DB (by ID or stable group preset title)
+  let challengeRow: { id: string; multiplier?: number; completed_user_ids?: string[] } | null = null;
 
-  if (challenge) {
-    multiplier = challenge.multiplier ?? 1.5;
-    const completedList: string[] = Array.isArray(challenge.completed_user_ids)
-      ? challenge.completed_user_ids
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(challengeId);
+  if (isUuid) {
+    const { data } = await service
+      .schema('cozy')
+      .from('group_challenges')
+      .select('*')
+      .eq('id', challengeId)
+      .maybeSingle();
+    challengeRow = data;
+  }
+
+  const preset = DEFAULT_CHALLENGES.find((c) => c.id === challengeId);
+  if (!challengeRow && preset) {
+    const { data } = await service
+      .schema('cozy')
+      .from('group_challenges')
+      .select('*')
+      .eq('group_id', groupId)
+      .eq('title', preset.title)
+      .maybeSingle();
+    challengeRow = data;
+  }
+
+  let multiplier = 1.5;
+
+  if (challengeRow) {
+    multiplier = challengeRow.multiplier ?? 1.5;
+    const completedList: string[] = Array.isArray(challengeRow.completed_user_ids)
+      ? challengeRow.completed_user_ids
       : [];
 
     if (completedList.includes(user.id)) {
@@ -105,24 +128,20 @@ export async function completeGroupChallenge(
       .schema('cozy')
       .from('group_challenges')
       .update({ completed_user_ids: updatedCompleted })
-      .eq('id', challenge.id);
-  } else {
-    // If challengeId is a default preset (e.g. 'c1', 'c2', 'c3')
-    const preset = DEFAULT_CHALLENGES.find((c) => c.id === challengeId);
-    if (preset) {
-      multiplier = preset.multiplier ?? 1.5;
-      try {
-        await service.schema('cozy').from('group_challenges').insert({
-          group_id: groupId,
-          title: preset.title,
-          description: preset.description,
-          multiplier: preset.multiplier,
-          created_by: user.id,
-          completed_user_ids: [user.id],
-        });
-      } catch (err: unknown) {
-        console.info('[completeGroupChallenge] Fallback insert note:', err);
-      }
+      .eq('id', challengeRow.id);
+  } else if (preset) {
+    multiplier = preset.multiplier ?? 1.5;
+    try {
+      await service.schema('cozy').from('group_challenges').insert({
+        group_id: groupId,
+        title: preset.title,
+        description: preset.description,
+        multiplier: preset.multiplier,
+        created_by: user.id,
+        completed_user_ids: [user.id],
+      });
+    } catch (err: unknown) {
+      console.info('[completeGroupChallenge] Fallback insert note:', err);
     }
   }
 
@@ -155,6 +174,10 @@ export async function completeGroupChallenge(
     .update({ pooled_points: newGroupPts })
     .eq('id', groupId);
 
+  try {
+    revalidateTag('challenges', 'default');
+    revalidateTag('groups', 'default');
+  } catch {}
   revalidatePath(`/groups/${groupId}`);
 
   return {

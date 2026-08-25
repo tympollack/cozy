@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { sanitizeNextUrl } from '@/lib/env';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const accessToken = requestUrl.searchParams.get('access_token');
   const refreshToken = requestUrl.searchParams.get('refresh_token');
-  const next = requestUrl.searchParams.get('next') ?? '/feed';
+  const next = sanitizeNextUrl(requestUrl.searchParams.get('next'), '/feed');
 
   const supabase = await createServerClient();
 
