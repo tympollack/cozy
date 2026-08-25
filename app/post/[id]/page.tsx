@@ -30,10 +30,7 @@ export default async function PostPage({ params }: Props) {
   }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg">
       <PostDetail post={post} currentUserId={user?.id ?? null} />
     </div>
   );

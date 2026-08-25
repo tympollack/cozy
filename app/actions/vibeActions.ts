@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,6 +107,16 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
       `[updateVibeStatus] User ${user.id} set status to '${status}'. ` +
         `${groupPeers.length} group peer(s) queued for future notification.`
     );
+  }
+
+  // Revalidate server caches for village maps and profiles
+  try {
+    revalidateTag('groups', 'default');
+    revalidatePath('/groups');
+    revalidatePath('/groups/[id]', 'page');
+    revalidatePath('/profile');
+  } catch {
+    // Ignore error if invoked outside request lifecycle
   }
 
   return { success: true, groupPeers };

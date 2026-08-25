@@ -68,7 +68,7 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
   const currentUserId = currentUser?.id ?? null;
 
   // 3. Fetch profile data, peer status, and (for owners) pending cards — in parallel
-  const { posts, shellType, isOwner, error } = await getUserProfileData(targetUserId);
+  const { posts, shellType, expansionTier, milestoneTokens, themesUnlocked, isOwner, error } = await getUserProfileData(targetUserId);
   const currentShellDef = getShellDefinition(shellType);
 
   const { getPeerStatus, getPendingCallingCards } = await import(
@@ -93,10 +93,7 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
   const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
 
   return (
-    <div
-      className="min-h-screen px-4 py-8 pb-20"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8 pb-20">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -150,6 +147,9 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
             {/* 2.5D Interactive Shell */}
             <ProfileShell
               initialShellType={shellType}
+              initialExpansionTier={expansionTier}
+              initialMilestoneTokens={milestoneTokens}
+              themesUnlocked={themesUnlocked}
               posts={posts}
               isOwner={isOwner}
               peerStatus={peerStatus}

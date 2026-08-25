@@ -78,6 +78,11 @@ interface CozyState {
   hasSeenOnboarding: boolean;
   completeOnboarding: () => void;
 
+  // --- Tutorial flags ---
+  /** True once the first-upload 100-token award tutorial callout has been dismissed. */
+  hasSeenStickerTutorial: boolean;
+  completeStickerTutorial: () => void;
+
   // --- Feed ---
   feed: FeedPost[];
   feedCursor: string | null;
@@ -92,6 +97,18 @@ interface CozyState {
   // --- Profile ---
   userPosts: UserPost[];
   setUserPosts: (posts: UserPost[]) => void;
+
+  // --- Progressive expansion ---
+  /** Current expansion tier (1 = Corner, 2 = Cottage, 3 = Estate). Persisted. */
+  expansionTier: number;
+  /** Spendable milestone tokens earned from uploads. Persisted. */
+  milestoneTokens: number;
+  /** Whether non-default themes (campsite, castle) are unlocked. Persisted. */
+  themesUnlocked: boolean;
+  setExpansionTier: (n: number) => void;
+  setMilestoneTokens: (n: number) => void;
+  addMilestoneTokens: (n: number) => void;
+  setThemesUnlocked: (v: boolean) => void;
 
   // --- Groups ---
   /** UUID of the group (pool) this user currently belongs to. Null for solo users. */
@@ -145,6 +162,10 @@ export const useCozyStore = create<CozyState>()(
       hasSeenOnboarding: false,
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
+      // --- Tutorial flags ---
+      hasSeenStickerTutorial: false,
+      completeStickerTutorial: () => set({ hasSeenStickerTutorial: true }),
+
       // --- Feed ---
       feed: [],
       feedCursor: null,
@@ -188,6 +209,15 @@ export const useCozyStore = create<CozyState>()(
       userPosts: [],
       setUserPosts: (posts) => set({ userPosts: posts }),
 
+      // --- Progressive expansion ---
+      expansionTier: 1,
+      milestoneTokens: 0,
+      themesUnlocked: false,
+      setExpansionTier: (n) => set({ expansionTier: n }),
+      setMilestoneTokens: (n) => set({ milestoneTokens: n }),
+      addMilestoneTokens: (n) => set((s) => ({ milestoneTokens: s.milestoneTokens + n })),
+      setThemesUnlocked: (v) => set({ themesUnlocked: v }),
+
       // --- Groups ---
       groupId: null,
       vibeStatus: 'neutral',
@@ -225,11 +255,15 @@ export const useCozyStore = create<CozyState>()(
     {
       name: 'cozy-store',
       storage: createJSONStorage(() => localStorage),
-      // Persist economy, onboarding, group, and notification prefs.
+      // Persist economy, onboarding, expansion, group, and notification prefs.
       // Feed is intentionally excluded — it must re-fetch fresh on mount.
       partialize: (state) => ({
         points: state.points,
         hasSeenOnboarding: state.hasSeenOnboarding,
+        hasSeenStickerTutorial: state.hasSeenStickerTutorial,
+        expansionTier: state.expansionTier,
+        milestoneTokens: state.milestoneTokens,
+        themesUnlocked: state.themesUnlocked,
         groupId: state.groupId,
         vibeStatus: state.vibeStatus,
         groupPoints: state.groupPoints,

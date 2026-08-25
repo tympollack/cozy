@@ -8,7 +8,8 @@ import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
 import { PorchHoldingPen } from '@/components/PorchHoldingPen';
 import { ProfileGrid } from './ProfileGrid';
-import { Sparkles, Home, Archive } from 'lucide-react';
+import { StickerTutorialCallout } from './StickerTutorialCallout';
+import { Sparkles, Home, Archive, Settings } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'My Spaces & Shell — Cozy',
@@ -20,21 +21,30 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('https://hub.sunshade.icu/login');
+    redirect('/login?next=/profile');
   }
 
-  const { posts, shellType, isOwner, error } = await getUserProfileData(user.id);
+  const {
+    posts,
+    shellType,
+    expansionTier,
+    milestoneTokens,
+    themesUnlocked,
+    isOwner,
+    error,
+  } = await getUserProfileData(user.id);
+
   const porchDigest = await getPorchDigest(user.id);
   const currentShellDef = getShellDefinition(shellType);
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
   const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
 
+  // Show sticker tutorial only after first upload (tokens earned) and not yet dismissed
+  const showStickerTutorial = posts.length > 0 && milestoneTokens >= 100;
+
   return (
-    <div
-      className="min-h-screen px-4 py-8 pb-20"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8 pb-20">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -50,16 +60,30 @@ export default async function ProfilePage() {
             </p>
           </div>
 
-          <Link
-            href="/camera"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
-              font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
-              shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
-          >
-            <Sparkles size={14} className="fill-stone-900 text-stone-900" />
-            <span>New Space</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings"
+              className="p-2 rounded-full bg-white dark:bg-[#281e19] text-stone-800 dark:text-amber-200 border border-amber-900/15 dark:border-amber-500/30 shadow-xs hover:bg-amber-50 dark:hover:bg-[#342821] hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title="Settings & Hub Options"
+              aria-label="Settings"
+            >
+              <Settings size={16} className="text-amber-700 dark:text-amber-400" />
+            </Link>
+
+            <Link
+              href="/camera"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
+                font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
+                shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
+            >
+              <Sparkles size={14} className="fill-stone-900 text-stone-900" />
+              <span>New Space</span>
+            </Link>
+          </div>
         </div>
+
+        {/* Sticker Tutorial Callout (client component — checks Zustand flag) */}
+        {showStickerTutorial && <StickerTutorialCallout tokens={milestoneTokens} />}
 
         {/* Porch Holding Pen */}
         <PorchHoldingPen items={porchDigest.items} />
@@ -73,11 +97,11 @@ export default async function ProfilePage() {
         {posts.length === 0 ? (
           <div className="text-center py-20 space-y-4 bg-white/50 backdrop-blur-md rounded-3xl border border-[--cozy-amber]/20 p-8">
             <div className="text-6xl animate-bounce" role="img" aria-label="House">
-              🏡
+              🪴
             </div>
-            <h3 className="text-lg font-700 text-[--cozy-bark]">Your Shell is Empty</h3>
+            <h3 className="text-lg font-700 text-[--cozy-bark]">Your Corner Awaits</h3>
             <p className="text-sm text-[--cozy-muted] max-w-sm mx-auto">
-              Share your first cozy room photo to populate your 2.5D dollhouse nooks!
+              Share your first cozy space photo to claim your corner and earn your first 100 tokens!
             </p>
             <Link
               href="/camera"
@@ -85,7 +109,7 @@ export default async function ProfilePage() {
                 font-700 text-white bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber]
                 cozy-shadow hover:opacity-90 transition-opacity"
             >
-              Share Your Space ✨
+              Claim Your Corner ✨
             </Link>
           </div>
         ) : (
@@ -94,6 +118,9 @@ export default async function ProfilePage() {
             <div className="space-y-3">
               <ProfileShell
                 initialShellType={shellType}
+                initialExpansionTier={expansionTier}
+                initialMilestoneTokens={milestoneTokens}
+                themesUnlocked={themesUnlocked}
                 posts={posts}
                 isOwner={isOwner}
               />

@@ -26,6 +26,8 @@
 /public/worker-*.js
 /public/fallback-*.js
 
+# local file uploads
+/public/uploads
 
 # misc
 .DS_Store

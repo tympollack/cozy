@@ -2,9 +2,10 @@
 
 import { useCallback, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   Camera, Sun, Moon, Upload, CheckCircle,
-  AlertCircle, MapPin, Loader, ArrowRight, Image as ImageIcon, Trash2, RefreshCw, X
+  AlertCircle, MapPin, Loader, ArrowRight, Image as ImageIcon, Trash2, RefreshCw, X, Sparkles
 } from 'lucide-react';
 import { CameraToggle } from './CameraToggle';
 import { uploadPost } from '@/app/actions/postActions';
@@ -55,24 +56,16 @@ export default function CameraPage() {
       setter({ file, preview: instantPreview });
       setActivePickerModalMode(null);
 
-      // 2. Only run background conversion if file is HEIC/HEIF
-      const isHeic =
-        file.name.toLowerCase().endsWith('.heic') ||
-        file.name.toLowerCase().endsWith('.heif') ||
-        file.type === 'image/heic' ||
-        file.type === 'image/heif';
-
-      if (isHeic) {
-        setIsProcessingFile(true);
-        try {
-          const processedFile = await processImageFile(file);
-          const processedPreview = URL.createObjectURL(processedFile);
-          setter({ file: processedFile, preview: processedPreview });
-        } catch (err) {
-          console.error('HEIC processing error:', err);
-        } finally {
-          setIsProcessingFile(false);
-        }
+      // 2. Background image processing & compression (native HEIC decode + 1600px canvas JPEG)
+      setIsProcessingFile(true);
+      try {
+        const processedFile = await processImageFile(file);
+        const processedPreview = URL.createObjectURL(processedFile);
+        setter({ file: processedFile, preview: processedPreview });
+      } catch (err) {
+        console.error('Image processing error:', err);
+      } finally {
+        setIsProcessingFile(false);
       }
     },
     []
@@ -120,7 +113,7 @@ export default function CameraPage() {
         if (result.success) {
           addPoints(lightSlot.file && darkSlot.file ? 50 : 20); // Optimistic points
           setSubmitState('success');
-          setTimeout(() => router.push('/feed'), 2000);
+          setTimeout(() => router.push('/profile'), 2200);
         } else {
           setErrorMsg(result.error ?? 'Upload failed. Try again.');
           setSubmitState('error');
@@ -134,27 +127,62 @@ export default function CameraPage() {
   const isUploading = submitState === 'uploading' || isPending;
 
   if (submitState === 'success') {
+    const pointsEarned = lightSlot.file && darkSlot.file ? 50 : 20;
     return (
       <div
-        className="min-h-screen flex items-center justify-center px-4"
-        style={{ background: 'linear-gradient(160deg, #faf7f2 0%, #f5ede0 100%)' }}
+        className="min-h-[85vh] flex items-center justify-center px-4 py-12"
+        style={{ background: 'linear-gradient(160deg, #241a15 0%, #17110e 100%)' }}
       >
-        <div className="text-center space-y-4">
-          <CheckCircle size={64} className="mx-auto text-green-500" aria-hidden="true" />
-          <h2 className="text-2xl font-800 text-[--cozy-bark]">Your space is live! 🏡</h2>
-          <p className="text-[--cozy-muted]">
-            You earned +{lightSlot.file && darkSlot.file ? 50 : 20} points. Redirecting to feed…
-          </p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+          className="w-full max-w-sm text-center p-8 rounded-3xl bg-[#2e221b]/95 border-2 border-amber-400/40 shadow-2xl space-y-6 backdrop-blur-md relative overflow-hidden"
+        >
+          {/* Ambient golden glow */}
+          <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Icon Badge */}
+          <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg border border-amber-300/60">
+            <span className="text-4xl filter drop-shadow animate-bounce">🏡</span>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-900 text-amber-50 tracking-tight">
+              Your space is live! ✨
+            </h2>
+            <p className="text-sm font-600 text-amber-200/80">
+              Ready to feature in your cozy shell
+            </p>
+          </div>
+
+          {/* Points Pill */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300">
+            <Sparkles size={16} className="text-amber-400" />
+            <span className="text-sm font-800">+{pointsEarned} Points Earned</span>
+          </div>
+
+          {/* Direct CTA */}
+          <div className="pt-2 space-y-2">
+            <button
+              onClick={() => router.push('/profile')}
+              className="w-full py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-800 text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              <span>View in My Spaces</span>
+              <ArrowRight size={16} />
+            </button>
+            <p className="text-[11px] font-500 text-amber-300/60">
+              Taking you to your spaces in a moment...
+            </p>
+          </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen px-4 py-8"
-      style={{ background: 'linear-gradient(180deg, #faf7f2 0%, #f5ede0 100%)' }}
-    >
+    <div className="cozy-page-bg px-4 py-8">
       <div className="max-w-lg mx-auto space-y-8">
         {/* Header */}
         <div className="text-center">

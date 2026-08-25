@@ -4,11 +4,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Pin, Plus, Sparkles, Trophy } from 'lucide-react';
 import {
-  DEFAULT_CHALLENGES,
   completeGroupChallenge,
   createGroupChallenge,
-  type GroupChallenge,
 } from '@/app/actions/challengeActions';
+import {
+  DEFAULT_CHALLENGES,
+  type GroupChallenge,
+} from '@/lib/challengeDefaults';
 import { useCozyStore } from '@/store/useCozyStore';
 
 interface CommunityBulletinBoardProps {

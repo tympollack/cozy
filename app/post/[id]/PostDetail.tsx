@@ -297,22 +297,22 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       )}
 
       {/* Comments Section */}
-      <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4 px-1">Comments</h3>
+      <div className="pt-4 border-t border-amber-900/10 dark:border-amber-500/20">
+        <h3 className="text-sm font-800 text-stone-900 dark:text-amber-50 mb-4 px-1">Comments</h3>
         
         {loadingComments ? (
-          <div className="text-sm text-zinc-500 px-1">Loading comments...</div>
+          <div className="text-sm text-stone-500 dark:text-amber-200/60 px-1 font-500">Loading comments...</div>
         ) : comments.length === 0 ? (
-          <div className="text-sm text-zinc-500 px-1">No comments yet. Be the first to leave a positive tip!</div>
+          <div className="text-sm text-stone-600 dark:text-amber-200/70 px-1 font-500">No comments yet. Be the first to leave a positive tip!</div>
         ) : (
-          <div className="space-y-4 px-1">
+          <div className="space-y-3 px-1">
             {comments.map((comment) => (
               <div key={comment.id} className={`flex flex-col gap-1 ${comment.is_toxic ? 'opacity-70' : ''}`}>
-                <div className="text-sm text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-2xl rounded-tl-sm">
+                <div className="text-sm text-stone-900 dark:text-amber-100 bg-white/90 dark:bg-[#201813] p-3 rounded-2xl rounded-tl-sm border border-amber-900/10 dark:border-amber-500/20 shadow-xs">
                   {comment.text}
                 </div>
                 {comment.is_toxic && (
-                  <span className="text-[10px] text-red-500 font-semibold px-2">☁️ Grumpy Cloud Warning Applied</span>
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-bold px-2">☁️ Grumpy Cloud Warning Applied</span>
                 )}
               </div>
             ))}

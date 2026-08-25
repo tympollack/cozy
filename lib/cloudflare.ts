@@ -42,6 +42,19 @@ export function getOptimizedImageUrl(
   width?: number,
   options: Omit<ImageOptions, 'width'> = {}
 ): string {
+  if (!src) return '';
+
+  // Local static paths, data URLs, and localhost URLs don't go through Cloudflare CDN
+  if (
+    src.startsWith('/') ||
+    src.startsWith('data:') ||
+    src.startsWith('blob:') ||
+    src.includes('localhost') ||
+    src.includes('127.0.0.1')
+  ) {
+    return src;
+  }
+
   // If no width is supplied and no options are set, return src unchanged
   // to avoid an empty `cdn-cgi/image/` call.
   if (!width && Object.keys(options).length === 0) return src;
@@ -68,7 +81,6 @@ export function getOptimizedImageUrl(
     const url = new URL(src);
     return `${url.origin}/cdn-cgi/image/${descriptor}${url.pathname}${url.search}`;
   } catch {
-    // Fallback for relative paths (e.g. in tests)
-    return `/cdn-cgi/image/${descriptor}${src}`;
+    return src;
   }
 }

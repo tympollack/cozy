@@ -215,12 +215,12 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
       {/* Space Management Modal */}
       {managedPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-3xl p-6 cozy-glass border border-[--cozy-amber]/30 shadow-2xl space-y-5">
+          <div className="w-full max-w-sm rounded-3xl p-6 cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-5">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[--cozy-amber]/20 pb-3">
+            <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3">
               <div>
-                <h3 className="text-base font-800 text-[--cozy-night]">Manage Space</h3>
-                <p className="text-xs text-[--cozy-muted]">
+                <h3 className="text-base font-900 text-stone-900 dark:text-amber-50">Manage Space</h3>
+                <p className="text-xs font-500 text-stone-600 dark:text-amber-300/80">
                   Shared on {new Date(managedPost.created_at).toLocaleDateString()}
                 </p>
               </div>
@@ -229,25 +229,25 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
                   setManagedPost(null);
                   setShowConfirmDelete(false);
                 }}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[--cozy-muted] hover:bg-black/10"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-700 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Thumbnail Preview & Info */}
-            <div className="flex items-center gap-3 bg-white/40 dark:bg-zinc-800/40 p-3 rounded-2xl border border-white/20">
+            <div className="flex items-center gap-3 bg-white/60 dark:bg-[#201813] p-3 rounded-2xl border border-amber-900/10 dark:border-amber-500/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={getOptimizedImageUrl(managedPost.light_img_url || managedPost.dark_img_url, 200)}
                 alt="Space thumbnail"
-                className="w-14 h-14 rounded-xl object-cover"
+                className="w-14 h-14 rounded-xl object-cover shadow-xs"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-700 text-[--cozy-bark] truncate">
+                <p className="text-xs font-800 text-stone-900 dark:text-amber-100 truncate">
                   {managedPost.shell_slot ? `Occupies ${managedPost.shell_slot}` : 'Unsorted Archive Space'}
                 </p>
-                <p className="text-[11px] font-600 text-rose-500">
+                <p className="text-[11px] font-700 text-rose-600 dark:text-rose-400">
                   ♥ {managedPost.cheer_count} cheers received
                 </p>
               </div>
@@ -257,35 +257,36 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
             <div className="space-y-2">
               <Link
                 href={`/post/${managedPost.id}`}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-700 bg-white/80 dark:bg-zinc-700/80 text-[--cozy-bark] hover:bg-white border border-[--cozy-amber]/30 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-800 bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100 hover:bg-amber-50 dark:hover:bg-[#342821] border border-amber-900/15 dark:border-amber-500/30 transition-colors shadow-xs"
               >
-                <ExternalLink size={14} /> View Full Space Details
+                <ExternalLink size={14} className="text-amber-700 dark:text-amber-400" />
+                <span>View Full Space Details</span>
               </Link>
 
               {!showConfirmDelete ? (
                 <button
                   onClick={() => setShowConfirmDelete(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-700 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors border border-red-200 dark:border-red-800/40"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors border border-red-200 dark:border-red-800/50 cursor-pointer"
                 >
                   <Trash2 size={14} /> Delete Space
                 </button>
               ) : (
                 <div className="bg-red-50 dark:bg-red-950/40 p-3 rounded-2xl border border-red-200 dark:border-red-800/60 space-y-2">
-                  <div className="flex items-center gap-1.5 text-red-600 text-xs font-700">
+                  <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300 text-xs font-800">
                     <AlertTriangle size={14} />
                     <span>Delete this space permanently?</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       onClick={() => setShowConfirmDelete(false)}
-                      className="py-1.5 rounded-lg text-xs font-600 bg-white text-zinc-700 border border-zinc-200"
+                      className="py-1.5 rounded-lg text-xs font-700 bg-white dark:bg-[#281e19] text-stone-800 dark:text-amber-100 border border-stone-300 dark:border-stone-700 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleDeletePost}
                       disabled={isDeleting}
-                      className="py-1.5 rounded-lg text-xs font-700 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                      className="py-1.5 rounded-lg text-xs font-800 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
                     >
                       {isDeleting ? 'Deleting...' : 'Confirm Delete'}
                     </button>
