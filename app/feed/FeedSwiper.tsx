@@ -61,6 +61,12 @@ export function FeedSwiper({ initialPosts, initialCursor, isAuthenticated = fals
   const SWIPE_THRESHOLD = 80;
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    // If user tapped a button, link, input, pin, or interactive control, do not capture pointer for card swipe
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, a, input, [role="button"], .pointer-events-auto, [data-interactive="true"]')) {
+      return;
+    }
+
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     setIsDragging(true);
     cardRef.current?.setPointerCapture(e.pointerId);

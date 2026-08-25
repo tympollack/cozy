@@ -39,6 +39,17 @@ export function LoginForm({
     try {
       const result = await devBypassLogin(target, returnUrl);
       if (result.success && result.redirectUrl) {
+        if (result.session?.access_token && result.session?.refresh_token) {
+          try {
+            const supabase = createBrowserClient();
+            await supabase.auth.setSession({
+              access_token: result.session.access_token,
+              refresh_token: result.session.refresh_token,
+            });
+          } catch {
+            // Ignore if client setSession fails, cookies are set
+          }
+        }
         window.location.href = result.redirectUrl;
       } else {
         setErrorMsg(result.error || 'Failed to bypass login.');
@@ -61,6 +72,17 @@ export function LoginForm({
     if (isDev && (email.endsWith('.test') || email.includes('dev'))) {
       const res = await devBypassLogin(email.trim(), returnUrl);
       if (res.success && res.redirectUrl) {
+        if (res.session?.access_token && res.session?.refresh_token) {
+          try {
+            const supabase = createBrowserClient();
+            await supabase.auth.setSession({
+              access_token: res.session.access_token,
+              refresh_token: res.session.refresh_token,
+            });
+          } catch {
+            // Ignore
+          }
+        }
         window.location.href = res.redirectUrl;
         return;
       }

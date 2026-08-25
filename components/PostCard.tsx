@@ -244,7 +244,10 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
       </div>
 
       {/* ── 3. BOTTOM FLOATING ACTION BAR ──────────────────────────────── */}
-      <div className="z-20 w-full p-4 rounded-3xl bg-white/10 dark:bg-black/40 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col space-y-3">
+      <div
+        data-interactive="true"
+        className="z-20 w-full p-4 rounded-3xl bg-white/10 dark:bg-black/40 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col space-y-3 pointer-events-auto"
+      >
         {/* Post Caption */}
         <div className="text-sm text-stone-100 font-medium line-clamp-2">
           <span className="font-bold text-amber-300">
@@ -262,7 +265,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
             disabled={cheered || cheering}
             aria-label={`Cheer this post (${cheerCount})`}
             whileTap={{ scale: 0.95 }}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-full font-bold text-xs shadow-lg transition-all ${
+            className={`flex items-center space-x-2 px-4 py-2 rounded-full font-bold text-xs shadow-lg transition-all cursor-pointer ${
               cheered
                 ? 'bg-rose-500 text-white'
                 : 'bg-amber-500/80 hover:bg-amber-500 text-stone-950'
@@ -277,7 +280,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
           {/* Decorate Button */}
           <Link
             href={`/post/${post.id}`}
-            className="flex items-center space-x-1.5 px-3 py-2 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-xs font-bold text-amber-200 transition-all active:scale-95 shadow-sm"
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-xs font-bold text-amber-200 transition-all active:scale-95 shadow-sm cursor-pointer"
             title="Decorate with Stickers & View Space"
           >
             <Sparkles size={13} className="text-amber-300" />
@@ -287,7 +290,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
           {/* Send Warmth Button */}
           <button
             onClick={() => setShowWarmthModal(true)}
-            className="flex items-center space-x-2 px-3 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-stone-200 transition-all active:scale-95"
+            className="flex items-center space-x-2 px-3 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-stone-200 transition-all active:scale-95 cursor-pointer"
           >
             <span>☕ Warmth</span>
           </button>
@@ -295,7 +298,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
           {/* Calling Card Button */}
           <button
             onClick={() => alert('Calling card sent to mailbox!')}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-stone-300 transition-all active:scale-95"
+            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-stone-300 transition-all active:scale-95 cursor-pointer"
             title="Leave a Calling Card"
           >
             <Mail size={15} />

@@ -8,6 +8,10 @@ export interface DevBypassResult {
   success: boolean;
   redirectUrl?: string;
   error?: string;
+  session?: {
+    access_token: string;
+    refresh_token: string;
+  };
   user?: {
     id: string;
     email?: string;
@@ -95,6 +99,12 @@ export async function devBypassLogin(
     return {
       success: true,
       redirectUrl: sanitizeNextUrl(returnUrl, '/feed'),
+      session: verifyData.session
+        ? {
+            access_token: verifyData.session.access_token,
+            refresh_token: verifyData.session.refresh_token,
+          }
+        : undefined,
       user: {
         id: verifyData.user.id,
         email: verifyData.user.email,
