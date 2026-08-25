@@ -124,27 +124,71 @@ function stripWhiteBackground(img: HTMLImageElement): string {
   return canvas.toDataURL('image/png');
 }
 
-/** Returns a processed (white-removed) data URL, or the original src while loading. */
-function useProcessedSprite(src: string): string {
+// Preload / Prewarm known habitat sprites in the browser
+const ALL_KNOWN_HABITAT_SPRITES = [
+  '/images/habitats/cottage.jpg',
+  '/images/habitats/campsite.jpg',
+  '/images/habitats/castle.jpg',
+  '/images/habitats/orbital_pod.jpg',
+];
+
+if (typeof window !== 'undefined') {
+  ALL_KNOWN_HABITAT_SPRITES.forEach((src) => {
+    if (!spriteCache.has(src)) {
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const dataUrl = stripWhiteBackground(img);
+          spriteCache.set(src, dataUrl);
+        } catch (e) {
+          console.warn('[HabitatSprite] preload error for', src, e);
+        }
+      };
+      img.src = src;
+    }
+  });
+}
+
+/** Returns a processed (white-removed) data URL and a boolean indicating if it is ready. */
+function useProcessedSprite(src: string): { dataUrl: string | null; isReady: boolean } {
   const cached = spriteCache.get(src);
-  const [result, setResult] = useState<string>(cached ?? src);
+  const [dataUrl, setDataUrl] = useState<string | null>(cached ?? null);
 
   useEffect(() => {
-    if (spriteCache.has(src)) {
-      setResult(spriteCache.get(src)!);
+    const existing = spriteCache.get(src);
+    if (existing) {
+      setDataUrl(existing);
       return;
     }
 
+    // Reset while processing new src so the previous sprite never flashes
+    setDataUrl(null);
+
+    let active = true;
     const img = new window.Image();
     img.onload = () => {
-      const dataUrl = stripWhiteBackground(img);
-      spriteCache.set(src, dataUrl);
-      setResult(dataUrl);
+      try {
+        const processed = stripWhiteBackground(img);
+        spriteCache.set(src, processed);
+        if (active) {
+          setDataUrl(processed);
+        }
+      } catch (err) {
+        console.error('[useProcessedSprite] error processing sprite:', err);
+      }
     };
-    img.src = src; // same-origin public asset — no CORS needed
+    img.src = src;
+
+    return () => {
+      active = false;
+    };
   }, [src]);
 
-  return result;
+  const activeDataUrl = cached ?? dataUrl;
+  return {
+    dataUrl: activeDataUrl,
+    isReady: Boolean(activeDataUrl),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -187,41 +231,49 @@ function HabitatSprite({
   shellType: string | null | undefined; isFuturistic: boolean; isRaincloud: boolean;
   spriteSize: number; avatarBadgeSize: number; avatarUrl: string | null; initials: string;
 }) {
-  const src          = resolveHabitatImage(shellType, isFuturistic);
-  const processedSrc = useProcessedSprite(src);
-  const isReady      = processedSrc !== src; // true once canvas processing is done
+  const src = resolveHabitatImage(shellType, isFuturistic);
+  const { dataUrl, isReady } = useProcessedSprite(src);
 
   const badgeBorder = isRaincloud ? '#64748b' : isFuturistic ? '#00dcff' : '#f0c060';
   const badgeBg     = isRaincloud ? '#1e293b' : isFuturistic ? '#0f1d36' : '#fef3c7';
   const badgeText   = isRaincloud ? '#94a3b8' : isFuturistic ? '#a0e8ff' : '#92400e';
 
   return (
-    <div className="relative inline-block" style={{ width: spriteSize, height: spriteSize }}>
-      {/* Processed sprite with true alpha — use plain <img> since src is a data URL */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={processedSrc}
-        alt={shellType ?? 'habitat'}
-        width={spriteSize}
-        height={spriteSize}
-        className="object-contain transition-opacity duration-200"
-        style={{
-          opacity: isReady ? 1 : 0,
-          ...(isRaincloud ? { filter: 'grayscale(0.65) brightness(0.70) saturate(0.5)' } : {}),
-        }}
-        draggable={false}
-      />
-
-      {/* Avatar badge — bottom-right corner, outside the blend scope */}
-      <div
-        className="absolute -bottom-1.5 -right-1.5 z-10 transition-opacity duration-200"
-        style={{ opacity: isReady ? 1 : 0 }}
-      >
-        <AvatarBadge
-          avatarUrl={avatarUrl} initials={initials} size={avatarBadgeSize}
-          borderColor={badgeBorder} bgColor={badgeBg} textColor={badgeText}
+    <div className="relative inline-block flex items-center justify-center" style={{ width: spriteSize, height: spriteSize }}>
+      {/* Habitat Sprite - only rendered when fully processed & ready */}
+      {isReady && dataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={src}
+          src={dataUrl}
+          alt={shellType ?? 'habitat'}
+          width={spriteSize}
+          height={spriteSize}
+          className="object-contain animate-in fade-in duration-150 select-none pointer-events-none"
+          style={{
+            ...(isRaincloud ? { filter: 'grayscale(0.65) brightness(0.70) saturate(0.5)' } : {}),
+          }}
+          draggable={false}
         />
-      </div>
+      ) : (
+        /* Hidden placeholder until image processing completes */
+        <div
+          className="w-full h-full rounded-full opacity-0"
+          style={{ width: spriteSize, height: spriteSize }}
+        />
+      )}
+
+      {/* Avatar badge — bottom-right corner, only displayed once habitat is ready */}
+      {isReady && (
+        <div
+          className="absolute -bottom-1.5 -right-1.5 z-10 animate-in fade-in duration-150"
+        >
+          <AvatarBadge
+            avatarUrl={avatarUrl} initials={initials} size={avatarBadgeSize}
+            borderColor={badgeBorder} bgColor={badgeBg} textColor={badgeText}
+          />
+        </div>
+      )}
     </div>
   );
 }

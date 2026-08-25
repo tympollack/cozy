@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useTransition, useOptimistic } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -196,19 +197,19 @@ export function ProfileShell({
       <div className="w-full space-y-4">
         {/* ── Shell Control Header ────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-1 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl" role="img" aria-label={TIER_NAMES[expansionTier]}>
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl filter drop-shadow-xs" role="img" aria-label={TIER_NAMES[expansionTier]}>
               {TIER_BADGES[expansionTier]}
             </span>
             <div>
-              <h2 className="text-base font-900 text-stone-900 dark:text-amber-50 leading-tight flex items-center gap-1.5">
-                {currentShell.name}
+              <h2 className="text-base font-900 text-stone-900 dark:text-stone-100 leading-tight flex items-center gap-2">
+                <span>{currentShell.name}</span>
                 <span className="text-[10px] font-800 px-2 py-0.5 rounded-full
-                  bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-600/40">
+                  bg-stone-900 text-amber-100 dark:bg-amber-950/90 dark:text-amber-200 border border-stone-700 dark:border-amber-600/40 shadow-xs">
                   {TIER_NAMES[expansionTier]}
                 </span>
               </h2>
-              <p className="text-xs font-500 text-stone-600 dark:text-amber-200/75">
+              <p className="text-xs font-700 text-stone-700 dark:text-stone-300 mt-0.5">
                 {slottedPostMap.size} of {activeSlots.length} nooks occupied
               </p>
             </div>
@@ -562,8 +563,16 @@ export function ProfileShell({
                   className="px-5 py-4 bg-amber-50/95 dark:bg-[#241a15] border-t border-amber-200/50 dark:border-amber-600/30 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="px-3 py-1.5 rounded-full text-xs font-900 bg-amber-400 text-stone-950 shadow-sm flex items-center gap-1">
-                      ♥ {expandedPost.post.cheer_count} Cheers
+                    <Link
+                      href={`/post/${expandedPost.post.id}`}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-900 bg-amber-500 hover:bg-amber-600 active:scale-95 text-amber-950 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles size={13} />
+                      <span>Decorate Space ✨</span>
+                    </Link>
+
+                    <span className="px-3 py-1.5 rounded-full text-xs font-900 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-stone-900 dark:text-amber-200 shadow-xs flex items-center gap-1">
+                      ♥ {expandedPost.post.cheer_count}
                     </span>
                     {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
                       <span className="text-xs font-600 text-stone-600 dark:text-amber-200/80">

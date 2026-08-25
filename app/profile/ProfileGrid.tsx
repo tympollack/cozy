@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useTransition, useOptimistic } from 'react';
+import { useState, useCallback, useTransition, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { RefreshCw, Trash2, MoreVertical, ExternalLink, X, AlertTriangle } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { calcStickerOpacity, calcReupCost } from '@/lib/stickerMath';
@@ -55,7 +55,7 @@ function StickerOverlay({ sticker, postId }: { sticker: PostSticker; postId: str
       <img
         src={sticker.sticker_url}
         alt="Sticker"
-        className="w-7 h-7 object-contain drop-shadow-sm pointer-events-none select-none"
+        className="w-7 h-7 object-contain drop-shadow-sm select-none pointer-events-none"
         style={{ opacity: Math.max(opacity, 0.2) }}
         loading="lazy"
       />
@@ -63,15 +63,11 @@ function StickerOverlay({ sticker, postId }: { sticker: PostSticker; postId: str
         <button
           onClick={handleReup}
           disabled={isPending}
-          aria-label={`Re-Up sticker for ${reupCost} pts`}
-          className="absolute -bottom-4 left-1/2 -translate-x-1/2
-            flex items-center gap-0.5 px-1.5 py-0.5 rounded-full
-            text-[8px] font-700 whitespace-nowrap
-            bg-black/70 text-white/90 hover:bg-black/90
-            transition-colors disabled:opacity-50"
+          aria-label={`Re-up sticker for ${reupCost} points`}
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-700 whitespace-nowrap bg-black/80 text-white hover:bg-black transition-colors shadow-md"
         >
-          <RefreshCw size={6} className={isPending ? 'animate-spin' : ''} />
-          {reupCost}
+          <RefreshCw size={7} className={isPending ? 'animate-spin' : ''} />
+          {reupCost}pt
         </button>
       )}
     </div>
@@ -89,6 +85,7 @@ function PostThumbnail({
   post: UserPost;
   onManage?: (post: UserPost) => void;
 }) {
+  const [imgError, setImgError] = useState(false);
   const activeUrl = post.light_img_url || post.dark_img_url;
   const hasDecayedSticker = post.stickers.some(
     (s) => calcStickerOpacity(s.last_reup_at, s.decay_rate_per_day) < 1.0
@@ -98,23 +95,31 @@ function PostThumbnail({
     <div className="relative group">
       <Link
         href={`/post/${post.id}`}
-        className="block relative rounded-2xl overflow-hidden bg-[--cozy-warm]
+        className="block relative rounded-2xl overflow-hidden bg-stone-200 dark:bg-[#201813]
           cozy-shadow hover:scale-[1.02] active:scale-[0.98] transition-transform duration-200"
         aria-label={`View post from ${new Date(post.created_at).toLocaleDateString()}`}
       >
         {/* Photo */}
-        {activeUrl && (
+        {activeUrl && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={getOptimizedImageUrl(activeUrl, 400)}
             alt="Your cozy space"
             loading="lazy"
+            onError={() => setImgError(true)}
             className="w-full aspect-[3/4] object-cover"
           />
+        ) : (
+          <div className="w-full aspect-[3/4] flex flex-col items-center justify-center p-4 bg-gradient-to-br from-stone-200 to-stone-300 dark:from-[#2a1f18] dark:to-[#18120e] text-center">
+            <span className="text-3xl mb-1.5 filter drop-shadow-xs">🏡</span>
+            <span className="text-xs font-900 text-stone-900 dark:text-amber-100 bg-white/90 dark:bg-black/50 px-2.5 py-1 rounded-full border border-amber-900/15 dark:border-amber-500/30 shadow-xs">
+              Cozy Space
+            </span>
+          </div>
         )}
 
         {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
         {/* Stickers layer */}
         {post.stickers.length > 0 && (
@@ -129,7 +134,7 @@ function PostThumbnail({
         {hasDecayedSticker && (
           <div className="absolute top-2 left-2 z-20
             flex items-center gap-1 px-2 py-0.5 rounded-full
-            bg-amber-400/90 text-amber-900 text-[9px] font-700 backdrop-blur-sm">
+            bg-amber-400 text-stone-950 text-[9px] font-900 shadow-md">
             <RefreshCw size={8} />
             Re-Up
           </div>
@@ -137,14 +142,14 @@ function PostThumbnail({
 
         {/* Date footer */}
         <div className="absolute bottom-0 left-0 right-0 p-2.5 z-10 flex items-center justify-between text-white">
-          <span className="text-[10px] font-600 text-white/90">
+          <span className="text-[10px] font-700 text-white/95">
             {new Date(post.created_at).toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',
             })}
           </span>
           {post.cheer_count > 0 && (
-            <span className="text-[10px] font-700 text-rose-200">
+            <span className="text-[10px] font-800 text-rose-300">
               ♥ {post.cheer_count}
             </span>
           )}
@@ -159,9 +164,9 @@ function PostThumbnail({
             onManage(post);
           }}
           className="absolute top-2 right-2 z-30 w-7 h-7 rounded-full
-            bg-black/60 hover:bg-black/80 text-white/90
-            flex items-center justify-center backdrop-blur-md border border-white/20
-            shadow-md transition-all active:scale-90"
+            bg-black/70 hover:bg-black text-white
+            flex items-center justify-center backdrop-blur-md border border-white/30
+            shadow-md transition-all active:scale-90 cursor-pointer"
           title="Manage Space"
           aria-label="Manage space options"
         >
@@ -178,24 +183,34 @@ function PostThumbnail({
 
 export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [localPosts, setLocalPosts] = useState<UserPost[]>(initialPosts);
+
+  useEffect(() => {
+    setLocalPosts(initialPosts);
+  }, [initialPosts]);
+
   const [managedPost, setManagedPost] = useState<UserPost | null>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
-
-  const [optimisticPosts, setOptimisticPosts] = useOptimistic(
-    initialPosts,
-    (state, deleteId: string) => state.filter((p) => p.id !== deleteId)
-  );
 
   const handleDeletePost = () => {
     if (!managedPost) return;
     const targetId = managedPost.id;
 
+    // Remove immediately from client UI state
+    setLocalPosts((prev) => prev.filter((p) => p.id !== targetId));
+    setManagedPost(null);
+    setShowConfirmDelete(false);
+
     startDeleteTransition(async () => {
-      setOptimisticPosts(targetId);
-      setManagedPost(null);
-      setShowConfirmDelete(false);
-      await deletePost(targetId, pathname);
+      try {
+        await deletePost(targetId, pathname);
+      } catch (err) {
+        console.error('Delete post error:', err);
+      } finally {
+        router.refresh();
+      }
     });
   };
 
@@ -205,7 +220,7 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
         className="columns-2 sm:columns-3 gap-3"
         style={{ columnFill: 'balance' }}
       >
-        {optimisticPosts.map((post) => (
+        {localPosts.map((post) => (
           <div key={post.id} className="break-inside-avoid mb-3">
             <PostThumbnail post={post} onManage={(p) => setManagedPost(p)} />
           </div>
@@ -214,13 +229,13 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
 
       {/* Space Management Modal */}
       {managedPost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-3xl p-6 cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-[32px] p-6 bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 border border-amber-900/15 dark:border-amber-500/30 shadow-2xl space-y-5">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3">
               <div>
                 <h3 className="text-base font-900 text-stone-900 dark:text-amber-50">Manage Space</h3>
-                <p className="text-xs font-500 text-stone-600 dark:text-amber-300/80">
+                <p className="text-xs font-700 text-stone-700 dark:text-amber-200/90 mt-0.5">
                   Shared on {new Date(managedPost.created_at).toLocaleDateString()}
                 </p>
               </div>
@@ -229,35 +244,44 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
                   setManagedPost(null);
                   setShowConfirmDelete(false);
                 }}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-700 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-700 dark:text-amber-200 hover:bg-stone-200 dark:hover:bg-[#281e19] transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Thumbnail Preview & Info */}
-            <div className="flex items-center gap-3 bg-white/60 dark:bg-[#201813] p-3 rounded-2xl border border-amber-900/10 dark:border-amber-500/20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={getOptimizedImageUrl(managedPost.light_img_url || managedPost.dark_img_url, 200)}
-                alt="Space thumbnail"
-                className="w-14 h-14 rounded-xl object-cover shadow-xs"
-              />
+            <div className="flex items-center gap-3 bg-white dark:bg-[#241a15] p-3.5 rounded-2xl border border-amber-900/15 dark:border-amber-500/25 shadow-xs">
+              {managedPost.light_img_url || managedPost.dark_img_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={getOptimizedImageUrl(managedPost.light_img_url || managedPost.dark_img_url, 200)}
+                  alt="Space thumbnail"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                  className="w-14 h-14 rounded-xl object-cover shadow-xs bg-amber-900/20"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/40 flex items-center justify-center text-2xl">
+                  🏡
+                </div>
+              )}
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-800 text-stone-900 dark:text-amber-100 truncate">
+                <p className="text-xs font-900 text-stone-900 dark:text-amber-50 truncate">
                   {managedPost.shell_slot ? `Occupies ${managedPost.shell_slot}` : 'Unsorted Archive Space'}
                 </p>
-                <p className="text-[11px] font-700 text-rose-600 dark:text-rose-400">
+                <p className="text-[11px] font-bold text-rose-700 dark:text-rose-400 mt-0.5">
                   ♥ {managedPost.cheer_count} cheers received
                 </p>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <Link
                 href={`/post/${managedPost.id}`}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-800 bg-white dark:bg-[#281e19] text-stone-900 dark:text-amber-100 hover:bg-amber-50 dark:hover:bg-[#342821] border border-amber-900/15 dark:border-amber-500/30 transition-colors shadow-xs"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-900 bg-white dark:bg-[#241a15] text-stone-900 dark:text-amber-50 hover:bg-amber-50 dark:hover:bg-[#2e211b] border border-amber-900/15 dark:border-amber-500/30 transition-all shadow-xs"
               >
                 <ExternalLink size={14} className="text-amber-700 dark:text-amber-400" />
                 <span>View Full Space Details</span>
@@ -266,27 +290,28 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
               {!showConfirmDelete ? (
                 <button
                   onClick={() => setShowConfirmDelete(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors border border-red-200 dark:border-red-800/50 cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-900 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 transition-all border border-red-200 dark:border-red-800/50 cursor-pointer shadow-xs"
                 >
-                  <Trash2 size={14} /> Delete Space
+                  <Trash2 size={14} />
+                  <span>Delete Space</span>
                 </button>
               ) : (
-                <div className="bg-red-50 dark:bg-red-950/40 p-3 rounded-2xl border border-red-200 dark:border-red-800/60 space-y-2">
-                  <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300 text-xs font-800">
-                    <AlertTriangle size={14} />
+                <div className="bg-red-50 dark:bg-red-950/60 p-4 rounded-2xl border border-red-200 dark:border-red-800/60 space-y-3">
+                  <div className="flex items-center gap-2 text-red-800 dark:text-red-200 text-xs font-900">
+                    <AlertTriangle size={15} className="shrink-0" />
                     <span>Delete this space permanently?</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       onClick={() => setShowConfirmDelete(false)}
-                      className="py-1.5 rounded-lg text-xs font-700 bg-white dark:bg-[#281e19] text-stone-800 dark:text-amber-100 border border-stone-300 dark:border-stone-700 cursor-pointer"
+                      className="py-2.5 rounded-xl text-xs font-800 bg-white dark:bg-[#281e19] text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleDeletePost}
                       disabled={isDeleting}
-                      className="py-1.5 rounded-lg text-xs font-800 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+                      className="py-2.5 rounded-xl text-xs font-900 bg-red-600 hover:bg-red-700 text-white shadow-sm disabled:opacity-50 transition-all cursor-pointer"
                     >
                       {isDeleting ? 'Deleting...' : 'Confirm Delete'}
                     </button>

@@ -3,9 +3,11 @@
 import { createServerClient } from '@/lib/supabase';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
+}
 
 export interface Comment {
   id: string;
@@ -21,13 +23,14 @@ export interface Comment {
  */
 export async function checkToxicity(text: string): Promise<{ isToxic: boolean }> {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const openai = getOpenAIClient();
+    if (!openai) {
       console.warn('[checkToxicity] Missing OPENAI_API_KEY. Defaulting to safe.');
       return { isToxic: false };
     }
 
     const response = await openai.moderations.create({ input: text });
-    const isToxic = response.results[0].flagged;
+    const isToxic = response.results[0]?.flagged ?? false;
     
     return { isToxic };
   } catch (error) {

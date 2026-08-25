@@ -28,6 +28,7 @@ interface GroupBundleData {
 const groupBundleCache = new Map<string, GroupBundleData>();
 
 import { useCozyStore } from '@/store/useCozyStore';
+import { createBrowserClient } from '@/lib/supabase-browser';
 
 interface GroupDetailClientProps {
   group: GroupRow;
@@ -62,6 +63,17 @@ export function GroupDetailClient({
   const [activeGroupId, setActiveGroupId] = useState<string>(group?.id || '');
   const [prevPropGroupId, setPrevPropGroupId] = useState<string>(group?.id || '');
 
+  const { vibeStatus: storeVibeStatus, setVibeStatus } = useCozyStore();
+
+  // Live real-time members state
+  const [liveMembers, setLiveMembers] = useState<GroupMemberRow[]>(members || []);
+
+  useEffect(() => {
+    if (members && members.length > 0) {
+      setLiveMembers(members);
+    }
+  }, [members]);
+
   // Adjust state when incoming server prop changes
   if (group?.id && group.id !== prevPropGroupId) {
     setPrevPropGroupId(group.id);
@@ -75,19 +87,85 @@ export function GroupDetailClient({
       const existing = groupBundleCache.get(group.id);
       groupBundleCache.set(group.id, {
         group,
-        members,
+        members: liveMembers.length > 0 ? liveMembers : members,
         currentUserRole,
         memberCount,
         activeChallenge,
         cachedAt: existing ? existing.cachedAt : now,
       });
     }
-  }, [group, members, currentUserRole, memberCount, activeChallenge]);
+  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge]);
+
+  // Supabase Realtime channel subscription for instant broadcast & postgres_changes
+  useEffect(() => {
+    if (!activeGroupId) return;
+
+    const supabase = createBrowserClient();
+    const channelName = `cozy-group-room-${activeGroupId}`;
+    const channel = supabase.channel(channelName);
+
+    channel
+      .on('broadcast', { event: 'vibe_updated' }, (payload) => {
+        const data = payload.payload as {
+          userId?: string;
+          vibe_status?: 'sunshine' | 'neutral' | 'raincloud';
+          points?: number;
+          shell_type?: string;
+        };
+        if (data?.userId) {
+          setLiveMembers((prev) =>
+            prev.map((m) =>
+              m.user_id === data.userId
+                ? {
+                    ...m,
+                    ...(data.vibe_status ? { vibe_status: data.vibe_status } : {}),
+                    ...(data.points !== undefined ? { points: data.points } : {}),
+                    ...(data.shell_type ? { shell_type: data.shell_type } : {}),
+                  }
+                : m
+            )
+          );
+        }
+      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'cozy', table: 'users' },
+        (payload) => {
+          const updatedUser = payload.new as {
+            id?: string;
+            vibe_status?: string;
+            points?: number;
+            shell_type?: string;
+          };
+          if (updatedUser?.id) {
+            setLiveMembers((prev) =>
+              prev.map((m) =>
+                m.user_id === updatedUser.id
+                  ? {
+                      ...m,
+                      ...(updatedUser.vibe_status
+                        ? { vibe_status: updatedUser.vibe_status as 'sunshine' | 'neutral' | 'raincloud' }
+                        : {}),
+                      ...(updatedUser.points !== undefined ? { points: updatedUser.points } : {}),
+                      ...(updatedUser.shell_type ? { shell_type: updatedUser.shell_type } : {}),
+                    }
+                  : m
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeGroupId]);
 
   // Retrieve active group data from cache (or fallback to props)
   const activeBundle = groupBundleCache.get(activeGroupId) || {
     group,
-    members,
+    members: liveMembers.length > 0 ? liveMembers : members,
     currentUserRole,
     memberCount,
     activeChallenge,
@@ -106,7 +184,7 @@ export function GroupDetailClient({
     created_at: new Date().toISOString(),
   };
 
-  const safeMembers = Array.isArray(activeBundle.members) ? activeBundle.members : [];
+  const safeMembers = liveMembers.length > 0 ? liveMembers : (Array.isArray(activeBundle.members) ? activeBundle.members : []);
   const safeCount = activeBundle.memberCount ?? memberCount ?? safeMembers.length ?? 1;
   const currentRole = activeBundle.currentUserRole ?? currentUserRole;
   const currentChallenge = activeBundle.activeChallenge !== undefined ? activeBundle.activeChallenge : activeChallenge;
@@ -118,7 +196,6 @@ export function GroupDetailClient({
     ? 'linear-gradient(160deg, #050810 0%, #080f1e 50%, #060c18 100%)'
     : 'var(--cozy-bg-gradient)';
 
-  const { vibeStatus: storeVibeStatus } = useCozyStore();
   const textPrimary = isFuturistic ? '#e0f4ff' : 'var(--cozy-text-primary)';
   const textSecondary = isFuturistic ? '#60a0bc' : 'var(--cozy-text-muted)';
   const accentColor = isFuturistic ? '#00dcff' : 'var(--cozy-amber)';

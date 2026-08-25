@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sun, Coffee, CloudRain, Heart, Sparkles } from 'lucide-react';
 import { useCozyStore, type VibeStatus } from '@/store/useCozyStore';
 import { updateVibeStatus } from '@/app/actions/vibeActions';
+import { createBrowserClient } from '@/lib/supabase-browser';
 
 interface VibeCheckModalProps {
   isOpen: boolean;
@@ -82,6 +83,26 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
     try {
       const res = await updateVibeStatus(status);
       if (res.success) {
+        // Broadcast to realtime group channels so peers see the update instantly
+        try {
+          const supabase = createBrowserClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const channel = supabase.channel('cozy-global-broadcast');
+            channel.subscribe((subStatus) => {
+              if (subStatus === 'SUBSCRIBED') {
+                channel.send({
+                  type: 'broadcast',
+                  event: 'vibe_updated',
+                  payload: { userId: user.id, vibe_status: status },
+                }).catch(() => {});
+              }
+            });
+          }
+        } catch {
+          // ignore broadcast errors
+        }
+
         if (status === 'raincloud') {
           setConfirmationMsg(
             'Your plot is pulsing with a soft, comforting beacon. Your neighbors can send you warm brews & cheer! 🌧️💛'

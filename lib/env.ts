@@ -89,12 +89,12 @@ export function isBypassAuthEnabled(host?: string): boolean {
     return false;
   }
 
-  // In production, bypass authentication is disabled unless explicitly enabled via env var
-  if (process.env.NODE_ENV === 'production') {
-    return false;
+  // Allow bypass in local dev, staging, and preview environments (*.vercel.app, *-stag.sunshade.icu)
+  if (isLocalDevelopment(host) || isStagingEnvironment(host)) {
+    return true;
   }
 
-  return isLocalDevelopment(host);
+  return false;
 }
 
 /**
@@ -122,11 +122,45 @@ export function getHubBaseUrl(host?: string): string {
 
 export function getHubLoginUrl(returnToPath: string = '/feed', host?: string): string {
   const hubBase = getHubBaseUrl(host);
-  const safeReturn = sanitizeNextUrl(returnToPath);
   
-  let targetReturnUrl = safeReturn;
-  if (typeof window !== 'undefined' && safeReturn.startsWith('/')) {
-    targetReturnUrl = `${window.location.origin}${safeReturn}`;
+  let targetReturnUrl = returnToPath;
+
+  if (targetReturnUrl.startsWith('/')) {
+    const safePath = sanitizeNextUrl(targetReturnUrl, '/feed');
+    if (typeof window !== 'undefined') {
+      targetReturnUrl = `${window.location.origin}${safePath}`;
+    } else if (host) {
+      const proto = isLocalDevelopment(host) ? 'http' : 'https';
+      targetReturnUrl = `${proto}://${host}${safePath}`;
+    } else {
+      const isStag = isStagingEnvironment(host);
+      const defaultOrigin = isStag ? 'https://cozy-stag.sunshade.icu' : 'https://cozy.sunshade.icu';
+      targetReturnUrl = `${defaultOrigin}${safePath}`;
+    }
+  } else {
+    // If an absolute URL is provided, validate that it belongs to a trusted domain
+    try {
+      const parsed = new URL(targetReturnUrl);
+      const hostname = parsed.hostname.toLowerCase();
+      const isTrustedOrigin =
+        hostname === 'sunshade.icu' ||
+        hostname.endsWith('.sunshade.icu') ||
+        hostname.endsWith('.vercel.app') ||
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.endsWith('.localhost');
+
+      if (!isTrustedOrigin) {
+        const safePath = sanitizeNextUrl(parsed.pathname + parsed.search, '/feed');
+        const isStag = isStagingEnvironment(host);
+        const defaultOrigin = isStag ? 'https://cozy-stag.sunshade.icu' : 'https://cozy.sunshade.icu';
+        targetReturnUrl = `${defaultOrigin}${safePath}`;
+      }
+    } catch {
+      const isStag = isStagingEnvironment(host);
+      const defaultOrigin = isStag ? 'https://cozy-stag.sunshade.icu' : 'https://cozy.sunshade.icu';
+      targetReturnUrl = `${defaultOrigin}/feed`;
+    }
   }
 
   return `${hubBase}/login?redirect_to=${encodeURIComponent(targetReturnUrl)}`;

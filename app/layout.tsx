@@ -74,7 +74,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-cream)] dark:bg-zinc-950 transition-colors duration-300">
+      <body className="h-[100dvh] w-full flex flex-col overflow-hidden bg-[var(--cozy-bg-app)] text-[var(--cozy-text-primary)] transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthListener />
           <Navbar />

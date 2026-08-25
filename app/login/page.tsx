@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
-import { getHubLoginUrl, isBypassAuthEnabled, isLocalDevelopment, sanitizeNextUrl } from '@/lib/env';
+import { getHubLoginUrl, isBypassAuthEnabled, isLocalDevelopment, isStagingEnvironment, sanitizeNextUrl } from '@/lib/env';
 
 import { LoginForm } from './LoginForm';
 
@@ -33,15 +33,16 @@ export default async function LoginPage({
   const hubLoginUrl = getHubLoginUrl(returnUrl, host);
 
 
-  const isBypass = isBypassAuthEnabled(host) || params.bypass === 'true' || params.local === 'true';
+  const isStag = isStagingEnvironment(host);
+  const isBypass = isBypassAuthEnabled(host) || isStag || params.bypass === 'true' || params.local === 'true';
 
-  // If in production and dev bypass is not enabled, redirect to central Hub SSO
-  if (!isBypass) {
+  // Only auto-redirect to central Hub in production when not on staging or bypass
+  if (!isBypass && !isStag && params.direct !== 'true') {
     redirect(hubLoginUrl);
   }
 
   return (
-    <div className="cozy-page-bg min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+    <div className="min-h-screen bg-[#faf7f2] dark:bg-[#14100e] text-stone-900 dark:text-stone-100 flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden transition-colors">
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">

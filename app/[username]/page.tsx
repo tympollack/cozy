@@ -17,8 +17,8 @@ interface UsernamePageProps {
 export async function generateMetadata({ params }: UsernamePageProps): Promise<Metadata> {
   const resolvedParams = await params;
   return {
-    title: `${resolvedParams.username}'s Cozy Space — Cozy`,
-    description: `Explore ${resolvedParams.username}'s interactive 2.5D dollhouse shell and shared rooms.`,
+    title: `${resolvedParams.username}'s Cozy Space`,
+    description: `Explore ${resolvedParams.username}'s shared spaces.`,
   };
 }
 

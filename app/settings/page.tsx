@@ -6,11 +6,14 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Moon, Sun, Monitor, Settings as SettingsIcon,
   Shield, Bell, Sparkles, LogOut, Trash2, CheckCircle,
-  ExternalLink, Key, Check, Compass, User, RefreshCw, Hexagon
+  ExternalLink, Key, Check, Compass, User, RefreshCw, Hexagon,
+  ShoppingBag, History
 } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { getHubBaseUrl } from '@/lib/env';
+import { StickerStoreDrawer } from '@/components/StickerStoreDrawer';
+import { TransactionHistoryModal } from '@/components/TransactionHistoryModal';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -33,6 +36,8 @@ export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('Citizen');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isStoreOpen, setIsStoreOpen] = useState(false);
+  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
 
   // Auth code request state (mirrors Hub options)
   const [requestCodeSubmitted, setRequestCodeSubmitted] = useState(false);
@@ -197,10 +202,15 @@ export default function SettingsPage() {
 
           {/* Economy & Expansion Stats */}
           <div className="grid grid-cols-3 gap-2.5 pt-1">
-            <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-[#231a15] border border-amber-200/80 dark:border-amber-600/30 text-center shadow-xs">
+            <button
+              onClick={() => setIsLedgerOpen(true)}
+              className="p-3 rounded-2xl bg-amber-50/90 dark:bg-[#231a15] border border-amber-200/80 dark:border-amber-600/30 text-center shadow-xs hover:border-amber-500/60 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+              title="Click to view transaction ledger"
+            >
               <span className="text-[10px] font-800 tracking-wider text-amber-950 dark:text-amber-200/90 block uppercase">Cozy Balance</span>
               <span className="text-sm font-900 text-amber-700 dark:text-amber-400 block mt-1">✨ {points}</span>
-            </div>
+              <span className="text-[9px] font-800 text-amber-800/80 dark:text-amber-400/80 block mt-0.5 group-hover:underline">Ledger 📜</span>
+            </button>
             <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-[#231a15] border border-amber-200/80 dark:border-amber-600/30 text-center shadow-xs">
               <span className="text-[10px] font-800 tracking-wider text-amber-950 dark:text-amber-200/90 block uppercase">Tokens</span>
               <span className="text-sm font-900 text-emerald-700 dark:text-emerald-400 block mt-1">🪴 {milestoneTokens}</span>
@@ -211,6 +221,25 @@ export default function SettingsPage() {
                 {tierNames[expansionTier] || 'Tier 1'}
               </span>
             </div>
+          </div>
+
+          {/* Sticker Store & Ledger Quick Actions */}
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <button
+              onClick={() => setIsStoreOpen(true)}
+              className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-amber-950 font-900 text-xs shadow-sm transition-all cursor-pointer"
+            >
+              <ShoppingBag size={15} />
+              <span>Sticker Store 🛍️</span>
+            </button>
+
+            <button
+              onClick={() => setIsLedgerOpen(true)}
+              className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-stone-100 dark:bg-[#281e19] hover:bg-stone-200 dark:hover:bg-[#342821] active:scale-95 text-stone-900 dark:text-amber-100 font-900 text-xs border border-amber-900/15 dark:border-amber-500/30 shadow-sm transition-all cursor-pointer"
+            >
+              <History size={15} className="text-amber-600 dark:text-amber-400" />
+              <span>Transaction History</span>
+            </button>
           </div>
 
           {/* Link to central SunShade Hub */}
@@ -435,6 +464,18 @@ export default function SettingsPage() {
           </button>
         </section>
       </div>
+
+      {/* Sticker Store Drawer */}
+      <StickerStoreDrawer
+        isOpen={isStoreOpen}
+        onClose={() => setIsStoreOpen(false)}
+      />
+
+      {/* Transaction History Modal */}
+      <TransactionHistoryModal
+        isOpen={isLedgerOpen}
+        onClose={() => setIsLedgerOpen(false)}
+      />
     </div>
   );
 }
