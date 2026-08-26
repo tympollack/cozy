@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useTransition, useOptimistic, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Mail, MailCheck, Clock, Check, XCircle, MessageSquareHeart } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -293,6 +294,7 @@ export function DollhouseMailbox({
   currentUserId,
 }: DollhouseMailboxProps) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'cards' | 'notes'>('cards');
   const [privateNotes, setPrivateNotes] = useState<PrivateSupportNote[]>([]);
@@ -300,6 +302,10 @@ export function DollhouseMailbox({
   const [sendError, setSendError] = useState<string | null>(null);
   const [hasSent, setHasSent] = useState(peerStatus === 'pending_sent');
   const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [optimisticCards, removeCard] = useOptimistic(
     initialPendingCards,
@@ -472,145 +478,153 @@ export function DollhouseMailbox({
       </div>
 
       {/* Owner Mailbox Modal */}
-      <AnimatePresence>
-        {isOwner && isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div
-              ref={modalRef}
-              initial={{ opacity: 0, scale: 0.93, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.93, y: 12 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-              className="w-full max-w-sm rounded-3xl cozy-glass border border-[--cozy-amber]/30 shadow-2xl overflow-hidden"
-            >
-              {/* Modal Header */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {isOwner && isModalOpen && (
               <div
-                className="px-5 pt-5 pb-3 border-b border-[--cozy-amber]/20"
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(240,192,96,0.12), rgba(232,168,124,0.08))',
-                }}
+                className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto"
+                onClick={() => setIsModalOpen(false)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{
-                        background: 'linear-gradient(135deg, var(--cozy-gold), var(--cozy-amber))',
-                      }}
-                    >
-                      <Mail size={17} className="text-[--cozy-bark]" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-800 text-[--cozy-bark] leading-tight">
-                        Your Dollhouse Mailbox
-                      </h3>
-                      <p className="text-[10px] text-[--cozy-muted]">
-                        Calling cards & peer support notes
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    id="mailbox-modal-close"
-                    onClick={() => setIsModalOpen(false)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-[--cozy-muted] hover:bg-black/10 transition-colors"
+                <motion.div
+                  ref={modalRef}
+                  onClick={(e) => e.stopPropagation()}
+                  initial={{ opacity: 0, scale: 0.93, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.93, y: 12 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+                  className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#1e1612] text-stone-900 dark:text-stone-100 border border-amber-900/20 dark:border-amber-500/30 shadow-2xl overflow-hidden my-auto"
+                >
+                  {/* Modal Header */}
+                  <div
+                    className="px-5 pt-5 pb-3 border-b border-amber-900/10 dark:border-amber-500/20"
+                    style={{
+                      background:
+                        'linear-gradient(135deg, rgba(240,192,96,0.18), rgba(232,168,124,0.12))',
+                    }}
                   >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-amber-100/40">
-                  <button
-                    onClick={() => setActiveTab('cards')}
-                    className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
-                      activeTab === 'cards'
-                        ? 'bg-white text-amber-950 shadow-sm'
-                        : 'text-amber-800 hover:text-amber-950'
-                    }`}
-                  >
-                    Calling Cards ({optimisticCards.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('notes')}
-                    className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
-                      activeTab === 'notes'
-                        ? 'bg-white text-amber-950 shadow-sm'
-                        : 'text-amber-800 hover:text-amber-950'
-                    }`}
-                  >
-                    Private Notes ({privateNotes.length})
-                  </button>
-                </div>
-              </div>
-
-              {/* Cards / Notes List */}
-              <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
-                {activeTab === 'cards' ? (
-                  <AnimatePresence mode="popLayout">
-                    {optimisticCards.length === 0 ? (
-                      <motion.div
-                        key="empty"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-center py-8 space-y-2"
-                      >
-                        <Mail size={28} className="mx-auto text-[--cozy-muted] opacity-40" />
-                        <p className="text-sm font-600 text-[--cozy-muted]">All caught up!</p>
-                        <p className="text-xs text-[--cozy-muted] opacity-70">
-                          New Calling Cards will appear here.
-                        </p>
-                      </motion.div>
-                    ) : (
-                      optimisticCards.map((card) => (
-                        <CallingCardRow
-                          key={card.peerId}
-                          card={card}
-                          onAccept={handleAccept}
-                          onDecline={handleDecline}
-                          isPending={isPending}
-                        />
-                      ))
-                    )}
-                  </AnimatePresence>
-                ) : (
-                  <div className="space-y-2.5">
-                    {privateNotes.length === 0 ? (
-                      <div className="text-center py-8 space-y-2">
-                        <MessageSquareHeart size={28} className="mx-auto text-amber-700 opacity-40" />
-                        <p className="text-sm font-600 text-amber-900">No private notes yet</p>
-                        <p className="text-xs text-amber-700 opacity-75">
-                          Supportive notes from peers will appear here.
-                        </p>
-                      </div>
-                    ) : (
-                      privateNotes.map((note) => (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
                         <div
-                          key={note.id}
-                          className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1"
+                          className="w-9 h-9 rounded-full flex items-center justify-center"
+                          style={{
+                            background: 'linear-gradient(135deg, var(--cozy-gold), var(--cozy-amber))',
+                          }}
                         >
-                          <div className="flex items-center justify-between text-xs font-800 text-amber-950">
-                            <span className="flex items-center gap-1">
-                              <Heart size={12} className="fill-amber-500 text-amber-500" />
-                              From {note.senderName}
-                            </span>
-                            <span className="text-[10px] text-amber-700 font-500">
-                              {formatTimeAgo(new Date(note.sentAt))}
-                            </span>
-                          </div>
-                          <p className="text-xs text-amber-900 font-500 leading-relaxed pt-0.5">
-                            &quot;{note.message}&quot;
+                          <Mail size={17} className="text-[--cozy-bark]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-800 text-stone-900 dark:text-stone-100 leading-tight">
+                            Your Dollhouse Mailbox
+                          </h3>
+                          <p className="text-[10px] text-stone-600 dark:text-stone-400">
+                            Calling cards & peer support notes
                           </p>
                         </div>
-                      ))
+                      </div>
+                      <button
+                        id="mailbox-modal-close"
+                        onClick={() => setIsModalOpen(false)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-stone-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-amber-100/60 dark:bg-[#281e19] border border-amber-200 dark:border-amber-900/40">
+                      <button
+                        onClick={() => setActiveTab('cards')}
+                        className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
+                          activeTab === 'cards'
+                            ? 'bg-white dark:bg-[#342720] text-amber-950 dark:text-amber-100 shadow-sm'
+                            : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        Calling Cards ({optimisticCards.length})
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('notes')}
+                        className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
+                          activeTab === 'notes'
+                            ? 'bg-white dark:bg-[#342720] text-amber-950 dark:text-amber-100 shadow-sm'
+                            : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        Private Notes ({privateNotes.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Cards / Notes List */}
+                  <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+                    {activeTab === 'cards' ? (
+                      <AnimatePresence mode="popLayout">
+                        {optimisticCards.length === 0 ? (
+                          <motion.div
+                            key="empty"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="text-center py-8 space-y-2"
+                          >
+                            <Mail size={28} className="mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
+                            <p className="text-sm font-600 text-stone-700 dark:text-stone-300">All caught up!</p>
+                            <p className="text-xs text-stone-500 dark:text-stone-400">
+                              New Calling Cards will appear here.
+                            </p>
+                          </motion.div>
+                        ) : (
+                          optimisticCards.map((card) => (
+                            <CallingCardRow
+                              key={card.peerId}
+                              card={card}
+                              onAccept={handleAccept}
+                              onDecline={handleDecline}
+                              isPending={isPending}
+                            />
+                          ))
+                        )}
+                      </AnimatePresence>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {privateNotes.length === 0 ? (
+                          <div className="text-center py-8 space-y-2">
+                            <MessageSquareHeart size={28} className="mx-auto text-amber-700 dark:text-amber-400 opacity-60" />
+                            <p className="text-sm font-600 text-stone-800 dark:text-stone-200">No private notes yet</p>
+                            <p className="text-xs text-stone-500 dark:text-stone-400">
+                              Supportive notes from peers will appear here.
+                            </p>
+                          </div>
+                        ) : (
+                          privateNotes.map((note) => (
+                            <div
+                              key={note.id}
+                              className="p-3 rounded-2xl bg-amber-50/80 dark:bg-[#251c17] border border-amber-200 dark:border-amber-900/40 shadow-sm space-y-1"
+                            >
+                              <div className="flex items-center justify-between text-xs font-800 text-amber-950 dark:text-amber-200">
+                                <span className="flex items-center gap-1">
+                                  <Heart size={12} className="fill-amber-500 text-amber-500" />
+                                  From {note.senderName}
+                                </span>
+                                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-500">
+                                  {formatTimeAgo(new Date(note.sentAt))}
+                                </span>
+                              </div>
+                              <p className="text-xs text-stone-800 dark:text-stone-200 font-500 leading-relaxed pt-0.5">
+                                &quot;{note.message}&quot;
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </>
   );
 }
