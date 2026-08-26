@@ -306,14 +306,15 @@ export function DollhouseMailbox({
     (state, peerId: string) => state.filter((c) => c.peerId !== peerId)
   );
 
-  const hasPending = isOwner && optimisticCards.length > 0;
+  const totalPending = optimisticCards.length + privateNotes.length;
+  const hasPending = isOwner && totalPending > 0;
   const flagUp = hasPending;
 
   useEffect(() => {
-    if (isModalOpen && isOwner && recipientId) {
+    if (isOwner && recipientId) {
       getPrivateNotes(recipientId).then(setPrivateNotes);
     }
-  }, [isModalOpen, isOwner, recipientId]);
+  }, [isOwner, recipientId, isModalOpen]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -386,7 +387,7 @@ export function DollhouseMailbox({
               }}
             >
               <Mail size={10} />
-              {optimisticCards.length} card{optimisticCards.length !== 1 ? 's' : ''}
+              {totalPending} item{totalPending !== 1 ? 's' : ''}
             </motion.div>
           )}
 

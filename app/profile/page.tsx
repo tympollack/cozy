@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
 import { getUserProfileData } from '@/app/actions/profileActions';
+import { getPendingCallingCards } from '@/app/actions/peerActions';
 import { getPorchDigest } from '@/app/actions/waterfallActions';
 import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
@@ -24,6 +25,12 @@ export default async function ProfilePage() {
     redirect('/login?next=/profile');
   }
 
+  const [profileData, porchDigest, pendingCards] = await Promise.all([
+    getUserProfileData(user.id),
+    getPorchDigest(user.id),
+    getPendingCallingCards(user.id),
+  ]);
+
   const {
     posts,
     shellType,
@@ -32,9 +39,7 @@ export default async function ProfilePage() {
     themesUnlocked,
     isOwner,
     error,
-  } = await getUserProfileData(user.id);
-
-  const porchDigest = await getPorchDigest(user.id);
+  } = profileData;
   const currentShellDef = getShellDefinition(shellType);
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
@@ -122,6 +127,10 @@ export default async function ProfilePage() {
                 themesUnlocked={themesUnlocked}
                 posts={posts}
                 isOwner={isOwner}
+                peerStatus="none"
+                pendingCards={pendingCards}
+                recipientId={user.id}
+                currentUserId={user.id}
               />
             </div>
 

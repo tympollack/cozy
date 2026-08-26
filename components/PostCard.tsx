@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useTransition, useRef } from 'react';
 import Link from 'next/link';
-import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, Sparkles, X, Check } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, MailCheck, Sparkles, X, Check, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleBurst } from './ParticleBurst';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { GrumpyCloudOverlay } from '@/components/GrumpyCloudOverlay';
 import { reupSticker } from '@/app/actions/stickerActions';
+import { sendCallingCard } from '@/app/actions/peerActions';
 import { calcStickerOpacity, calcReupCost } from '@/lib/stickerMath';
 import { useCozyStore } from '@/store/useCozyStore';
 import type { FeedPost, PostSticker } from '@/store/useCozyStore';
@@ -89,12 +90,17 @@ function StickerLayer({ sticker, postId }: { sticker: PostSticker; postId: strin
 // ---------------------------------------------------------------------------
 
 export function PostCard({ post, onCheer, currentUserId, style, className = '' }: PostCardProps) {
+  const { setPoints } = useCozyStore();
   const [cheering, setCheering] = useState(false);
   const [cheered, setCheered] = useState(post.has_cheered);
   const [cheerCount, setCheerCount] = useState(post.cheer_count);
 
   const [showWarmthModal, setShowWarmthModal] = useState(false);
   const [warmthSentMsg, setWarmthSentMsg] = useState<string | null>(null);
+
+  const [cardSending, setCardSending] = useState(false);
+  const [cardSentMsg, setCardSentMsg] = useState<string | null>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
@@ -123,6 +129,30 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
       setCheering(false);
     }
   }, [cheered, cheering, onCheer]);
+
+  const handleSendCallingCard = async () => {
+    if (!post.user_id) return;
+    if (cardSending) return;
+    setCardSending(true);
+    setCardError(null);
+    setCardSentMsg(null);
+    try {
+      const res = await sendCallingCard(post.user_id, '/feed');
+      if (res.success) {
+        if (res.newPoints !== undefined) setPoints(res.newPoints);
+        setCardSentMsg('Calling card left in their mailbox! 💌');
+        setTimeout(() => setCardSentMsg(null), 3000);
+      } else {
+        setCardError(res.error || 'Could not send calling card.');
+        setTimeout(() => setCardError(null), 3000);
+      }
+    } catch {
+      setCardError('Something went wrong.');
+      setTimeout(() => setCardError(null), 3000);
+    } finally {
+      setCardSending(false);
+    }
+  };
 
   const handleSendWarmthItem = async (itemType: PorchItemType) => {
     await sendPorchWarmth(post.user_id || '', itemType, 'Sending warm thoughts for your porch!');
@@ -256,6 +286,24 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
           Shared a beautiful sanctuary. Rest up and stay cozy.
         </div>
 
+        {/* Action Feedback Banner */}
+        <AnimatePresence>
+          {(cardSentMsg || cardError) && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className={`p-2 rounded-xl text-xs font-bold text-center ${
+                cardSentMsg
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-red-500/20 text-red-300 border border-red-500/40'
+              }`}
+            >
+              {cardSentMsg || cardError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Action Controls */}
         <div className="flex items-center justify-between pt-1">
           {/* Cheer Button */}
@@ -297,11 +345,17 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
 
           {/* Calling Card Button */}
           <button
-            onClick={() => alert('Calling card sent to mailbox!')}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-stone-300 transition-all active:scale-95 cursor-pointer"
-            title="Leave a Calling Card"
+            onClick={handleSendCallingCard}
+            disabled={cardSending}
+            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-stone-300 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Leave a Calling Card in their Dollhouse Mailbox"
+            aria-label="Leave Calling Card"
           >
-            <Mail size={15} />
+            {cardSending ? (
+              <Loader2 size={15} className="animate-spin text-amber-300" />
+            ) : (
+              <Mail size={15} />
+            )}
           </button>
         </div>
       </div>

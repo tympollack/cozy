@@ -140,6 +140,9 @@ export interface PrivateSupportNote {
   sentAt: string;
 }
 
+/** In-memory fallback cache for private notes when DB table is not created in dev/staging */
+const privateNotesMemoryStore = new Map<string, PrivateSupportNote[]>();
+
 /**
  * Sends peer support (Warm Brew, Comfort Sticker, or Private Supportive Note) to a peer.
  */
@@ -234,18 +237,32 @@ export async function sendPeerSupport(
   }
 
   if (type === 'note' && payload?.noteText) {
-    // Store in cozy.private_notes table if exists, or handle fallback
+    const newNote: PrivateSupportNote = {
+      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      senderId: user.id,
+      senderName,
+      recipientId,
+      message: payload.noteText.trim(),
+      sentAt: new Date().toISOString(),
+    };
+
     try {
-      await service.schema('cozy').from('private_notes').insert({
+      const { error: dbErr } = await service.schema('cozy').from('private_notes').insert({
+        id: newNote.id,
         sender_id: user.id,
         sender_name: senderName,
         recipient_id: recipientId,
-        message: payload.noteText.trim(),
-        created_at: new Date().toISOString(),
+        message: newNote.message,
+        created_at: newNote.sentAt,
       });
+
+      if (dbErr) {
+        const existing = privateNotesMemoryStore.get(recipientId) || [];
+        privateNotesMemoryStore.set(recipientId, [newNote, ...existing]);
+      }
     } catch {
-      // Gracefully log if table isn't created in local dev Postgres
-      console.info('[sendPeerSupport] Note logged for user', recipientId);
+      const existing = privateNotesMemoryStore.get(recipientId) || [];
+      privateNotesMemoryStore.set(recipientId, [newNote, ...existing]);
     }
   }
 
@@ -267,18 +284,20 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
       .eq('recipient_id', recipientId)
       .order('created_at', { ascending: false });
 
-    if (error || !data) return [];
+    if (!error && data && data.length > 0) {
+      return data.map((row) => ({
+        id: row.id,
+        senderId: row.sender_id,
+        senderName: row.sender_name || 'A Kind Neighbor',
+        recipientId: row.recipient_id,
+        message: row.message,
+        sentAt: row.created_at,
+      }));
+    }
 
-    return data.map((row) => ({
-      id: row.id,
-      senderId: row.sender_id,
-      senderName: row.sender_name || 'A Kind Neighbor',
-      recipientId: row.recipient_id,
-      message: row.message,
-      sentAt: row.created_at,
-    }));
+    return privateNotesMemoryStore.get(recipientId) || [];
   } catch {
-    return [];
+    return privateNotesMemoryStore.get(recipientId) || [];
   }
 }
 
