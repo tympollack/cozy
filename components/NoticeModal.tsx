@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -27,7 +28,8 @@ interface NoticeModalProps {
   isOpen: boolean;
   onClose: () => void;
   notices: CozyNotice[];
-  onMarkAllRead: () => void;
+  onClearAll: () => void;
+  onDismissNotice: (noticeId: string) => void;
   onRefresh: () => void;
 }
 
@@ -47,20 +49,26 @@ export function NoticeModal({
   isOpen,
   onClose,
   notices: initialNotices,
-  onMarkAllRead,
+  onClearAll,
+  onDismissNotice,
   onRefresh,
 }: NoticeModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'cheers' | 'messages' | 'porch'>('all');
   const [notices, setNotices] = useState<CozyNotice[]>(initialNotices);
   const [isPending, startTransition] = useTransition();
   const { addPoints } = useCozyStore();
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Sync when initialNotices updates
-  React.useEffect(() => {
+  useEffect(() => {
     setNotices(initialNotices);
   }, [initialNotices]);
 
-  if (!isOpen) return null;
+  if (!mounted) return null;
 
   const cheers = notices.filter((n) => n.type === 'cheer');
   const messages = notices.filter(
@@ -77,13 +85,28 @@ export function NoticeModal({
       ? porchGifts
       : notices;
 
-  const handleAcceptCard = (peerId: string) => {
+  const handleClear = () => {
+    setNotices([]);
+    onClearAll();
+  };
+
+  const handleDismiss = (noticeId: string) => {
+    setNotices((prev) => prev.filter((n) => n.id !== noticeId));
+    onDismissNotice(noticeId);
+  };
+
+  const handleAcceptCard = (peerId: string, noticeId: string) => {
     startTransition(async () => {
       // Optimistically update notice
       setNotices((prev) =>
         prev.map((n) =>
-          n.peerId === peerId
-            ? { ...n, type: 'card_accepted', title: `Connected with ${n.actorName}!`, body: 'Calling card accepted (+5 pts earned).' }
+          n.id === noticeId
+            ? {
+                ...n,
+                type: 'card_accepted',
+                title: `Connected with ${n.actorName}!`,
+                body: 'Calling card accepted (+5 pts earned).',
+              }
             : n
         )
       );
@@ -95,227 +118,247 @@ export function NoticeModal({
     });
   };
 
-  const handleDeclineCard = (peerId: string) => {
+  const handleDeclineCard = (peerId: string, noticeId: string) => {
     startTransition(async () => {
-      setNotices((prev) => prev.filter((n) => n.peerId !== peerId));
+      handleDismiss(noticeId);
       await declineCallingCard(peerId);
       onRefresh();
     });
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 14 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 14 }}
-          transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-          className="w-full max-w-md bg-white dark:bg-[#1e1612] text-stone-900 dark:text-stone-100 rounded-3xl border border-amber-900/15 dark:border-amber-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md overflow-y-auto"
+          onClick={onClose}
         >
-          {/* Header */}
-          <div className="px-5 pt-5 pb-3.5 border-b border-amber-900/10 dark:border-amber-500/20 bg-amber-50/80 dark:bg-[#251b16]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-900 dark:text-amber-300">
-                  <Bell className="w-5 h-5 fill-amber-500 text-amber-500" />
+          <motion.div
+            key="notice-modal-card"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 14 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+            className="w-full max-w-md bg-white dark:bg-[#1e1612] text-stone-900 dark:text-stone-100 rounded-3xl border border-amber-900/15 dark:border-amber-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto"
+          >
+            {/* Header */}
+            <div className="px-5 pt-5 pb-3.5 border-b border-amber-900/10 dark:border-amber-500/20 bg-amber-50/80 dark:bg-[#251b16]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-900 dark:text-amber-300">
+                    <Bell className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-900 text-stone-900 dark:text-stone-100 leading-tight">
+                      Cozy Notices & Activity
+                    </h3>
+                    <p className="text-[11px] font-600 text-stone-600 dark:text-stone-400">
+                      {notices.length === 0
+                        ? 'No new notices'
+                        : `${notices.length} recent cheer${notices.length !== 1 ? 's' : ''} & message${notices.length !== 1 ? 's' : ''}`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-900 text-stone-900 dark:text-stone-100 leading-tight">
-                    Cozy Notices & Activity
-                  </h3>
-                  <p className="text-[11px] font-600 text-stone-600 dark:text-stone-400">
-                    {notices.length} recent cheer{notices.length !== 1 ? 's' : ''} & message{notices.length !== 1 ? 's' : ''}
-                  </p>
+
+                <div className="flex items-center gap-1.5">
+                  {notices.length > 0 && (
+                    <button
+                      onClick={handleClear}
+                      className="px-2.5 py-1 rounded-xl text-xs font-800 text-amber-900 dark:text-amber-200 bg-amber-200/60 dark:bg-amber-900/40 hover:bg-amber-300/80 dark:hover:bg-amber-800/60 transition-colors flex items-center gap-1 cursor-pointer shadow-xs border border-amber-300 dark:border-amber-700/50"
+                      title="Clear all notices"
+                    >
+                      <CheckCheck size={14} />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-stone-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
-                {notices.length > 0 && (
-                  <button
-                    onClick={onMarkAllRead}
-                    className="p-1.5 rounded-xl text-xs font-700 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Mark all as read"
-                  >
-                    <CheckCheck size={14} />
-                    <span className="hidden sm:inline">Clear</span>
-                  </button>
-                )}
+              {/* Filter Tabs */}
+              <div className="grid grid-cols-4 gap-1.5 mt-3.5 p-1 rounded-2xl bg-amber-100/60 dark:bg-[#18110e] border border-amber-200 dark:border-amber-900/40">
                 <button
-                  onClick={onClose}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-stone-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                  aria-label="Close"
+                  onClick={() => setActiveTab('all')}
+                  className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
+                    activeTab === 'all'
+                      ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
                 >
-                  <X size={18} />
+                  All ({notices.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('cheers')}
+                  className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
+                    activeTab === 'cheers'
+                      ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Cheers ({cheers.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('messages')}
+                  className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
+                    activeTab === 'messages'
+                      ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Notes ({messages.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('porch')}
+                  className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
+                    activeTab === 'porch'
+                      ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Porch ({porchGifts.length})
                 </button>
               </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="grid grid-cols-4 gap-1.5 mt-3.5 p-1 rounded-2xl bg-amber-100/60 dark:bg-[#18110e] border border-amber-200 dark:border-amber-900/40">
-              <button
-                onClick={() => setActiveTab('all')}
-                className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
-                  activeTab === 'all'
-                    ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                All ({notices.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('cheers')}
-                className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
-                  activeTab === 'cheers'
-                    ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                Cheers ({cheers.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('messages')}
-                className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
-                  activeTab === 'messages'
-                    ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                Notes ({messages.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('porch')}
-                className={`py-1.5 rounded-xl text-xs font-800 transition-all ${
-                  activeTab === 'porch'
-                    ? 'bg-white dark:bg-[#281e19] text-amber-950 dark:text-amber-100 shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                }`}
-              >
-                Porch ({porchGifts.length})
-              </button>
-            </div>
-          </div>
-
-          {/* Notice List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[220px]">
-            {displayedNotices.length === 0 ? (
-              <div className="text-center py-12 space-y-2">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center text-2xl">
-                  ✨
+            {/* Notice List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[220px]">
+              {displayedNotices.length === 0 ? (
+                <div className="text-center py-12 space-y-2">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center text-2xl">
+                    ✨
+                  </div>
+                  <p className="text-sm font-800 text-stone-900 dark:text-stone-100">All caught up!</p>
+                  <p className="text-xs text-stone-600 dark:text-stone-400 max-w-xs mx-auto">
+                    New cheers, calling cards, private notes, and porch gifts will appear here.
+                  </p>
                 </div>
-                <p className="text-sm font-800 text-stone-900 dark:text-stone-100">All caught up!</p>
-                <p className="text-xs text-stone-600 dark:text-stone-400 max-w-xs mx-auto">
-                  New cheers, calling cards, private notes, and porch gifts will appear here.
-                </p>
-              </div>
-            ) : (
-              displayedNotices.map((notice) => (
-                <motion.div
-                  key={notice.id}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="p-3.5 rounded-2xl bg-stone-50/90 dark:bg-[#251c17] border border-amber-900/10 dark:border-amber-500/20 shadow-xs flex items-start gap-3 transition-colors hover:bg-amber-50/80 dark:hover:bg-[#2c211c]"
-                >
-                  {/* Notice Icon / Badge */}
-                  <div className="flex-shrink-0 mt-0.5">
-                    {notice.type === 'cheer' ? (
-                      <div className="w-9 h-9 rounded-2xl bg-rose-100 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-700/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-xs">
-                        <Heart size={18} className="fill-rose-500" />
-                      </div>
-                    ) : notice.type === 'calling_card' ? (
-                      <div className="w-9 h-9 rounded-2xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/50 flex items-center justify-center text-amber-800 dark:text-amber-300 shadow-xs">
-                        <Mail size={18} />
-                      </div>
-                    ) : notice.type === 'support_note' ? (
-                      <div className="w-9 h-9 rounded-2xl bg-orange-100 dark:bg-orange-950/70 border border-orange-300 dark:border-orange-600/50 flex items-center justify-center text-orange-800 dark:text-orange-300 shadow-xs">
-                        <MessageSquareHeart size={18} />
-                      </div>
-                    ) : (
-                      <div className="w-9 h-9 rounded-2xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/50 flex items-center justify-center text-lg shadow-xs">
-                        {notice.itemType === 'tea'
-                          ? '☕'
-                          : notice.itemType === 'blanket'
-                          ? '🧧'
-                          : notice.itemType === 'crystal'
-                          ? '🔮'
-                          : '💖'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <h4 className="text-xs font-800 text-stone-900 dark:text-stone-100 truncate">
-                        {notice.title}
-                      </h4>
-                      <span className="text-[10px] font-600 text-stone-500 dark:text-stone-400 flex-shrink-0 flex items-center gap-0.5">
-                        <Clock size={10} />
-                        {formatTimeAgo(notice.createdAt)}
-                      </span>
+              ) : (
+                displayedNotices.map((notice) => (
+                  <motion.div
+                    key={notice.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="p-3.5 rounded-2xl bg-stone-50/90 dark:bg-[#251c17] border border-amber-900/10 dark:border-amber-500/20 shadow-xs flex items-start gap-3 transition-colors hover:bg-amber-50/80 dark:hover:bg-[#2c211c] relative group"
+                  >
+                    {/* Notice Icon / Badge */}
+                    <div className="flex-shrink-0 mt-0.5">
+                      {notice.type === 'cheer' ? (
+                        <div className="w-9 h-9 rounded-2xl bg-rose-100 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-700/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-xs">
+                          <Heart size={18} className="fill-rose-500" />
+                        </div>
+                      ) : notice.type === 'calling_card' ? (
+                        <div className="w-9 h-9 rounded-2xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/50 flex items-center justify-center text-amber-800 dark:text-amber-300 shadow-xs">
+                          <Mail size={18} />
+                        </div>
+                      ) : notice.type === 'support_note' ? (
+                        <div className="w-9 h-9 rounded-2xl bg-orange-100 dark:bg-orange-950/70 border border-orange-300 dark:border-orange-600/50 flex items-center justify-center text-orange-800 dark:text-orange-300 shadow-xs">
+                          <MessageSquareHeart size={18} />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-2xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/50 flex items-center justify-center text-lg shadow-xs">
+                          {notice.itemType === 'tea'
+                            ? '☕'
+                            : notice.itemType === 'blanket'
+                            ? '🧧'
+                            : notice.itemType === 'crystal'
+                            ? '🔮'
+                            : '💖'}
+                        </div>
+                      )}
                     </div>
 
-                    <p className="text-xs text-stone-700 dark:text-stone-300 font-500 mt-0.5 leading-relaxed line-clamp-2">
-                      {notice.body}
-                    </p>
-
-                    {/* Calling card inline actions */}
-                    {notice.type === 'calling_card' && notice.peerId && (
-                      <div className="flex items-center gap-2 mt-2.5">
-                        <button
-                          onClick={() => handleAcceptCard(notice.peerId!)}
-                          disabled={isPending}
-                          className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-amber-950 font-800 text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                        >
-                          <Check size={13} strokeWidth={3} />
-                          Accept (+5 pts)
-                        </button>
-                        <button
-                          onClick={() => handleDeclineCard(notice.peerId!)}
-                          disabled={isPending}
-                          className="px-2.5 py-1.5 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-700 text-xs transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Cheer post link with thumbnail */}
-                    {notice.type === 'cheer' && notice.actionUrl && (
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-900/10 dark:border-amber-500/15">
-                        <span className="text-[10px] font-800 text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                          <Sparkles size={11} /> +1 Cheer Point Earned
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 pr-6">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="text-xs font-800 text-stone-900 dark:text-stone-100 truncate">
+                          {notice.title}
+                        </h4>
+                        <span className="text-[10px] font-600 text-stone-500 dark:text-stone-400 flex-shrink-0 flex items-center gap-0.5">
+                          <Clock size={10} />
+                          {formatTimeAgo(notice.createdAt)}
                         </span>
-                        <Link
-                          href={notice.actionUrl}
-                          onClick={onClose}
-                          className="text-[11px] font-800 text-amber-800 dark:text-amber-400 hover:underline flex items-center gap-1"
-                        >
-                          View Space <ExternalLink size={11} />
-                        </Link>
+                      </div>
+
+                      <p className="text-xs text-stone-700 dark:text-stone-300 font-500 mt-0.5 leading-relaxed line-clamp-2">
+                        {notice.body}
+                      </p>
+
+                      {/* Calling card inline actions */}
+                      {notice.type === 'calling_card' && notice.peerId && (
+                        <div className="flex items-center gap-2 mt-2.5">
+                          <button
+                            onClick={() => handleAcceptCard(notice.peerId!, notice.id)}
+                            disabled={isPending}
+                            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-amber-950 font-800 text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            <Check size={13} strokeWidth={3} />
+                            Accept (+5 pts)
+                          </button>
+                          <button
+                            onClick={() => handleDeclineCard(notice.peerId!, notice.id)}
+                            disabled={isPending}
+                            className="px-2.5 py-1.5 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-700 text-xs transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Cheer post link with thumbnail */}
+                      {notice.type === 'cheer' && notice.actionUrl && (
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-900/10 dark:border-amber-500/15">
+                          <span className="text-[10px] font-800 text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                            <Sparkles size={11} /> +1 Cheer Point Earned
+                          </span>
+                          <Link
+                            href={notice.actionUrl}
+                            onClick={onClose}
+                            className="text-[11px] font-800 text-amber-800 dark:text-amber-400 hover:underline flex items-center gap-1"
+                          >
+                            View Space <ExternalLink size={11} />
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Optional Post Photo Thumbnail */}
+                    {notice.postImage && (
+                      <div className="w-11 h-11 rounded-xl overflow-hidden bg-stone-900 border border-amber-300/40 flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getOptimizedImageUrl(notice.postImage, 100)}
+                          alt="Space thumbnail"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                     )}
-                  </div>
 
-                  {/* Optional Post Photo Thumbnail */}
-                  {notice.postImage && (
-                    <div className="w-11 h-11 rounded-xl overflow-hidden bg-stone-900 border border-amber-300/40 flex-shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={getOptimizedImageUrl(notice.postImage, 100)}
-                        alt="Space thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </motion.div>
-              ))
-            )}
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+                    {/* Dismiss (X) button on top right of each card */}
+                    <button
+                      onClick={() => handleDismiss(notice.id)}
+                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                      title="Dismiss notice"
+                      aria-label="Dismiss notice"
+                    >
+                      <X size={13} />
+                    </button>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }

@@ -12,7 +12,7 @@ export async function Navbar() {
   return (
     <header className="fixed top-0 inset-x-0 z-50 shrink-0 backdrop-blur-md bg-[#faf7f2]/90 dark:bg-[#16110e]/95 border-b border-amber-900/10 dark:border-amber-500/20 shadow-xs transition-colors">
       <nav
-        className="mx-auto max-w-lg px-4 h-14 flex items-center justify-between"
+        className="mx-auto max-w-2xl sm:max-w-3xl px-4 h-14 flex items-center justify-between"
         aria-label="Main navigation"
       >
         {/* Brand */}

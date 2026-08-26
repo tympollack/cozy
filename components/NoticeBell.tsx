@@ -6,22 +6,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getNotices, type CozyNotice } from '@/app/actions/notificationActions';
 import { NoticeModal } from './NoticeModal';
 
-const SEEN_NOTICES_STORAGE_KEY = 'cozy_seen_notices_ids';
+const CLEARED_NOTICES_STORAGE_KEY = 'cozy_cleared_notices_ids';
 
 export function NoticeBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [notices, setNotices] = useState<CozyNotice[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
   const prevCountRef = useRef(0);
   const [hasNewAlert, setHasNewAlert] = useState(false);
 
-  // Load seen IDs from localStorage
+  // Load cleared IDs from localStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(SEEN_NOTICES_STORAGE_KEY);
+      const stored = localStorage.getItem(CLEARED_NOTICES_STORAGE_KEY);
       if (stored) {
-        setSeenIds(new Set(JSON.parse(stored)));
+        setClearedIds(new Set(JSON.parse(stored)));
       }
     } catch {
       // Ignore localStorage read error
@@ -32,30 +32,30 @@ export function NoticeBell() {
     try {
       const res = await getNotices();
       if (res.success) {
-        setNotices(res.notices);
-
-        // Compute unseen notices
-        let currentSeen = seenIds;
+        // Read current cleared IDs
+        let currentCleared = clearedIds;
         try {
-          const stored = localStorage.getItem(SEEN_NOTICES_STORAGE_KEY);
-          if (stored) currentSeen = new Set(JSON.parse(stored));
+          const stored = localStorage.getItem(CLEARED_NOTICES_STORAGE_KEY);
+          if (stored) currentCleared = new Set(JSON.parse(stored));
         } catch {
           // ignore
         }
 
-        const unseen = res.notices.filter((n) => !currentSeen.has(n.id));
-        setUnreadCount(unseen.length);
+        // Filter out cleared/dismissed notices
+        const activeNotices = res.notices.filter((n) => !currentCleared.has(n.id));
+        setNotices(activeNotices);
+        setUnreadCount(activeNotices.length);
 
-        if (unseen.length > prevCountRef.current) {
+        if (activeNotices.length > prevCountRef.current) {
           setHasNewAlert(true);
           setTimeout(() => setHasNewAlert(false), 2500);
         }
-        prevCountRef.current = unseen.length;
+        prevCountRef.current = activeNotices.length;
       }
     } catch (err) {
       console.warn('[NoticeBell] Failed to fetch notices:', err);
     }
-  }, [seenIds]);
+  }, [clearedIds]);
 
   // Initial fetch + Periodic sync every 20 seconds + Window focus listener
   useEffect(() => {
@@ -75,16 +75,50 @@ export function NoticeBell() {
     setIsOpen(true);
   };
 
-  const handleMarkAllRead = () => {
-    const allIds = notices.map((n) => n.id);
-    const newSet = new Set(allIds);
-    setSeenIds(newSet);
-    setUnreadCount(0);
+  const handleClearAll = () => {
     try {
-      localStorage.setItem(SEEN_NOTICES_STORAGE_KEY, JSON.stringify(allIds));
+      let currentCleared = clearedIds;
+      try {
+        const stored = localStorage.getItem(CLEARED_NOTICES_STORAGE_KEY);
+        if (stored) currentCleared = new Set(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+
+      notices.forEach((n) => currentCleared.add(n.id));
+      const nextArray = Array.from(currentCleared);
+      localStorage.setItem(CLEARED_NOTICES_STORAGE_KEY, JSON.stringify(nextArray));
+      setClearedIds(new Set(currentCleared));
     } catch {
       // ignore
     }
+    setNotices([]);
+    setUnreadCount(0);
+  };
+
+  const handleDismissNotice = (noticeId: string) => {
+    try {
+      let currentCleared = clearedIds;
+      try {
+        const stored = localStorage.getItem(CLEARED_NOTICES_STORAGE_KEY);
+        if (stored) currentCleared = new Set(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+
+      currentCleared.add(noticeId);
+      const nextArray = Array.from(currentCleared);
+      localStorage.setItem(CLEARED_NOTICES_STORAGE_KEY, JSON.stringify(nextArray));
+      setClearedIds(new Set(currentCleared));
+    } catch {
+      // ignore
+    }
+
+    setNotices((prev) => {
+      const filtered = prev.filter((n) => n.id !== noticeId);
+      setUnreadCount(filtered.length);
+      return filtered;
+    });
   };
 
   return (
@@ -126,7 +160,8 @@ export function NoticeBell() {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         notices={notices}
-        onMarkAllRead={handleMarkAllRead}
+        onClearAll={handleClearAll}
+        onDismissNotice={handleDismissNotice}
         onRefresh={fetchNoticeData}
       />
     </>
