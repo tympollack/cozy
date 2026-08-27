@@ -69,19 +69,7 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  // 1. Update directly in cozy.users table
-  const service = createServiceClient();
-  const { error: directUpdateError } = await service
-    .schema('cozy')
-    .from('users')
-    .update({ vibe_status: status })
-    .eq('id', user.id);
-
-  if (directUpdateError) {
-    console.error('[updateVibeStatus] Direct users table update error:', directUpdateError.message);
-  }
-
-  // 2. Call the RPC to enforce constraints & get group peers if available
+  // 1. Call the RPC to enforce constraints, update status & get group peers
   let groupPeers: GroupPeer[] = [];
   try {
     const { data: peers, error: rpcError } = await supabase.schema('cozy').rpc('update_vibe_status', {
@@ -89,14 +77,28 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
       p_status: status,
     });
 
-    if (!rpcError && peers) {
+    if (rpcError) {
+      console.warn('[updateVibeStatus] RPC update error, falling back to direct table update:', rpcError.message);
+      const service = createServiceClient();
+      const { error: directUpdateError } = await service
+        .schema('cozy')
+        .from('users')
+        .update({ vibe_status: status })
+        .eq('id', user.id);
+
+      if (directUpdateError) {
+        console.error('[updateVibeStatus] Direct users table update error:', directUpdateError.message);
+        return { success: false, groupPeers: [], error: directUpdateError.message };
+      }
+    } else if (peers) {
       groupPeers = (peers as { peer_user_id: string; peer_name: string }[]).map((row) => ({
         userId: row.peer_user_id,
         displayName: row.peer_name,
       }));
     }
   } catch (err) {
-    console.warn('[updateVibeStatus] RPC execution note:', err);
+    console.error('[updateVibeStatus] Unexpected error:', err);
+    return { success: false, groupPeers: [], error: 'Failed to update vibe status.' };
   }
 
   if (NEGATIVE_STATUSES.has(status) && groupPeers.length > 0) {

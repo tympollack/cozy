@@ -351,7 +351,12 @@ export async function purchaseSticker(stickerId: string): Promise<PurchaseSticke
     }
     console.error('[purchaseSticker] record_transaction RPC error:', rpcError.message);
 
-    // Fallback: If RPC is not found (e.g. migration pending in local env), perform direct update via service client
+    // In production, require atomic transaction RPC and do not perform non-atomic fallbacks
+    if (process.env.NODE_ENV === 'production') {
+      return { success: false, error: 'Failed to process sticker purchase. Please try again.' };
+    }
+
+    // Fallback: If RPC is not found (e.g. migration pending in local dev), perform direct update via service client
     try {
       const service = createServiceClient();
       const { data: userRow } = await service
