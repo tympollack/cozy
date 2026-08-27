@@ -3,6 +3,7 @@
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 import { uploadToR2, generateR2Key } from '@/lib/r2';
+import { optimizeServerImage } from '@/lib/imageServerUtils';
 import { encodeGeohash } from '@/lib/geohash';
 import type { FeedPost } from '@/store/useCozyStore';
 
@@ -66,8 +67,9 @@ export async function getFeed(cursor?: string): Promise<FeedPayload> {
  * Handles the full upload flow:
  * 1. Authenticates the caller.
  * 2. Extracts lat/lng from FormData, computes geohash server-side, discards coords.
- * 3. Uploads light & dark images to Cloudflare R2.
- * 4. Calls `cozy.upload_post` RPC to insert the record and award 10 points.
+ * 3. Optimizes and auto-rotates light & dark images with Sharp.
+ * 4. Uploads optimized images to Cloudflare R2.
+ * 5. Calls `cozy.upload_post` RPC to insert the record and award points.
  *
  * Raw coordinates NEVER reach the database — only the precision-4 geohash.
  */
@@ -105,16 +107,18 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
   try {
     let lightUrl: string | null = null;
     if (lightFile) {
-      const lightBuffer = Buffer.from(await lightFile.arrayBuffer());
-      const lightKey = generateR2Key(user.id, 'light', lightFile.type);
-      lightUrl = await uploadToR2(lightBuffer, lightKey, lightFile.type);
+      const rawBuffer = Buffer.from(await lightFile.arrayBuffer());
+      const optimized = await optimizeServerImage(rawBuffer, lightFile.type);
+      const lightKey = generateR2Key(user.id, 'light', optimized.contentType);
+      lightUrl = await uploadToR2(optimized.buffer, lightKey, optimized.contentType);
     }
 
     let darkUrl: string | null = null;
     if (darkFile) {
-      const darkBuffer = Buffer.from(await darkFile.arrayBuffer());
-      const darkKey = generateR2Key(user.id, 'dark', darkFile.type);
-      darkUrl = await uploadToR2(darkBuffer, darkKey, darkFile.type);
+      const rawBuffer = Buffer.from(await darkFile.arrayBuffer());
+      const optimized = await optimizeServerImage(rawBuffer, darkFile.type);
+      const darkKey = generateR2Key(user.id, 'dark', optimized.contentType);
+      darkUrl = await uploadToR2(optimized.buffer, darkKey, optimized.contentType);
     }
 
     // --- Insert into DB via RPC (awards 20/50 points, milestone tokens, and stores exact coords in vault) ---
