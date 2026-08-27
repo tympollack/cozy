@@ -2,12 +2,12 @@
  * High-performance image optimization & processing utilities.
  * 
  * 1. Fast Native Path (iOS Safari, Desktop, standard JPEG/PNG/WebP):
- *    Hardware-accelerated resize to max 1600px dimension and progressive compression.
+ *    Hardware-accelerated resize to max 1600px dimension and progressive compression (<100ms).
  * 
  * 2. Instant Android / Non-Native HEIC Path (Chrome on Android, Samsung Internet, Firefox):
- *    Instantly extracts embedded EXIF JPEG thumbnail (<2ms) for immediate UI rendering.
- *    Bypasses heavy, multi-minute client-side WASM software decoding, passing the file
- *    directly to high-speed server-side Sharp processing (<50ms).
+ *    - Instant EXIF thumbnail extraction (<2ms) for initial preview.
+ *    - Fast background WASM conversion via `heic-to` to compress to ~250KB JPEG (<1-2s).
+ *    - Fallback to server-side SIMD C++ Sharp processing if client conversion fails.
  */
 
 const MAX_DIMENSION = 1600;
@@ -145,7 +145,7 @@ export async function getPreviewUrlFromFile(file: File): Promise<string> {
     return URL.createObjectURL(file);
   }
 
-  // Check if browser natively decodes HEIC
+  // Check if browser natively decodes HEIC (Safari)
   if (typeof createImageBitmap === 'function') {
     try {
       const bitmap = await createImageBitmap(file);
@@ -222,11 +222,15 @@ async function fileToCanvasBlob(
 /**
  * Optimizes an image file for uploading.
  * 
- * - When native decoding is available (JPEGs, PNG, WebP, Safari HEIC):
- *   Resizes to max 1600px and compresses to 82% quality JPEG on canvas (<100ms).
- * - When native decoding is unavailable (Android Chrome HEIC):
- *   Passes through the file directly without blocking the UI thread with slow
- *   single-threaded WASM decoders. The server converts it with Sharp in <50ms.
+ * 1. Fast Native Path (JPEGs, PNG, WebP, Safari HEIC):
+ *    Resizes to max 1600px and compresses to 82% quality JPEG on canvas (<100ms).
+ * 
+ * 2. Non-Native HEIC (Android Chrome / Firefox):
+ *    Converts via modern WebAssembly `heic-to` (<1-2s) and scales to 1600px JPEG (~250KB),
+ *    preventing Vercel serverless 4.5MB request body size limit rejections.
+ * 
+ * 3. Fallback:
+ *    If client conversion fails, passes original file to server Sharp processing.
  */
 export async function processImageFile(file: File): Promise<File> {
   const isHeic =
@@ -242,7 +246,7 @@ export async function processImageFile(file: File): Promise<File> {
   const outputMime = isPng ? 'image/png' : 'image/jpeg';
   const outputExt = isPng ? '.png' : '.jpg';
 
-  // Try fast native client-side decoding & compression
+  // 1. Try fast native client-side decoding & compression
   try {
     const resizedBlob = await fileToCanvasBlob(file, MAX_DIMENSION, outputMime);
     if (resizedBlob) {
@@ -250,9 +254,30 @@ export async function processImageFile(file: File): Promise<File> {
       return new File([resizedBlob], outputName, { type: outputMime });
     }
   } catch (err) {
-    console.warn('[processImageFile] Client canvas resize failed, using direct file for server processing:', err);
+    console.warn('[processImageFile] Native client canvas resize failed:', err);
   }
 
-  // Passthrough to server-side Sharp processing (handles HEIC, large raw images, etc.)
+  // 2. If HEIC on non-Safari browser (Android Chrome), convert via fast WASM heic-to
+  if (isHeic && typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+    try {
+      const { heicTo } = await import('heic-to');
+      const jpegBlob = await heicTo({
+        blob: file,
+        type: 'image/jpeg',
+        quality: JPEG_QUALITY,
+      });
+
+      if (jpegBlob) {
+        const resizedBlob = await fileToCanvasBlob(jpegBlob, MAX_DIMENSION, 'image/jpeg');
+        const finalBlob = resizedBlob || jpegBlob;
+        const outputName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
+        return new File([finalBlob], outputName, { type: 'image/jpeg' });
+      }
+    } catch (err) {
+      console.warn('[processImageFile] heic-to conversion failed, falling back to server processing:', err);
+    }
+  }
+
+  // 3. Passthrough to server-side Sharp processing
   return file;
 }
