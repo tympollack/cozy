@@ -2,6 +2,21 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-cozy-bg-app: var(--cozy-bg-app);
+  --color-cozy-cream: var(--cozy-cream);
+  --color-cozy-warm: var(--cozy-warm);
+  --color-cozy-surface: var(--cozy-surface);
+  --color-cozy-night: var(--cozy-night);
+  --color-cozy-bark: var(--cozy-bark);
+  --color-cozy-charcoal: var(--cozy-charcoal);
+  --color-cozy-muted: var(--cozy-muted);
+  --color-cozy-amber: var(--cozy-amber);
+  --color-cozy-rust: var(--cozy-rust);
+  --color-cozy-gold: var(--cozy-gold);
+  --color-cozy-border: var(--cozy-border);
+}
+
 /* ─── Design Tokens ─────────────────────────────────────────────────────── */
 :root {
   /* ☀️ Light Theme — Warm Sunlit Linen & Roasted Coffee */
