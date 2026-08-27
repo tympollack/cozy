@@ -220,13 +220,14 @@ export async function deletePost(postId: string, path?: string): Promise<{ succe
       revalidatePath(path);
     }
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorObj = err as { status?: number; statusCode?: number; message?: string } | null;
     // If a 404 is encountered anywhere during deletion, treat as successfully removed
     if (
-      err?.status === 404 ||
-      err?.statusCode === 404 ||
-      err?.message?.includes('404') ||
-      err?.message?.toLowerCase().includes('not found')
+      errorObj?.status === 404 ||
+      errorObj?.statusCode === 404 ||
+      errorObj?.message?.includes('404') ||
+      errorObj?.message?.toLowerCase().includes('not found')
     ) {
       revalidatePath('/profile');
       if (path && path !== '/profile') revalidatePath(path);
@@ -234,6 +235,6 @@ export async function deletePost(postId: string, path?: string): Promise<{ succe
     }
 
     console.error('[deletePost] Unexpected error:', err);
-    return { success: false, error: 'Failed to delete space.' };
+    return { success: false, error: 'Something went wrong deleting this space.' };
   }
 }

@@ -61,24 +61,15 @@ export async function sendPeerSupport(
 
   if (actionType === 'note' && payload) {
     // Quiet delivery to recipient's porch holding pen (no loud push alerts)
-    const { error } = await supabase.from('cozy.private_notes' as any).insert({
+    const { error: schemaErr } = await supabase.schema('cozy').from('private_notes').insert({
       sender_id: user.id,
       recipient_id: targetUserId,
       message: payload,
       delivered_to_porch: true,
     });
 
-    if (error) {
-      const { error: schemaErr } = await supabase.schema('cozy').from('private_notes').insert({
-        sender_id: user.id,
-        recipient_id: targetUserId,
-        message: payload,
-        delivered_to_porch: true,
-      });
-
-      if (schemaErr) {
-        console.warn('[sendPeerSupport] Note insert notice:', schemaErr.message);
-      }
+    if (schemaErr) {
+      console.warn('[sendPeerSupport] Note insert notice:', schemaErr.message);
     }
 
     return { success: true };
