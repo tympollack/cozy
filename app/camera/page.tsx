@@ -36,6 +36,7 @@ export default function CameraPage() {
   const [locLoading, setLocLoading] = useState(false);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [activePickerModalMode, setActivePickerModalMode] = useState<Mode | null>(null);
+  const [imgErrors, setImgErrors] = useState<Record<Mode, boolean>>({ light: false, dark: false });
 
   // File input refs for Light mode
   const lightCameraRef = useRef<HTMLInputElement>(null);
@@ -52,6 +53,7 @@ export default function CameraPage() {
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
 
       setActivePickerModalMode(null);
+      setImgErrors((prev) => ({ ...prev, [mode]: false }));
 
       // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
       const instantPreview = await getPreviewUrlFromFile(file);
@@ -78,6 +80,7 @@ export default function CameraPage() {
     e.stopPropagation();
     const setter = mode === 'light' ? setLightSlot : setDarkSlot;
     setter(EMPTY_SLOT);
+    setImgErrors((prev) => ({ ...prev, [mode]: false }));
   }, []);
 
   // --- Geolocation (optional) ---
@@ -112,13 +115,19 @@ export default function CameraPage() {
       }
 
       startTransition(async () => {
-        const result = await uploadPost(formData);
-        if (result.success) {
-          addPoints(lightSlot.file && darkSlot.file ? 50 : 20); // Optimistic points
-          setSubmitState('success');
-          setTimeout(() => router.push('/profile'), 2200);
-        } else {
-          setErrorMsg(result.error ?? 'Upload failed. Try again.');
+        try {
+          const result = await uploadPost(formData);
+          if (result.success) {
+            addPoints(lightSlot.file && darkSlot.file ? 50 : 20); // Optimistic points
+            setSubmitState('success');
+            setTimeout(() => router.push('/profile'), 2200);
+          } else {
+            setErrorMsg(result.error ?? 'Upload failed. Try again.');
+            setSubmitState('error');
+          }
+        } catch (err) {
+          console.error('[handleSubmit] Upload failed:', err);
+          setErrorMsg((err as Error)?.message || 'Upload failed. Please check your connection and try again.');
           setSubmitState('error');
         }
       });
@@ -269,12 +278,28 @@ export default function CameraPage() {
                   >
                     {slot.preview ? (
                       <>
+                        {/* Fallback card when native image rendering is unsupported or fails */}
+                        {imgErrors[mode] && (
+                          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-3 bg-gradient-to-br from-amber-950/80 via-stone-900/90 to-black/90 text-center">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mb-1.5 shadow-inner">
+                              <ImageIcon size={22} className="text-amber-400" />
+                            </div>
+                            <span className="text-[11px] font-800 text-amber-100 tracking-tight line-clamp-1 max-w-[130px]">
+                              {slot.file?.name ?? `${label} Photo`}
+                            </span>
+                            <span className="text-[9px] font-700 text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30 mt-1">
+                              ✨ Ready to share
+                            </span>
+                          </div>
+                        )}
+
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={slot.preview}
-                          alt={`${label} preview`}
+                          alt=""
                           loading="lazy"
-                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={() => setImgErrors((prev) => ({ ...prev, [mode]: true }))}
+                          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${imgErrors[mode] ? 'opacity-0' : 'opacity-100'}`}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 p-2 flex flex-col justify-between">
                           {/* Top controls */}
@@ -321,7 +346,7 @@ export default function CameraPage() {
                     ) : (
                       <div className="flex flex-col items-center gap-2 p-3 text-center">
                         <Icon size={24} className={accent} aria-hidden="true" />
-                        <span className="text-xs font-700 text-[--cozy-bark]">{label}</span>
+                        <span className="text-xs font-700 text-stone-800 dark:text-stone-200">{label}</span>
 
                         {/* Dual capture / gallery buttons inside the empty slot */}
                         <div className="grid grid-cols-1 gap-1.5 w-full pt-1">
@@ -332,7 +357,7 @@ export default function CameraPage() {
                               setActiveMode(mode);
                               cameraRef.current?.click();
                             }}
-                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-700 bg-[--cozy-rust] text-white hover:opacity-90 transition-opacity shadow-sm"
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-700 bg-[#b84d1e] hover:bg-[#a04319] text-white transition-colors shadow-sm"
                           >
                             <Camera size={13} />
                             Take Photo
@@ -345,9 +370,9 @@ export default function CameraPage() {
                               setActiveMode(mode);
                               galleryRef.current?.click();
                             }}
-                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-600 bg-white/90 dark:bg-zinc-700/90 text-[--cozy-bark] hover:bg-white border border-[--cozy-amber]/30 transition-colors"
+                            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-600 bg-white/95 dark:bg-stone-800/95 text-stone-900 dark:text-stone-100 hover:bg-white border border-amber-900/15 dark:border-amber-500/30 transition-colors shadow-xs"
                           >
-                            <ImageIcon size={13} className="text-[--cozy-rust]" />
+                            <ImageIcon size={13} className="text-[#b84d1e] dark:text-amber-400" />
                             From Gallery
                           </button>
                         </div>
@@ -465,7 +490,7 @@ export default function CameraPage() {
                     activePickerModalMode === 'light' ? lightCameraRef : darkCameraRef;
                   ref.current?.click();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-700 bg-[--cozy-rust] text-white shadow-md hover:opacity-90"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-700 bg-[#b84d1e] hover:bg-[#a04319] text-white shadow-md transition-colors cursor-pointer"
               >
                 <Camera size={18} /> Take Photo with Camera
               </button>
@@ -476,9 +501,9 @@ export default function CameraPage() {
                     activePickerModalMode === 'light' ? lightGalleryRef : darkGalleryRef;
                   ref.current?.click();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-600 bg-white/90 text-[--cozy-bark] border border-[--cozy-amber]/30 hover:bg-white"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-600 bg-white/95 dark:bg-stone-800/95 text-stone-900 dark:text-stone-100 border border-amber-900/15 dark:border-amber-500/30 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors shadow-xs cursor-pointer"
               >
-                <ImageIcon size={18} className="text-[--cozy-rust]" /> Choose from Photo Library
+                <ImageIcon size={18} className="text-[#b84d1e] dark:text-amber-400" /> Choose from Photo Library
               </button>
             </div>
           </div>
