@@ -5,6 +5,8 @@ const mockGetUser = vi.fn();
 const mockRpc = vi.fn();
 const mockInsert = vi.fn();
 const mockSchemaRpc = vi.fn();
+const mockServiceSelect = vi.fn();
+const mockServiceUpdate = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
@@ -14,8 +16,14 @@ vi.mock('@/lib/supabase', () => ({
     rpc: mockRpc,
     schema: () => ({
       rpc: mockSchemaRpc,
+    }),
+  }),
+  createServiceClient: () => ({
+    schema: () => ({
       from: () => ({
-        insert: mockInsert,
+        select: (...args: unknown[]) => mockServiceSelect(...args),
+        update: (...args: unknown[]) => mockServiceUpdate(...args),
+        insert: (...args: unknown[]) => mockInsert(...args),
       }),
     }),
   }),
@@ -24,6 +32,16 @@ vi.mock('@/lib/supabase', () => ({
 describe('Enhanced Peer Support Actions (supportActions.ts)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockServiceSelect.mockReturnValue({
+      eq: () => ({
+        single: vi.fn().mockResolvedValue({ data: { points: 100, display_name: 'Kind Neighbor' } }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: { points: 100, display_name: 'Kind Neighbor' } }),
+      }),
+    });
+    mockServiceUpdate.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    mockInsert.mockResolvedValue({ error: null });
   });
 
   it('throws error when user is not authenticated', async () => {
@@ -55,32 +73,48 @@ describe('Enhanced Peer Support Actions (supportActions.ts)', () => {
     expect(res.pointsAwarded).toBe(5);
   });
 
-  it('successfully sends Comfort Sticker cheer', async () => {
+  it('successfully sends Comfort Sticker cheer and awards points to recipient', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
     const res = await sendPeerSupport('user-neighbor', 'sticker', '🧸');
     expect(res.success).toBe(true);
     expect(res.pointsAwarded).toBe(5);
   });
 
-  it('delivers Private Note to recipient porch holding pen without intrusive alerts', async () => {
+  it('delivers Private Note with sender name, timestamp, and delivered_to_porch flag', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
-    mockInsert.mockResolvedValue({ error: null });
 
     const res = await sendPeerSupport('user-neighbor', 'note', 'Take all the rest you need today! 💛');
     expect(res.success).toBe(true);
-    expect(mockInsert).toHaveBeenCalledWith({
-      sender_id: 'user-me',
-      recipient_id: 'user-neighbor',
-      message: 'Take all the rest you need today! 💛',
-      delivered_to_porch: true,
-    });
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sender_id: 'user-me',
+        sender_name: 'Kind Neighbor',
+        recipient_id: 'user-neighbor',
+        message: 'Take all the rest you need today! 💛',
+        delivered_to_porch: true,
+        created_at: expect.any(String),
+      })
+    );
   });
 
-  it('handles note insert error gracefully and still returns success', async () => {
+  it('returns failure when note text is empty or toxic', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
-    mockInsert.mockResolvedValue({ error: { message: 'Table does not exist' } });
+
+    const res1 = await sendPeerSupport('user-neighbor', 'note', '');
+    expect(res1.success).toBe(false);
+    expect(res1.error).toMatch(/write a warm note/i);
+
+    const res2 = await sendPeerSupport('user-neighbor', 'note', 'You are horrible');
+    expect(res2.success).toBe(false);
+    expect(res2.error).toMatch(/warm, uplifting messages only/i);
+  });
+
+  it('returns failure when note database insertion fails', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+    mockInsert.mockResolvedValue({ error: { message: 'Database disk full' } });
 
     const res = await sendPeerSupport('user-neighbor', 'note', 'Warm hugs');
-    expect(res.success).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Could not deliver note to porch/i);
   });
 });

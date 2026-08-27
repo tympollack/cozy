@@ -30,11 +30,13 @@ export default defineConfig({
         'app/actions/peerActions.ts',
         'app/actions/supportActions.ts',
         'app/actions/waterfallActions.ts',
+        'app/actions/notificationActions.ts',
         'components/PeerSupportDrawer.tsx',
         'components/PeerSupportSheet.tsx',
         'components/DollhouseMailbox.tsx',
         'components/AnchorBuddyModal.tsx',
         'components/PorchHoldingPen.tsx',
+        'components/NoticeModal.tsx',
       ],
       thresholds: {
         lines: 85,

@@ -49,12 +49,12 @@ export function PeerSupportSheet({
   const currentVibe = vibeStatus || 'neutral';
   const vibeMeta = VIBE_META[currentVibe] ?? VIBE_META.neutral;
 
-  // 1. Warm Brew: instant action, particle animation over plot, server action, auto-close in 300ms
+  // 1. Warm Brew: instant action, particle animation over plot, server action with error reconciliation
   async function handleWarmBrew() {
     if (isSending) return;
     setIsSending(true);
     setShowLocalParticles(true);
-    
+
     // Trigger map-anchored particle animation callback
     onBrewSent?.(recipientId);
 
@@ -62,14 +62,25 @@ export function PeerSupportSheet({
     addPoints(5);
 
     try {
-      sendPeerSupport(recipientId, 'brew').catch((err) => {
-        console.warn('[PeerSupportSheet] sendPeerSupport brew background note:', err);
-      });
+      const res = await sendPeerSupport(recipientId, 'brew');
+      if (!res.success) {
+        // Reconcile optimistic points on server rejection
+        addPoints(-5);
+        setFeedback(res.error || 'Could not send Warm Brew.');
+        setIsSending(false);
+        setShowLocalParticles(false);
+        return;
+      }
     } catch (err) {
       console.warn('[PeerSupportSheet] brew error:', err);
+      addPoints(-5);
+      setFeedback('Failed to send Warm Brew. Please try again.');
+      setIsSending(false);
+      setShowLocalParticles(false);
+      return;
     }
 
-    // Auto-close sheet within 300ms
+    // Auto-close sheet within 300ms on success
     setTimeout(() => {
       onClose();
       setIsSending(false);
@@ -85,8 +96,10 @@ export function PeerSupportSheet({
     onBrewSent?.(recipientId);
 
     try {
-      sendPeerSupport(recipientId, 'sticker', emoji).catch(() => {});
-    } catch {}
+      await sendPeerSupport(recipientId, 'sticker', emoji);
+    } catch (err) {
+      console.warn('[PeerSupportSheet] sticker error:', err);
+    }
 
     setTimeout(() => {
       onClose();
@@ -102,7 +115,13 @@ export function PeerSupportSheet({
     setShowLocalParticles(true);
 
     try {
-      await sendPeerSupport(recipientId, 'note', noteText.trim());
+      const res = await sendPeerSupport(recipientId, 'note', noteText.trim());
+      if (!res.success) {
+        setFeedback(res.error || 'Could not deliver note.');
+        setIsSending(false);
+        setShowLocalParticles(false);
+        return;
+      }
       setFeedback('💌 Note placed on porch');
       setTimeout(() => {
         onClose();
@@ -114,6 +133,7 @@ export function PeerSupportSheet({
     } catch {
       setFeedback('Could not deliver note.');
       setIsSending(false);
+      setShowLocalParticles(false);
     }
   }
 

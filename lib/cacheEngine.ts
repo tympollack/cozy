@@ -24,6 +24,9 @@ export class CacheEngine<T> {
   private expirationListeners: ExpirationListener<T>[] = [];
   private inFlightFetches = new Map<string, Promise<T>>();
 
+  /**
+   * Sets a key-value entry in the cache with optional TTL.
+   */
   public set(key: string, value: T, options?: CacheOptions): void {
     this.clearKeyTimer(key);
 
@@ -46,6 +49,9 @@ export class CacheEngine<T> {
     this.store.set(key, entry);
   }
 
+  /**
+   * Gets a value from the cache. Returns null if expired or missing.
+   */
   public get(key: string): T | null {
     const entry = this.store.get(key);
     if (!entry) return null;
@@ -58,6 +64,9 @@ export class CacheEngine<T> {
     return entry.value;
   }
 
+  /**
+   * Gets remaining TTL in seconds. Returns -1 if no TTL, -2 if missing/expired.
+   */
   public getTtl(key: string): number {
     const entry = this.store.get(key);
     if (!entry) return -2;
@@ -81,6 +90,9 @@ export class CacheEngine<T> {
     return this.store.delete(key);
   }
 
+  /**
+   * Stampede-proof atomic fetch-or-set.
+   */
   public async getOrSet(
     key: string,
     fetcher: () => Promise<T>,

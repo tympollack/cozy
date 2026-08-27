@@ -121,11 +121,17 @@ export default function SettingsPage() {
   }, [setExpansionTier, setMilestoneTokens, setThemesUnlocked, setPoints]);
 
   const handleToggleHubPref = async (key: keyof HubPreferences) => {
-    const updated: HubPreferences = {
-      ...hubPreferences,
-      [key]: !hubPreferences[key],
-    };
-    setHubPreferences(updated);
+    let updated: HubPreferences | null = null;
+    setHubPreferences((prev) => {
+      updated = {
+        ...prev,
+        [key]: !prev[key],
+      };
+      return updated;
+    });
+
+    if (!updated) return;
+    const nextPrefs: HubPreferences = updated;
 
     try {
       const supabase = createBrowserClient();
@@ -133,11 +139,11 @@ export default function SettingsPage() {
         await supabase
           .schema('cozy')
           .from('users')
-          .update({ hub_preferences: updated })
+          .update({ hub_preferences: nextPrefs })
           .eq('id', userId);
       }
       await supabase.auth.updateUser({
-        data: { hub_preferences: updated },
+        data: { hub_preferences: nextPrefs },
       });
       setHubSavedIndicator(true);
       setTimeout(() => setHubSavedIndicator(false), 2200);
