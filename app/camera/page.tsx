@@ -4,13 +4,13 @@ import { useCallback, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  Camera, Sun, Moon, Upload, CheckCircle,
-  AlertCircle, MapPin, Loader, ArrowRight, Image as ImageIcon, Trash2, RefreshCw, X, Sparkles
+  Camera, Sun, Moon, Upload,
+  AlertCircle, MapPin, Loader, ArrowRight, Image as ImageIcon, Trash2, X, Sparkles
 } from 'lucide-react';
 import { CameraToggle } from './CameraToggle';
 import { uploadPost } from '@/app/actions/postActions';
 import { useCozyStore } from '@/store/useCozyStore';
-import { processImageFile } from '@/lib/imageUtils';
+import { processImageFile, getPreviewUrlFromFile } from '@/lib/imageUtils';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -51,17 +51,20 @@ export default function CameraPage() {
       if (!file) return;
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
 
-      // 1. Instant preview URL for immediate rendering (0ms delay)
-      const instantPreview = URL.createObjectURL(file);
-      setter({ file, preview: instantPreview });
       setActivePickerModalMode(null);
 
-      // 2. Background image processing & compression (native HEIC decode + 1600px canvas JPEG)
+      // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
+      const instantPreview = await getPreviewUrlFromFile(file);
+      setter({ file, preview: instantPreview });
+
+      // 2. Background image processing & compression (<100ms native or direct passthrough for Sharp)
       setIsProcessingFile(true);
       try {
         const processedFile = await processImageFile(file);
-        const processedPreview = URL.createObjectURL(processedFile);
-        setter({ file: processedFile, preview: processedPreview });
+        if (processedFile !== file) {
+          const processedPreview = URL.createObjectURL(processedFile);
+          setter({ file: processedFile, preview: processedPreview });
+        }
       } catch (err) {
         console.error('Image processing error:', err);
       } finally {

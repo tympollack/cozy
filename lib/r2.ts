@@ -37,7 +37,8 @@ export function generateR2Key(
   mode: 'light' | 'dark',
   mimeType: string
 ): string {
-  const ext = mimeType.split('/')[1] ?? 'jpg';
+  let ext = mimeType.split('/')[1] ?? 'jpg';
+  if (ext === 'jpeg') ext = 'jpg';
   const timestamp = Date.now();
   return `cozy/${userId}/${timestamp}-${mode}.${ext}`;
 }
