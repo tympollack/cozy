@@ -96,12 +96,9 @@ export async function generateAesCmac(keyHex: string, message: string): Promise<
     throw new Error('AES-128 CMAC requires a 16-byte (128-bit) hex key.');
   }
 
-  // Node crypto support for AES-128 CMAC or HMAC fallback
   try {
-    // Generate AES-128 CMAC
     const hmac = crypto.createHmac('sha256', keyBuffer);
     hmac.update(message, 'utf8');
-    // Truncate to 16 bytes (128 bits) in hex to match CMAC standard 32-char output
     return hmac.digest('hex').substring(0, 32);
   } catch {
     const fallback = crypto.createHash('sha256').update(keyBuffer).update(message).digest('hex');
@@ -170,7 +167,6 @@ export function parseDynamicPayload<T extends DynamicPayloadSchema>(raw: string)
 // ---------------------------------------------------------------------------
 
 function serializePayload<T extends Record<string, unknown>>(payload: T): string {
-  // Deterministic JSON serialization (sorted keys)
   const keys = Object.keys(payload).sort();
   const sortedObj: Record<string, unknown> = {};
   for (const key of keys) {

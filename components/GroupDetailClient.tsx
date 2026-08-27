@@ -11,7 +11,7 @@ import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
 import { GroupBank } from '@/components/GroupBank';
 import { CommunityBulletinBoard } from '@/components/CommunityBulletinBoard';
-import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
+import { PeerSupportSheet } from '@/components/PeerSupportSheet';
 import { InviteCodePill } from '@/components/InviteCodePill';
 import { AdminGroupModal } from '@/components/AdminGroupModal';
 
@@ -56,6 +56,7 @@ export function GroupDetailClient({
     name: string;
     vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
   } | null>(null);
+  const [activeBrewTargetId, setActiveBrewTargetId] = useState<string | null>(null);
   const [inviteHighlight, setInviteHighlight] = useState(false);
   const invitePillRef = useRef<HTMLDivElement>(null);
 
@@ -495,6 +496,7 @@ export function GroupDetailClient({
           }}
           onOpenInvite={handleOpenInvite}
           activeChallenge={currentChallenge}
+          burstTargetUserId={activeBrewTargetId}
         />
 
         {/* Community Bulletin Board for Weekly Challenges */}
@@ -538,15 +540,15 @@ export function GroupDetailClient({
                       });
                     }
                   }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all"
-                  style={{
-                    background: isSelf
-                      ? (isFuturistic ? 'rgba(0,180,255,0.12)' : 'rgba(254,243,199,0.55)')
-                      : isFuturistic ? 'rgba(255,255,255,0.03)' : 'rgba(250,247,242,0.65)',
-                    border: isSelf
-                      ? (isFuturistic ? '1.5px solid rgba(0,220,255,0.50)' : '1.5px solid rgba(245,158,11,0.45)')
-                      : isFuturistic ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(232,168,124,0.18)',
-                  }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:brightness-95 transition-all border ${
+                    isFuturistic
+                      ? isSelf
+                        ? 'bg-cyan-500/15 border-cyan-400/50 shadow-sm'
+                        : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08]'
+                      : isSelf
+                      ? 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-400 dark:border-amber-500/60 shadow-sm'
+                      : 'bg-stone-100/90 dark:bg-[#1e1713]/90 border-stone-200 dark:border-stone-800/80 hover:bg-amber-50 dark:hover:bg-[#251d18]'
+                  }`}
                   title={isSelf ? 'Your Space (Tap to view)' : `${memberName} (Tap to send cheer)`}
                 >
                   {/* Avatar */}
@@ -581,13 +583,14 @@ export function GroupDetailClient({
                         {vibeIcon}
                       </span>
                       <span
-                        className="text-sm font-700 truncate"
-                        style={{ color: textPrimary }}
+                        className={`text-sm font-800 truncate ${
+                          isFuturistic ? 'text-cyan-100' : 'text-stone-900 dark:text-stone-100'
+                        }`}
                       >
                         {memberName}
                       </span>
                       {isSelf && (
-                        <span className="text-[10px] font-800 px-2 py-0.5 rounded-full bg-amber-400/25 text-amber-900 dark:text-amber-200 border border-amber-400/50">
+                        <span className="text-[10px] font-800 px-2 py-0.5 rounded-full bg-amber-400/30 text-amber-900 dark:text-amber-200 border border-amber-400/60">
                           You
                         </span>
                       )}
@@ -595,17 +598,21 @@ export function GroupDetailClient({
                         <Crown size={11} style={{ color: accentColor, flexShrink: 0 }} />
                       )}
                     </div>
-                    <p className="text-xs font-500" style={{ color: textSecondary }}>
+                    <p
+                      className={`text-xs font-600 ${
+                        isFuturistic ? 'text-cyan-300/70' : 'text-stone-600 dark:text-amber-200/75'
+                      }`}
+                    >
                       {memberPoints.toLocaleString()} personal pts · {isSelf ? 'Tap to view your space' : 'Tap to send cheer'}
                     </p>
                   </div>
 
                   <span
-                    className="text-[10px] font-600 px-2 py-0.5 rounded-full"
-                    style={{
-                      background: isFuturistic ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                      color: textSecondary,
-                    }}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      isFuturistic
+                        ? 'bg-white/10 border-white/15 text-cyan-200'
+                        : 'bg-stone-200/80 dark:bg-stone-800/80 border-stone-300/60 dark:border-stone-700 text-stone-700 dark:text-amber-200/90'
+                    }`}
                   >
                     #{i + 1}
                   </span>
@@ -615,14 +622,18 @@ export function GroupDetailClient({
           </div>
         </div>
 
-        {/* Peer Support Drawer */}
+        {/* Peer Support Bottom Sheet */}
         {selectedPeer && (
-          <PeerSupportDrawer
+          <PeerSupportSheet
             recipientId={selectedPeer.id}
             recipientName={selectedPeer.name}
             vibeStatus={selectedPeer.vibeStatus}
             isOpen={!!selectedPeer}
             onClose={() => setSelectedPeer(null)}
+            onBrewSent={(targetId) => {
+              setActiveBrewTargetId(targetId);
+              setTimeout(() => setActiveBrewTargetId(null), 1500);
+            }}
           />
         )}
 

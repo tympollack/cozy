@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { PointsBadge } from '@/components/PointsBadge';
 import { useCozyStore } from '@/store/useCozyStore';
 
-// Mock Supabase browser client
 vi.mock('@/lib/supabase-browser', () => ({
   createBrowserClient: () => ({
     auth: {
@@ -47,13 +46,11 @@ describe('PointsBadge Component (Scope D - UI & Integration)', () => {
     const badgeButton = screen.getByRole('button', { name: /150 points/i });
     expect(screen.queryByText(/Cozy Economy/i)).not.toBeInTheDocument();
 
-    // Click to open
     await user.click(badgeButton);
     expect(screen.getByText(/Cozy Economy/i)).toBeInTheDocument();
     expect(screen.getByText(/Sticker Store/i)).toBeInTheDocument();
     expect(screen.getByText(/Transaction Ledger/i)).toBeInTheDocument();
 
-    // Click again to close
     await user.click(badgeButton);
     await waitFor(() => {
       expect(screen.queryByText(/Cozy Economy/i)).not.toBeInTheDocument();
@@ -70,7 +67,6 @@ describe('PointsBadge Component (Scope D - UI & Integration)', () => {
     const storeOption = screen.getByRole('button', { name: /Sticker Store/i });
     await user.click(storeOption);
 
-    // Dropdown should close after opening drawer
     await waitFor(() => {
       expect(screen.queryByText(/Cozy Economy/i)).not.toBeInTheDocument();
     });

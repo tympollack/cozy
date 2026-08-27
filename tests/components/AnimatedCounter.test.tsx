@@ -8,7 +8,6 @@ describe('AnimatedCounter Component (Scope D)', () => {
     const { rerender } = render(<AnimatedCounter value={1250} />);
     expect(screen.getByText('1,250')).toBeInTheDocument();
 
-    // Re-render with new value
     rerender(<AnimatedCounter value={1300} />);
     expect(screen.getByText('1,300')).toBeInTheDocument();
   });

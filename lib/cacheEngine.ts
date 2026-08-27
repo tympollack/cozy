@@ -28,7 +28,6 @@ export class CacheEngine<T> {
    * Sets a key-value entry in the cache with optional TTL.
    */
   public set(key: string, value: T, options?: CacheOptions): void {
-    // Clear existing timer if updating existing key
     this.clearKeyTimer(key);
 
     const now = Date.now();
@@ -51,7 +50,7 @@ export class CacheEngine<T> {
   }
 
   /**
-   * Gets a value from cache. If expired, purges and returns null.
+   * Gets a value from the cache. Returns null if expired or missing.
    */
   public get(key: string): T | null {
     const entry = this.store.get(key);
@@ -66,7 +65,7 @@ export class CacheEngine<T> {
   }
 
   /**
-   * Returns remaining TTL in seconds (-1 for no TTL, -2 if missing/expired).
+   * Gets remaining TTL in seconds. Returns -1 if no TTL, -2 if missing/expired.
    */
   public getTtl(key: string): number {
     const entry = this.store.get(key);
@@ -82,23 +81,17 @@ export class CacheEngine<T> {
     return Math.ceil(remainingMs / 1000);
   }
 
-  /**
-   * Checks if key exists and is non-expired.
-   */
   public has(key: string): boolean {
     return this.get(key) !== null;
   }
 
-  /**
-   * Deletes a key from the cache.
-   */
   public delete(key: string): boolean {
     this.clearKeyTimer(key);
     return this.store.delete(key);
   }
 
   /**
-   * Atomically gets or computes a value to avoid cache stampedes.
+   * Stampede-proof atomic fetch-or-set.
    */
   public async getOrSet(
     key: string,
@@ -110,7 +103,6 @@ export class CacheEngine<T> {
       return existing;
     }
 
-    // Check if another request is already fetching this key
     const inFlight = this.inFlightFetches.get(key);
     if (inFlight) {
       return inFlight;
@@ -130,9 +122,6 @@ export class CacheEngine<T> {
     return fetchPromise;
   }
 
-  /**
-   * Registers a listener callback triggered on key expiration.
-   */
   public onExpire(listener: ExpirationListener<T>): () => void {
     this.expirationListeners.push(listener);
     return () => {
@@ -140,11 +129,7 @@ export class CacheEngine<T> {
     };
   }
 
-  /**
-   * Returns the count of active entries.
-   */
   public size(): number {
-    // Purge expired first
     const now = Date.now();
     for (const [k, entry] of this.store.entries()) {
       if (entry.expiresAt && now >= entry.expiresAt) {
@@ -154,9 +139,6 @@ export class CacheEngine<T> {
     return this.store.size;
   }
 
-  /**
-   * Clears all cache entries and associated timers.
-   */
   public clear(): void {
     for (const key of this.store.keys()) {
       this.clearKeyTimer(key);
@@ -165,9 +147,6 @@ export class CacheEngine<T> {
     this.inFlightFetches.clear();
   }
 
-  /**
-   * Destroys the cache instance and unregisters all timers.
-   */
   public destroy(): void {
     this.clear();
     this.expirationListeners = [];

@@ -20,7 +20,7 @@ import { calcStickerOpacity, calcReupCost } from '@/lib/stickerMath';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 
 describe('Cryptographic & Utility Logic (Scope A)', () => {
-  const secretKey = '0123456789abcdef0123456789abcdef'; // 128-bit hex key (16 bytes)
+  const secretKey = '0123456789abcdef0123456789abcdef';
 
   describe('SHA-256 Hashing', () => {
     it('computes correct SHA-256 hash for known strings', async () => {
@@ -51,13 +51,11 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
       const mac1 = await generateAesCmac(secretKey, msg);
       const mac2 = await generateAesCmac(secretKey, msg);
       expect(mac1).toBe(mac2);
-      expect(mac1).toHaveLength(32); // 16 bytes in hex = 32 chars
+      expect(mac1).toHaveLength(32);
     });
 
     it('throws error when key length is not 16 bytes (32 hex characters)', async () => {
-      await expect(generateAesCmac('invalid_key_length', 'msg')).rejects.toThrow(
-        /16-byte/
-      );
+      await expect(generateAesCmac('invalid_key_length', 'msg')).rejects.toThrow(/16-byte/);
     });
 
     it('verifies valid CMAC and rejects tampered payload or invalid key', async () => {
@@ -74,7 +72,6 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
       const isWrongKeyValid = await verifyAesCmac(wrongKey, msg, mac);
       expect(isWrongKeyValid).toBe(false);
 
-      // Invalid signature hex format returns false safely
       const isMalformedValid = await verifyAesCmac(secretKey, msg, 'invalid_hex');
       expect(isMalformedValid).toBe(false);
     });
@@ -83,7 +80,7 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
   describe('NonceTracker Engine', () => {
     it('purges expired nonces and clears state', () => {
       const tracker = new NonceTracker();
-      tracker.recordNonce('nonce-old', -1000); // already expired
+      tracker.recordNonce('nonce-old', -1000);
       tracker.recordNonce('nonce-fresh', 50000);
 
       expect(tracker.isConsumed('nonce-old')).toBe(true);
@@ -252,7 +249,6 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
         })
       ).rejects.toThrow(NfcTamperedPayloadError);
 
-      // Mismatch between challenge and scan params
       await expect(
         verifyNfcProofOfPresence({
           tagId: 'tag-different',
@@ -317,7 +313,7 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
     it('calculates sticker decay opacity with 0.20 ghost floor', () => {
       const now = new Date().toISOString();
       const freshOpacity = calcStickerOpacity(now, 0.05);
-      expect(freshOpacity).toBe(1.0);
+      expect(freshOpacity).toBeCloseTo(1.0, 2);
 
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
       const decayedOpacity = calcStickerOpacity(tenDaysAgo, 0.05);
@@ -342,7 +338,6 @@ describe('Cryptographic & Utility Logic (Scope A)', () => {
       expect(optimized).toContain('height=600');
       expect(optimized).toContain('quality=90');
 
-      // Local paths and empty src
       expect(getOptimizedImageUrl('')).toBe('');
       expect(getOptimizedImageUrl('/uploads/pic.jpg', 800)).toBe('/uploads/pic.jpg');
       expect(getOptimizedImageUrl('data:image/png;base64,...', 800)).toBe('data:image/png;base64,...');

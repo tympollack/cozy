@@ -137,13 +137,11 @@ export class DatabaseContractHarness {
         throw new RpcExecutionError('You cannot cheer your own post.');
       }
 
-      // Check uniqueness in cheers table
       const alreadyCheered = this.cheers.some((c) => c.post_id === postId && c.user_id === userId);
       if (alreadyCheered) {
         throw new RpcExecutionError('Unique constraint violation: Already cheered this post.');
       }
 
-      // Record cheer
       this.cheers.push({
         id: `cheer_${Date.now()}`,
         post_id: postId,
@@ -151,16 +149,13 @@ export class DatabaseContractHarness {
         created_at: new Date().toISOString(),
       });
 
-      // Increment post count
       post.cheer_count += 1;
 
-      // Credit post author +1 point
       const author = this.users.get(post.user_id);
       if (author) {
         author.points += 1;
       }
 
-      // Credit cheering user +1 personal point
       const cheeringUser = this.users.get(userId!);
       if (cheeringUser) {
         cheeringUser.points += 1;
@@ -187,7 +182,6 @@ export class DatabaseContractHarness {
         throw new RpcExecutionError('Insufficient points to complete transaction.');
       }
 
-      // Atomic mutation
       user.points += amount;
       this.transactions.push({
         id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,

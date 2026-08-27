@@ -10,6 +10,7 @@ import { getThemeForGroup } from '@/config/villageMapThemes';
 import { UserPlotNode } from '@/components/UserPlotNode';
 import { VacantPlotNode } from '@/components/VacantPlotNode';
 import type { PlotSize } from '@/components/UserPlotNode';
+import { ParticleBurst } from '@/components/ParticleBurst';
 
 // ---------------------------------------------------------------------------
 // Extended member type — carries vibe status & shell type from the live store
@@ -57,6 +58,7 @@ interface GroupMapViewProps {
   onSelectPeer?: (userId: string, name: string) => void;
   onOpenInvite?: () => void;
   activeChallenge?: GroupChallenge | null;
+  burstTargetUserId?: string | null;
 }
 
 export function GroupMapView({
@@ -66,6 +68,7 @@ export function GroupMapView({
   onSelectPeer,
   onOpenInvite,
   activeChallenge = null,
+  burstTargetUserId = null,
 }: GroupMapViewProps) {
   const safeMembers = Array.isArray(members) ? members : [];
   const meta        = GROUP_TYPE_META[group?.type] ?? GROUP_TYPE_META['household'];
@@ -170,14 +173,21 @@ export function GroupMapView({
             transition={{ type: 'spring', stiffness: 350, damping: 25, delay: i * 0.05 }}
           >
             {member ? (
-              <UserPlotNode
-                member={member}
-                plotSize={plotSize}
-                isFuturistic={isFuturistic}
-                plotIndex={i}
-                isSelf={member.user_id === currentUserId}
-                onSelectPeer={onSelectPeer}
-              />
+              <>
+                <UserPlotNode
+                  member={member}
+                  plotSize={plotSize}
+                  isFuturistic={isFuturistic}
+                  plotIndex={i}
+                  isSelf={member.user_id === currentUserId}
+                  onSelectPeer={onSelectPeer}
+                />
+                {burstTargetUserId === member.user_id && (
+                  <div className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center">
+                    <ParticleBurst count={12} emojis={['☕', '✨', '💛', '🌟']} radius={50} duration={1200} />
+                  </div>
+                )}
+              </>
             ) : (
               <VacantPlotNode
                 plotSize={plotSize}

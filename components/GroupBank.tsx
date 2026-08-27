@@ -239,10 +239,10 @@ export function GroupBank({ group, currentUserRole, memberCount }: GroupBankProp
   const cardStyle = {
     background: isFuturistic
       ? 'linear-gradient(135deg, rgba(8,15,30,0.92) 0%, rgba(10,20,45,0.95) 100%)'
-      : 'rgba(250,247,242,0.80)',
+      : 'var(--cozy-glass-bg, rgba(255,252,247,0.88))',
     border: isFuturistic
       ? '1px solid rgba(0,220,255,0.18)'
-      : '1px solid rgba(232,168,124,0.30)',
+      : '1px solid var(--cozy-glass-border, rgba(217,119,54,0.22))',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     boxShadow: isFuturistic
@@ -250,8 +250,8 @@ export function GroupBank({ group, currentUserRole, memberCount }: GroupBankProp
       : '0 4px 24px rgba(122,79,58,0.12)',
   };
 
-  const textPrimary = isFuturistic ? '#e0f4ff' : '#1a1410';
-  const textSecondary = isFuturistic ? '#60a0bc' : '#8a7060';
+  const textPrimary = isFuturistic ? '#e0f4ff' : 'var(--cozy-text-primary, #1a1410)';
+  const textSecondary = isFuturistic ? '#60a0bc' : 'var(--cozy-text-muted, #8a7060)';
   const accentColor = isFuturistic ? '#00dcff' : '#f0c060';
   const accentBg = isFuturistic ? 'rgba(0,220,255,0.12)' : 'rgba(240,192,96,0.15)';
   const accentBorder = isFuturistic ? 'rgba(0,220,255,0.30)' : 'rgba(240,192,96,0.45)';

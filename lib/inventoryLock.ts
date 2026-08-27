@@ -30,10 +30,6 @@ interface LockRecord {
 export class InventoryLockManager {
   private locks = new Map<string, LockRecord>();
 
-  /**
-   * Attempts to acquire an exclusive lock on a resource.
-   * Throws MutexLockError if already locked by another holder.
-   */
   public async acquireLock(
     resourceId: string,
     holderId: string,
@@ -42,10 +38,8 @@ export class InventoryLockManager {
     const now = Date.now();
     const current = this.locks.get(resourceId);
 
-    // If lock exists and is active
     if (current && current.expiresAt > now) {
       if (current.holderId === holderId) {
-        // Re-entrant renewal
         current.expiresAt = now + ttlMs;
         return {
           resourceId,
@@ -57,7 +51,6 @@ export class InventoryLockManager {
       throw new MutexLockError(resourceId, current.holderId);
     }
 
-    // Set lock
     const expiresAt = now + ttlMs;
     this.locks.set(resourceId, { holderId, expiresAt });
 
@@ -69,9 +62,6 @@ export class InventoryLockManager {
     };
   }
 
-  /**
-   * Attempts to acquire a lock with backoff retries.
-   */
   public async acquireLockWithRetry(
     resourceId: string,
     holderId: string,
@@ -98,12 +88,9 @@ export class InventoryLockManager {
     throw new MutexLockError(resourceId);
   }
 
-  /**
-   * Releases an acquired lock if the holder matches.
-   */
   public async releaseLock(resourceId: string, holderId: string): Promise<boolean> {
     const current = this.locks.get(resourceId);
-    if (!current) return true; // Already released or expired
+    if (!current) return true;
 
     if (current.holderId === holderId) {
       this.locks.delete(resourceId);
@@ -113,9 +100,6 @@ export class InventoryLockManager {
     return false;
   }
 
-  /**
-   * Checks if a resource is currently locked.
-   */
   public isLocked(resourceId: string): boolean {
     const current = this.locks.get(resourceId);
     if (!current) return false;
@@ -126,9 +110,6 @@ export class InventoryLockManager {
     return true;
   }
 
-  /**
-   * Clears all locks.
-   */
   public clear(): void {
     this.locks.clear();
   }

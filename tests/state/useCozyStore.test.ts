@@ -84,11 +84,9 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
       store.setFeedCursor('cursor_page_2');
       expect(useCozyStore.getState().feedCursor).toBe('cursor_page_2');
 
-      // Appending duplicate should not increase length
       store.appendFeed([mockPost]);
       expect(useCozyStore.getState().feed).toHaveLength(1);
 
-      // Appending new post
       const mockPost2: FeedPost = { ...mockPost, id: 'post-abc-2' };
       store.appendFeed([mockPost2]);
       expect(useCozyStore.getState().feed).toHaveLength(2);
@@ -170,7 +168,6 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
       expect(useCozyStore.getState().vibeStatus).toBe('sunshine');
       expect(useCozyStore.getState().groupPoints).toBe(120);
 
-      // Co-op bonus increments group points
       store.addGroupPoints(5);
       expect(useCozyStore.getState().groupPoints).toBe(125);
     });

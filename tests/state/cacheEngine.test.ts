@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { CacheEngine, CacheEntry } from '@/lib/cacheEngine';
+import { CacheEngine } from '@/lib/cacheEngine';
 import { InventoryLockManager, MutexLockError } from '@/lib/inventoryLock';
 
 describe('State Machines & Cache Engines (Scope B)', () => {
@@ -26,15 +26,12 @@ describe('State Machines & Cache Engines (Scope B)', () => {
       cache.set('key-ttl', 'sample-data', { ttlSeconds: 30 });
       expect(cache.getTtl('key-ttl')).toBe(30);
 
-      // Advance 10 seconds
       vi.advanceTimersByTime(10000);
       expect(cache.getTtl('key-ttl')).toBe(20);
 
-      // Key with no TTL returns -1
       cache.set('no-ttl', 'persistent');
       expect(cache.getTtl('no-ttl')).toBe(-1);
 
-      // Missing key returns -2
       expect(cache.getTtl('missing-key')).toBe(-2);
     });
 
@@ -45,14 +42,12 @@ describe('State Machines & Cache Engines (Scope B)', () => {
       cache.set('temp-key', 'ephemeral', { ttlSeconds: 5 });
       expect(cache.get('temp-key')).toBe('ephemeral');
 
-      // Advance past 5s TTL
       vi.advanceTimersByTime(5001);
 
       expect(cache.get('temp-key')).toBeNull();
       expect(cache.has('temp-key')).toBe(false);
       expect(onExpireMock).toHaveBeenCalledWith('temp-key', 'ephemeral');
 
-      // Test unsubscribe
       unsubscribe();
       cache.set('temp-2', 'val', { ttlSeconds: 1 });
       vi.advanceTimersByTime(2000);
@@ -75,7 +70,6 @@ describe('State Machines & Cache Engines (Scope B)', () => {
     it('supports atomic getOrSet to prevent cache stampedes', async () => {
       const fetcher = vi.fn().mockResolvedValue('computed-post-data');
 
-      // Parallel calls requesting same key
       const [res1, res2] = await Promise.all([
         cache.getOrSet('feed-cache-key', fetcher, { ttlSeconds: 60 }),
         cache.getOrSet('feed-cache-key', fetcher, { ttlSeconds: 60 }),
@@ -83,10 +77,8 @@ describe('State Machines & Cache Engines (Scope B)', () => {
 
       expect(res1).toBe('computed-post-data');
       expect(res2).toBe('computed-post-data');
-      // Fetcher should only have been called once
       expect(fetcher).toHaveBeenCalledTimes(1);
 
-      // Subsequent call returns cached without invoking fetcher
       const cached = await cache.getOrSet('feed-cache-key', fetcher);
       expect(cached).toBe('computed-post-data');
       expect(fetcher).toHaveBeenCalledTimes(1);
@@ -119,11 +111,9 @@ describe('State Machines & Cache Engines (Scope B)', () => {
       expect(lock.resourceId).toBe('post_sticker_lock_100');
       expect(lockManager.isLocked('post_sticker_lock_100')).toBe(true);
 
-      // Re-entrant acquisition from same user succeeds
       const renewed = await lockManager.acquireLock('post_sticker_lock_100', 'user_session_1', 8000);
       expect(renewed.acquired).toBe(true);
 
-      // Release by other holder fails
       const failedRelease = await lockManager.releaseLock('post_sticker_lock_100', 'other_user');
       expect(failedRelease).toBe(false);
 
@@ -131,7 +121,6 @@ describe('State Machines & Cache Engines (Scope B)', () => {
       expect(released).toBe(true);
       expect(lockManager.isLocked('post_sticker_lock_100')).toBe(false);
 
-      // Release missing resource returns true
       expect(await lockManager.releaseLock('missing_res', 'user_session_1')).toBe(true);
     });
 
@@ -150,11 +139,9 @@ describe('State Machines & Cache Engines (Scope B)', () => {
         await lockManager.acquireLock('ephemeral_house_claim', 'user_1', 2000);
         expect(lockManager.isLocked('ephemeral_house_claim')).toBe(true);
 
-        // Advance past TTL (2s)
         vi.advanceTimersByTime(2500);
         expect(lockManager.isLocked('ephemeral_house_claim')).toBe(false);
 
-        // Now user_2 can acquire it because the previous lock expired
         const lock2 = await lockManager.acquireLock('ephemeral_house_claim', 'user_2', 2000);
         expect(lock2.acquired).toBe(true);
 

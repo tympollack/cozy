@@ -52,7 +52,6 @@ export interface NfcPresenceResult {
   verifiedAt: number;
 }
 
-// Global active challenge tracker
 const globalNfcChallengeTracker = new NonceTracker();
 
 // ---------------------------------------------------------------------------

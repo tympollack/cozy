@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DatabaseContractHarness,
-  DatabaseRole,
   RLSPolicyViolationError,
   VaultAccessViolationError,
-  RpcExecutionError,
 } from '@/lib/databaseContracts';
 
 describe('Database Contracts & Security (Scope C)', () => {
@@ -65,7 +63,6 @@ describe('Database Contracts & Security (Scope C)', () => {
     it('allows "authenticated" role to insert new posts and update only their own resources', async () => {
       const bobClient = harness.createClient({ role: 'authenticated', userId: 'user_bob' });
 
-      // Bob inserts a new post
       const insertRes = (await bobClient.from('posts').insert({
         id: 'post_bob_1',
         user_id: 'user_bob',
@@ -75,12 +72,10 @@ describe('Database Contracts & Security (Scope C)', () => {
       })) as { success: boolean };
       expect(insertRes.success).toBe(true);
 
-      // Bob cannot edit Alice's post
       await expect(
         bobClient.from('posts').update({ light_img_url: 'bob_tamper.jpg' }).eq('id', 'post_alice_1')
       ).rejects.toThrow(RLSPolicyViolationError);
 
-      // Alice can edit her own post
       const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
       const updated = (await aliceClient
         .from('posts')
@@ -88,9 +83,8 @@ describe('Database Contracts & Security (Scope C)', () => {
         .eq('id', 'post_alice_1')) as { success: boolean };
       expect(updated.success).toBe(true);
 
-      // Querying non-existent post for update throws error
       await expect(
-        aliceClient.from('posts').update({ light_img_url: '404.jpg' }).eq('id', 'missing_post_id')
+        aliceClient.from('posts').update({ light_url: '404.jpg' }).eq('id', 'missing_post_id')
       ).rejects.toThrow(/not found/i);
     });
 
@@ -130,7 +124,6 @@ describe('Database Contracts & Security (Scope C)', () => {
         .eq('post_id', 'post_alice_1')) as { success: boolean };
       expect(updateRes.success).toBe(true);
 
-      // Query users table
       const users = (await serviceClient.from('users').select('*').eq('id', 'user_alice')) as { email: string }[];
       expect(users).toHaveLength(1);
       expect(users[0].email).toBe('alice@cozy.test');

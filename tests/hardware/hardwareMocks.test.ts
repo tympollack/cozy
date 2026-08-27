@@ -62,7 +62,6 @@ describe('Hardware, Storage & Network Boundary Mocks', () => {
       expect(videoTracks).toHaveLength(1);
       expect(videoTracks[0].readyState).toBe('live');
 
-      // Stopping track updates readyState to ended
       videoTracks[0].stop();
       expect(videoTracks[0].readyState).toBe('ended');
     });
@@ -94,7 +93,7 @@ describe('Hardware, Storage & Network Boundary Mocks', () => {
 
     it('handles location permission denial or unavailable GPS', () => {
       const geo = new MockGeolocation();
-      geo.setError(1); // PERMISSION_DENIED
+      geo.setError(1);
 
       const onSuccess = vi.fn();
       const onError = vi.fn();
