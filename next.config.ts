@@ -15,7 +15,7 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      bodySizeLimit: '15mb',
+      bodySizeLimit: '25mb',
     },
   },
   // Opt into webpack bundler so next-pwa's webpack plugin works correctly.
