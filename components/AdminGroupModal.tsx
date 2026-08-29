@@ -24,6 +24,7 @@ import {
 import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { InviteCodePill } from './InviteCodePill';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface AdminGroupModalProps {
   group: GroupRow;
@@ -47,6 +48,17 @@ export function AdminGroupModal({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [memberToDelete, setMemberToDelete] = useState<GroupMemberRow | null>(null);
+
+  useModalBackButton({
+    isOpen: true,
+    onClose: () => {
+      if (memberToDelete) {
+        setMemberToDelete(null);
+      } else {
+        onClose();
+      }
+    },
+  });
 
   const currentMeta = GROUP_TYPE_META[group.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = currentMeta.palette === 'futuristic';

@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, History, Star, ArrowUpRight, ArrowDownLeft,
   Sparkles, Coffee, Heart, Camera, Coins, RefreshCw,
-  ShoppingBag, CheckCircle2, ChevronRight
+  ShoppingBag, CheckCircle2, ChevronRight, Trophy, Mail, Gift
 } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { getTransactionHistory, type PointTransaction } from '@/app/actions/ledgerActions';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -69,6 +70,42 @@ const TYPE_CONFIG: Record<
     badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
     isCredit: false,
   },
+  challenge_complete: {
+    label: 'Daily Challenge',
+    icon: <Trophy size={14} className="text-amber-600 dark:text-amber-400" />,
+    badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
+    isCredit: true,
+  },
+  welcome_bonus: {
+    label: 'Welcome Gift',
+    icon: <Gift size={14} className="text-amber-600 dark:text-amber-400" />,
+    badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
+    isCredit: true,
+  },
+  initial_balance: {
+    label: 'Initial Balance',
+    icon: <Star size={14} className="text-amber-600 dark:text-amber-400" />,
+    badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
+    isCredit: true,
+  },
+  calling_card_sent: {
+    label: 'Calling Card Sent',
+    icon: <Mail size={14} className="text-amber-700 dark:text-amber-300" />,
+    badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
+    isCredit: false,
+  },
+  calling_card_accepted: {
+    label: 'Calling Card Accepted',
+    icon: <Heart size={14} className="text-rose-600 dark:text-rose-400" />,
+    badgeClass: 'bg-rose-100 dark:bg-rose-950/70 border-rose-300 dark:border-rose-600/40 text-rose-900 dark:text-rose-300',
+    isCredit: true,
+  },
+  group_contribution: {
+    label: 'Group Bank Pool',
+    icon: <Coins size={14} className="text-sky-600 dark:text-sky-400" />,
+    badgeClass: 'bg-sky-100 dark:bg-sky-950/70 border-sky-300 dark:border-sky-600/40 text-sky-900 dark:text-sky-300',
+    isCredit: false,
+  },
 };
 
 function formatTransactionDate(isoString: string): string {
@@ -91,6 +128,9 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
   const isClient = useIsClient();
   const points = useCozyStore((s) => s.points);
   const setPoints = useCozyStore((s) => s.setPoints);
+
+  // Intercept hardware/device back button to close modal first
+  useModalBackButton({ isOpen, onClose });
 
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
   const [loading, setLoading] = useState(true);

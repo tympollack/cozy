@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { uploadToR2, generateR2Key } from '@/lib/r2';
 import { optimizeServerImage } from '@/lib/imageServerUtils';
 import { encodeGeohash } from '@/lib/geohash';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 import type { FeedPost } from '@/store/useCozyStore';
 
 // ---------------------------------------------------------------------------
@@ -138,6 +139,15 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
 
     const row = Array.isArray(uploadResult) ? uploadResult[0] : uploadResult;
     const extractedPostId = typeof row === 'string' ? row : (row?.post_id || row?.id || uploadResult);
+
+    // Record upload reward in transaction ledger
+    const uploadRewardPts = lightFile && darkFile ? 50 : 20;
+    await recordPointTransaction({
+      userId: user.id,
+      amount: uploadRewardPts,
+      transactionType: 'upload_reward',
+      description: lightFile && darkFile ? 'Shared dual Light & Dark spaces (+50 pts)' : 'Shared a cozy space (+20 pts)',
+    });
 
     return { success: true, postId: extractedPostId as string };
   } catch (err) {

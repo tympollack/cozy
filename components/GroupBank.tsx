@@ -7,6 +7,7 @@ import { contributeToGroup, upgradeGroupTier } from '@/app/actions/groupActions'
 import type { GroupRow } from '@/app/actions/groupActions';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 // ---------------------------------------------------------------------------
 // Tier unlock thresholds for cosmetic rewards
@@ -48,6 +49,8 @@ function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: Contribu
   const [amount, setAmount] = useState(10);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  useModalBackButton({ isOpen: true, onClose });
 
   const QUICK_AMOUNTS = [5, 10, 25, 50, 100];
 

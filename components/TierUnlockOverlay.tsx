@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Lock } from 'lucide-react';
 import { TIER_NAMES, TIER_BADGES, type ShellDefinition } from '@/config/shellDefinitions';
 import { ParticleBurst } from './ParticleBurst';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface TierUnlockOverlayProps {
   /** The tier that was just unlocked. */
@@ -15,6 +16,7 @@ interface TierUnlockOverlayProps {
 }
 
 export function TierUnlockOverlay({ newTier, shell, onDismiss }: TierUnlockOverlayProps) {
+  useModalBackButton({ isOpen: true, onClose: onDismiss });
   // Slots newly accessible at this tier
   const newSlots = shell.slots.filter((s) => s.tier === newTier);
 

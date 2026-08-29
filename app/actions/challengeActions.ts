@@ -8,6 +8,7 @@ import {
   type GroupChallenge,
   type ChallengeActionResult,
 } from '@/lib/challengeDefaults';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 /**
  * Creates and pins a new weekly positive challenge for a group. Only admins can create.
@@ -155,6 +156,13 @@ export async function completeGroupChallenge(
 
   const newPersonal = (userData?.points ?? 0) + 15;
   await service.schema('cozy').from('users').update({ points: newPersonal }).eq('id', user.id);
+
+  await recordPointTransaction({
+    userId: user.id,
+    amount: 15,
+    transactionType: 'challenge_complete',
+    description: `Completed group daily challenge (+15 pts)`,
+  });
 
   // 3. Multiplier boost to group pooled_points (+25 * multiplier)
   const { data: groupData } = await service

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coffee, Heart, Sparkles, X, Gift, ShieldAlert } from 'lucide-react';
 import type { PorchItem } from '@/app/actions/waterfallActions';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface PorchHoldingPenProps {
   items?: PorchItem[];
@@ -21,6 +22,17 @@ const ITEM_EMOJIS: Record<string, string> = {
 export function PorchHoldingPen({ items = [], isOpenDefault = false }: PorchHoldingPenProps) {
   const [isOpen, setIsOpen] = useState(isOpenDefault);
   const [selectedItem, setSelectedItem] = useState<PorchItem | null>(null);
+
+  useModalBackButton({
+    isOpen,
+    onClose: () => {
+      if (selectedItem) {
+        setSelectedItem(null);
+      } else {
+        setIsOpen(false);
+      }
+    },
+  });
 
   if (!items || items.length === 0) return null;
 

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Home, Camera, User, Users, Settings } from 'lucide-react';
 import { PointsBadge } from '@/components/PointsBadge';
 import { VibePill } from '@/components/VibePill';
+import { NavbarNotificationBell } from '@/components/NavbarNotificationBell';
 import { createServerClient } from '@/lib/supabase';
 
 export async function Navbar() {
@@ -72,6 +73,7 @@ export async function Navbar() {
               </Link>
               <VibePill />
               <PointsBadge />
+              <NavbarNotificationBell userId={user.id} />
               <Link
                 href="/settings"
                 id="nav-settings"
