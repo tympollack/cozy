@@ -7,7 +7,7 @@ import {
   ArrowLeft, Moon, Sun, Monitor, Settings as SettingsIcon,
   Shield, Bell, Sparkles, LogOut, Trash2, CheckCircle,
   ExternalLink, Key, Check, Compass, User, RefreshCw, Hexagon,
-  ShoppingBag, History, Sliders, MapPin, Mail, Radio
+  ShoppingBag, History, Sliders, MapPin, Mail, Radio, Copy
 } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('Citizen');
+  const [copiedUserId, setCopiedUserId] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(false);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
@@ -254,9 +255,30 @@ export default function SettingsPage() {
                 {userEmail || 'Authenticated Citizen'}
               </p>
               {userId && (
-                <p className="text-[10px] font-mono text-[var(--cozy-text-muted)] opacity-80 truncate mt-0.5">
-                  ID: {userId.slice(0, 12)}...
-                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(userId);
+                      setCopiedUserId(true);
+                      setTimeout(() => setCopiedUserId(false), 2000);
+                    } catch (e) {
+                      console.warn('Failed to copy user ID:', e);
+                    }
+                  }}
+                  className="group inline-flex items-center gap-1.5 text-[10px] font-mono text-[var(--cozy-text-muted)] hover:text-[var(--cozy-rust)] dark:hover:text-amber-300 opacity-90 transition-colors mt-0.5 cursor-pointer bg-stone-100/60 dark:bg-black/20 hover:bg-stone-200/60 dark:hover:bg-black/40 px-2 py-0.5 rounded-md border border-[var(--cozy-border-subtle)]"
+                  title="Click to copy full User ID to clipboard"
+                >
+                  <span>ID: {userId.slice(0, 14)}...</span>
+                  {copiedUserId ? (
+                    <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-bold text-[9px]">
+                      <Check size={11} />
+                      Copied!
+                    </span>
+                  ) : (
+                    <Copy size={11} className="opacity-60 group-hover:opacity-100" />
+                  )}
+                </button>
               )}
             </div>
           </div>
