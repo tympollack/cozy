@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,6 +107,14 @@ export async function cheerPost(postId: string): Promise<CheerResult> {
   }
 
   const groupsUpdated = result.groups_updated ?? 0;
+
+  // Record +1 cheer bonus in immutable ledger
+  await recordPointTransaction({
+    userId: user.id,
+    amount: 1,
+    transactionType: 'cheer_reward',
+    description: 'Cheered on a cozy corner space (+1 pt)',
+  });
 
   return {
     success: true,

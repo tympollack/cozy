@@ -2,6 +2,7 @@
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -378,15 +379,13 @@ export async function purchaseSticker(stickerId: string): Promise<PurchaseSticke
         .update({ points: calculatedNewPoints })
         .eq('id', user.id);
 
-      // Best effort insert to point_transactions if table exists
-      try {
-        await service.schema('cozy').from('point_transactions').insert({
-          user_id: user.id,
-          amount: -sticker.cost,
-          transaction_type: 'sticker_purchase',
-          description: `Purchased "${sticker.name}" sticker`,
-        });
-      } catch {}
+      // Best effort insert to point_transactions
+      await recordPointTransaction({
+        userId: user.id,
+        amount: -sticker.cost,
+        transactionType: 'sticker_purchase',
+        description: `Purchased "${sticker.name}" sticker`,
+      });
 
       revalidatePath('/profile');
       return {

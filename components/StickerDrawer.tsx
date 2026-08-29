@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Lock, Sparkles, Star } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -236,6 +237,8 @@ export function StickerDrawer({ isOpen, onClose, onSelect }: StickerDrawerProps)
   const isClient = useIsClient();
   const points = useCozyStore((s) => s.points);
   const [tab, setTab] = useState<DrawerTab>('season');
+
+  useModalBackButton({ isOpen, onClose });
 
   if (!isClient || !isOpen) return null;
 

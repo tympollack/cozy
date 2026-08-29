@@ -2,6 +2,7 @@
 
 import { createServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,6 +81,14 @@ export async function sendCallingCard(
     revalidatePath(profilePath);
   }
 
+  // Record ledger transaction for calling card deduction
+  await recordPointTransaction({
+    userId: user.id,
+    amount: -5,
+    transactionType: 'calling_card_sent',
+    description: "Left a Calling Card in neighbor's mailbox (-5 pts)",
+  });
+
   return { success: true, newPoints: data as number };
 }
 
@@ -128,6 +137,14 @@ export async function acceptCallingCard(
   if (profilePath) {
     revalidatePath(profilePath);
   }
+
+  // Record ledger transaction for accepted calling card bonus
+  await recordPointTransaction({
+    userId: user.id,
+    amount: 5,
+    transactionType: 'calling_card_accepted',
+    description: "Accepted a Calling Card in your mailbox (+5 pts)",
+  });
 
   return { success: true, newPoints: data as number };
 }

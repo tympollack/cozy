@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { checkToxicity, submitComment } from '@/app/actions/commentActions';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface CommentBoxProps {
   postId: string;
@@ -14,6 +15,11 @@ export function CommentBox({ postId, onCommentAdded }: CommentBoxProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [isSubmittingPenalty, setIsSubmittingPenalty] = useState(false);
+
+  useModalBackButton({
+    isOpen: showWarningModal,
+    onClose: () => setShowWarningModal(false),
+  });
 
   const handlePost = async () => {
     if (!text.trim()) return;

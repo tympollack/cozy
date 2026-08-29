@@ -3,6 +3,7 @@
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 import { revalidatePath, unstable_cache } from 'next/cache';
 import { cache } from 'react';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 export type { GroupTypeMeta } from '@/config/groupDefinitions';
@@ -334,6 +335,14 @@ export async function contributeToGroup(
   };
 
   revalidatePath(`/groups/${groupId}`);
+
+  // Record group pool contribution in user's immutable transaction ledger
+  await recordPointTransaction({
+    userId: user.id,
+    amount: -points,
+    transactionType: 'group_contribution',
+    description: `Contributed ${points} pts to group pool`,
+  });
 
   return {
     success: true,

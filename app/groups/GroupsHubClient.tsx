@@ -16,6 +16,7 @@ import {
 import { createGroup, joinGroup } from '@/app/actions/groupActions';
 import type { MyGroupEntry } from '@/app/actions/groupActions';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 const GROUP_TYPES = Object.entries(GROUP_TYPE_META).filter(
   ([type]) => ['household', 'building', 'neighborhood', 'village', 'town', 'city', 'island', 'space_station'].includes(type)
@@ -26,6 +27,7 @@ const GROUP_TYPES = Object.entries(GROUP_TYPE_META).filter(
 // ---------------------------------------------------------------------------
 
 function CreateGroupModal({ onClose }: { onClose: () => void }) {
+  useModalBackButton({ isOpen: true, onClose });
   const [name, setName] = useState('');
   const [type, setType] = useState('household');
   const [isPending, startTransition] = useTransition();
@@ -129,6 +131,7 @@ function CreateGroupModal({ onClose }: { onClose: () => void }) {
 // ---------------------------------------------------------------------------
 
 function JoinGroupModal({ onClose }: { onClose: () => void }) {
+  useModalBackButton({ isOpen: true, onClose });
   const [code, setCode] = useState('');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

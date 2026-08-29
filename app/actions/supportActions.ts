@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
+import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 export interface PeerSupportActionResult {
   success: boolean;
@@ -96,6 +97,22 @@ export async function sendPeerSupport(
       }
     }
 
+    // Record ledger transactions for both sender and recipient
+    await Promise.allSettled([
+      recordPointTransaction({
+        userId: user.id,
+        amount: 5,
+        transactionType: 'peer_support',
+        description: 'Sent a Warm Brew to a neighbor (+5 pts)',
+      }),
+      recordPointTransaction({
+        userId: targetUserId,
+        amount: 5,
+        transactionType: 'peer_support',
+        description: 'Received a Warm Brew from a neighbor (+5 pts)',
+      }),
+    ]);
+
     return { success: true, pointsAwarded: 5 };
   }
 
@@ -119,6 +136,14 @@ export async function sendPeerSupport(
     } catch (err: unknown) {
       console.warn('[sendPeerSupport] Sticker recipient update notice:', err);
     }
+
+    // Record comfort sticker transaction for receiver
+    await recordPointTransaction({
+      userId: targetUserId,
+      amount: 5,
+      transactionType: 'peer_support',
+      description: 'Received a comfort sticker from a neighbor (+5 pts)',
+    });
 
     return { success: true, pointsAwarded: 5 };
   }
