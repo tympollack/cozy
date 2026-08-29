@@ -7,6 +7,7 @@ import { X, Sun, Coffee, CloudRain, Heart, Sparkles } from 'lucide-react';
 import { useCozyStore, type VibeStatus } from '@/store/useCozyStore';
 import { updateVibeStatus } from '@/app/actions/vibeActions';
 import { createBrowserClient } from '@/lib/supabase-browser';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface VibeCheckModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ const VIBE_OPTIONS: {
 ];
 
 export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
+  useModalBackButton({ isOpen, onClose });
   const { vibeStatus, setVibeStatus } = useCozyStore();
   const [selected, setSelected] = useState<VibeStatus>(vibeStatus);
   const [isSubmitting, setIsSubmitting] = useState(false);

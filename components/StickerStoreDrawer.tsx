@@ -8,6 +8,7 @@ import { useCozyStore } from '@/store/useCozyStore';
 import { getStickerCatalog, purchaseSticker, type StoreSticker } from '@/app/actions/storeActions';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -55,6 +56,18 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string; sticker?: StoreSticker } | null>(null);
   const [burstLocation, setBurstLocation] = useState<{ x: number; y: number } | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Intercept hardware/device back button
+  useModalBackButton({
+    isOpen,
+    onClose: () => {
+      if (confirmingSticker) {
+        setConfirmingSticker(null);
+      } else {
+        onClose();
+      }
+    },
+  });
 
   // Load catalog on mount/open
   useEffect(() => {

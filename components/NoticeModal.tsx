@@ -20,6 +20,7 @@ import Link from 'next/link';
 import type { CozyNotice } from '@/app/actions/notificationActions';
 import { acceptCallingCard, declineCallingCard } from '@/app/actions/peerActions';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface NoticeModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function NoticeModal({
   onClearAll,
   onRefresh,
 }: NoticeModalProps) {
+  useModalBackButton({ isOpen, onClose });
   const [activeTab, setActiveTab] = useState<'all' | 'cheers' | 'cards' | 'notes' | 'porch'>('all');
   const [isPending, startTransition] = useTransition();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());

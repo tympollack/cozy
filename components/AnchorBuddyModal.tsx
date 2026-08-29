@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, CloudRain, Shield, Sparkles, X, Check, ShieldAlert } from 'lucide-react';
 import { setRaincloudCascade } from '@/app/actions/waterfallActions';
 import type { GroupPeer } from '@/app/actions/vibeActions';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface AnchorBuddyModalProps {
   peers: GroupPeer[];
@@ -15,6 +16,8 @@ interface AnchorBuddyModalProps {
 export function AnchorBuddyModal({ peers, onClose, onSuccess }: AnchorBuddyModalProps) {
   const [selectedAnchorId, setSelectedAnchorId] = useState<string>(peers[0]?.userId || '');
   const [isPending, startTransition] = useTransition();
+
+  useModalBackButton({ isOpen: true, onClose });
 
   const handleActivate = () => {
     startTransition(async () => {

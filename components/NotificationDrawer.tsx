@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
@@ -22,6 +22,7 @@ import {
 import Link from 'next/link';
 import type { CozyNotificationItem, NotificationType } from '@/app/actions/notificationActions';
 import { markNotificationAsRead } from '@/app/actions/notificationActions';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 export interface NotificationDrawerProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export function NotificationDrawer({
   onRefresh,
   isLoading = false,
 }: NotificationDrawerProps) {
+  useModalBackButton({ isOpen, onClose });
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [isPending, startTransition] = useTransition();
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());

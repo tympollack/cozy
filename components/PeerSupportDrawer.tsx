@@ -6,6 +6,7 @@ import { X, Coffee, Heart, Send, Sparkles, MessageSquareHeart } from 'lucide-rea
 import { sendPeerSupport } from '@/app/actions/vibeActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { ParticleBurst } from '@/components/ParticleBurst';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface PeerSupportDrawerProps {
   recipientId: string;
@@ -55,6 +56,7 @@ export function PeerSupportDrawer({
   isOpen,
   onClose,
 }: PeerSupportDrawerProps) {
+  useModalBackButton({ isOpen, onClose });
   const [activeTab, setActiveTab] = useState<'brew' | 'sticker' | 'note'>('brew');
   const [noteText, setNoteText] = useState('');
   const [selectedSticker, setSelectedSticker] = useState('🍵');

@@ -3,12 +3,9 @@
 import React, { useState } from 'react';
 import { MapPin, Camera, Mail, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { verifyProximity, submitInteriorProof, triggerPostcard } from '@/app/actions/claimActions';
-import { uploadToR2 } from '@/lib/r2'; // Assuming we have a client-side upload or we send formData to a server action.
+import { uploadToR2 } from '@/lib/r2';
 import { processImageFile } from '@/lib/imageUtils';
-// Actually, uploading from client usually requires a signed URL or passing FormData to a server action.
-// Since we don't have a specific `uploadInteriorProof` server action defined that takes FormData,
-// I'll create one or assume we send FormData to a new action, or just mock the upload for now since the prompt says:
-// "Once the interior photo uploads via our R2 action, call submitInteriorProof..."
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 interface ClaimHouseModalProps {
   postId: string;
@@ -19,6 +16,8 @@ export function ClaimHouseModal({ postId, onClose }: ClaimHouseModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useModalBackButton({ isOpen: true, onClose });
 
   const handleProximityCheck = async () => {
     setIsLoading(true);
