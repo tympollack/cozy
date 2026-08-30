@@ -59,6 +59,54 @@ describe('Map Actions (mapActions.ts) & Dynamic Plot Coordinates', () => {
     expect(theme.anchors[1]).toEqual({ x: 25, y: 32 });
   });
 
+  it('suppresses disabled built-in themes when is_active is false in database', async () => {
+    const mockDbThemes = [
+      {
+        id: 'orbital_collective',
+        name: 'Orbital Collective',
+        background_image: '/images/neighborhood-orbital.jpg',
+        palette: 'futuristic',
+        vignette_gradient: 'radial-gradient(...)',
+        anchors: [{ x: 50, y: 50 }],
+        is_active: false, // Explicitly disabled
+        display_order: 1,
+      },
+    ];
+
+    mockServiceSelect.mockReturnValue({
+      order: vi.fn().mockResolvedValue({
+        data: mockDbThemes,
+        error: null,
+      }),
+    });
+
+    const themes = await getVillageMapThemes();
+
+    // Disabled theme is deleted from active themes map
+    expect(themes.orbital_collective).toBeUndefined();
+    expect(themes.mossy_hearth_village).toBeDefined();
+  });
+
+  it('resolves futuristic fallback maps by group.type when theme_id row is not in database', async () => {
+    mockServiceSelect.mockReturnValue({
+      order: vi.fn().mockResolvedValue({
+        data: [], // No custom rows
+        error: null,
+      }),
+    });
+
+    // When a futuristic group has theme_id: 'neon_neighborhood' or 'cyber_town'
+    const themeFromType = await getVillageMapTheme('neon_neighborhood', 'neighborhood');
+    expect(themeFromType.id).toBe('orbital_collective');
+    expect(themeFromType.palette).toBe('futuristic');
+
+    const themeFromTown = await getVillageMapTheme(null, 'town');
+    expect(themeFromTown.id).toBe('orbital_collective');
+
+    const themeFromCozy = await getVillageMapTheme('custom_missing', 'household');
+    expect(themeFromCozy.id).toBe('mossy_hearth_village');
+  });
+
   it('falls back to static defaults when database returns an error or empty result', async () => {
     mockServiceSelect.mockReturnValue({
       order: vi.fn().mockResolvedValue({

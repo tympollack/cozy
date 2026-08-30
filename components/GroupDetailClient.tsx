@@ -97,9 +97,10 @@ export function GroupDetailClient({
         memberCount,
         activeChallenge,
         cachedAt: existing ? existing.cachedAt : now,
+        mapTheme: initialMapTheme || existing?.mapTheme,
       });
     }
-  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge]);
+  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge, initialMapTheme]);
 
   // Supabase Realtime channel subscription for instant broadcast & postgres_changes
   useEffect(() => {

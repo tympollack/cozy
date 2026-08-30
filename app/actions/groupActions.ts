@@ -472,9 +472,8 @@ const getCachedGroupData = unstable_cache(
     const group = groupRes.data as GroupRow;
     const memberships = memberRes.data ?? [];
 
-    // Fetch dynamic map theme for group's theme_id or type
-    const targetThemeId = group.theme_id || GROUP_TYPE_META[group.type]?.themeId || 'mossy_hearth_village';
-    const mapTheme = await getVillageMapTheme(targetThemeId);
+    // Fetch dynamic map theme for group's theme_id and type
+    const mapTheme = await getVillageMapTheme(group.theme_id, group.type);
 
     if (memberships.length === 0) {
       return { group, members: [], mapTheme };

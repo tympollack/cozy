@@ -66,7 +66,9 @@ export const getVillageMapThemes = unstable_cache(
 
       const map: Record<string, VillageMapTheme> = { ...VILLAGE_MAP_THEMES };
       (data as unknown as DbVillageMapThemeRow[]).forEach((row) => {
-        if (row.is_active !== false) {
+        if (row.is_active === false) {
+          delete map[row.id];
+        } else {
           map[row.id] = normalizeThemeRow(row);
         }
       });
@@ -85,12 +87,36 @@ export const getVillageMapThemes = unstable_cache(
 );
 
 /**
- * Fetches a single VillageMapTheme by theme ID or group type from database with fallback.
+ * Fetches a single VillageMapTheme by theme ID and/or group type from database with fallback.
+ * Prioritizes direct themeId match in active themes, then resolves by groupType before
+ * falling back to static presets.
  */
-export async function getVillageMapTheme(themeIdOrGroupType: string): Promise<VillageMapTheme> {
+export async function getVillageMapTheme(
+  themeId?: string | null,
+  groupType?: string | null
+): Promise<VillageMapTheme> {
   const allThemes = await getVillageMapThemes();
-  if (allThemes[themeIdOrGroupType]) {
-    return allThemes[themeIdOrGroupType];
+
+  // 1. Direct active theme row match by themeId
+  if (themeId && allThemes[themeId]) {
+    return allThemes[themeId];
   }
-  return getThemeForGroup(themeIdOrGroupType, allThemes);
+
+  // 2. Direct active theme row match by groupType
+  if (groupType && allThemes[groupType]) {
+    return allThemes[groupType];
+  }
+
+  // 3. Resolved mapped theme by groupType (e.g. 'space_station' | 'neighborhood' -> 'orbital_collective')
+  if (groupType) {
+    return getThemeForGroup(groupType, allThemes);
+  }
+
+  // 4. Resolved mapped theme by themeId (e.g. 'neon_neighborhood' -> 'orbital_collective')
+  if (themeId) {
+    return getThemeForGroup(themeId, allThemes);
+  }
+
+  // 5. Safe default active theme
+  return allThemes['mossy_hearth_village'] || Object.values(allThemes)[0] || VILLAGE_MAP_THEMES.mossy_hearth_village;
 }
