@@ -473,7 +473,7 @@ export function DollhouseMailbox({
       {/* Owner Mailbox Modal */}
       <AnimatePresence>
         {isOwner && isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/85 backdrop-blur-md">
             <motion.div
               ref={modalRef}
               initial={{ opacity: 0, scale: 0.93, y: 12 }}
@@ -481,6 +481,9 @@ export function DollhouseMailbox({
               exit={{ opacity: 0, scale: 0.93, y: 12 }}
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
               className="w-full max-w-sm rounded-3xl cozy-glass border border-[--cozy-amber]/30 shadow-2xl overflow-hidden"
+              style={{
+                boxShadow: '0 20px 60px rgba(84, 50, 32, 0.25)',
+              }}
             >
               {/* Modal Header */}
               <div
@@ -505,7 +508,7 @@ export function DollhouseMailbox({
                         Your Dollhouse Mailbox
                       </h3>
                       <p className="text-[10px] text-[--cozy-muted]">
-                        Calling cards & peer support notes
+                        Calling cards & Porch Support holding pen
                       </p>
                     </div>
                   </div>
@@ -519,13 +522,13 @@ export function DollhouseMailbox({
                 </div>
 
                 {/* Tabs */}
-                <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-amber-100/40">
+                <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-[--cozy-amber]/10 border border-[--cozy-amber]/20">
                   <button
                     onClick={() => setActiveTab('cards')}
                     className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
                       activeTab === 'cards'
-                        ? 'bg-white text-amber-950 shadow-sm'
-                        : 'text-amber-800 hover:text-amber-950'
+                        ? 'bg-white text-[--cozy-bark] shadow-sm'
+                        : 'text-[--cozy-muted] hover:text-[--cozy-bark]'
                     }`}
                   >
                     Calling Cards ({optimisticCards.length})
@@ -534,16 +537,16 @@ export function DollhouseMailbox({
                     onClick={() => setActiveTab('notes')}
                     className={`py-1.5 rounded-lg text-xs font-800 transition-all ${
                       activeTab === 'notes'
-                        ? 'bg-white text-amber-950 shadow-sm'
-                        : 'text-amber-800 hover:text-amber-950'
+                        ? 'bg-white text-[--cozy-bark] shadow-sm'
+                        : 'text-[--cozy-muted] hover:text-[--cozy-bark]'
                     }`}
                   >
-                    Private Notes ({privateNotes.length})
+                    Porch Support ({privateNotes.length})
                   </button>
                 </div>
               </div>
 
-              {/* Cards / Notes List */}
+              {/* Cards / Porch Support List */}
               <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
                 {activeTab === 'cards' ? (
                   <AnimatePresence mode="popLayout">
@@ -576,28 +579,31 @@ export function DollhouseMailbox({
                   <div className="space-y-2.5">
                     {privateNotes.length === 0 ? (
                       <div className="text-center py-8 space-y-2">
-                        <MessageSquareHeart size={28} className="mx-auto text-amber-700 opacity-40" />
-                        <p className="text-sm font-600 text-amber-900">No private notes yet</p>
-                        <p className="text-xs text-amber-700 opacity-75">
-                          Supportive notes from peers will appear here.
+                        <MessageSquareHeart size={28} className="mx-auto text-[--cozy-amber] opacity-40" />
+                        <p className="text-sm font-600 text-[--cozy-bark]">No porch items yet</p>
+                        <p className="text-xs text-[--cozy-muted] opacity-75">
+                          Supportive notes & comfort stickers left on your porch will appear here.
                         </p>
                       </div>
                     ) : (
                       privateNotes.map((note) => (
                         <div
                           key={note.id}
-                          className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1"
+                          className="p-3 rounded-2xl bg-white/80 border border-[--cozy-amber]/25 shadow-sm space-y-1"
                         >
-                          <div className="flex items-center justify-between text-xs font-800 text-amber-950">
-                            <span className="flex items-center gap-1">
-                              <Heart size={12} className="fill-amber-500 text-amber-500" />
-                              From {note.senderName}
+                          <div className="flex items-center justify-between text-xs font-800 text-[--cozy-bark]">
+                            <span className="flex items-center gap-1.5">
+                              <Heart size={12} className="fill-[--cozy-gold] text-[--cozy-gold]" />
+                              <span>From {note.senderName}</span>
+                              <span className="text-[9px] font-700 px-1.5 py-0.5 rounded-full bg-[--cozy-amber]/15 text-[--cozy-rust]">
+                                Porch Support
+                              </span>
                             </span>
-                            <span className="text-[10px] text-amber-700 font-500">
+                            <span className="text-[10px] text-[--cozy-muted] font-500">
                               {formatTimeAgo(new Date(note.sentAt))}
                             </span>
                           </div>
-                          <p className="text-xs text-amber-900 font-500 leading-relaxed pt-0.5">
+                          <p className="text-xs text-[--cozy-bark] font-500 leading-relaxed pt-0.5">
                             &quot;{note.message}&quot;
                           </p>
                         </div>
