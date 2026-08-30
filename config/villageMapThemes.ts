@@ -119,10 +119,20 @@ const GROUP_TYPE_TO_THEME: Record<string, string> = {
 };
 
 /**
- * Returns the VillageMapTheme for a given group type string.
- * Falls back to mossy_hearth_village for unrecognised types.
+ * Returns the VillageMapTheme for a given group type or theme ID string.
+ * Supports dynamic theme map overrides fetched from database, falling back
+ * to built-in static themes.
  */
-export function getThemeForGroup(groupType: string): VillageMapTheme {
-  const themeId = GROUP_TYPE_TO_THEME[groupType] ?? 'mossy_hearth_village';
-  return VILLAGE_MAP_THEMES[themeId] ?? MOSSY_HEARTH_VILLAGE;
+export function getThemeForGroup(
+  groupTypeOrThemeId: string,
+  themeMap: Record<string, VillageMapTheme> = VILLAGE_MAP_THEMES
+): VillageMapTheme {
+  if (themeMap[groupTypeOrThemeId]) {
+    return themeMap[groupTypeOrThemeId];
+  }
+  const mappedId = GROUP_TYPE_TO_THEME[groupTypeOrThemeId];
+  if (mappedId && themeMap[mappedId]) {
+    return themeMap[mappedId];
+  }
+  return themeMap['mossy_hearth_village'] ?? MOSSY_HEARTH_VILLAGE;
 }
