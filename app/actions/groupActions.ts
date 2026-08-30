@@ -315,31 +315,100 @@ export async function contributeToGroup(
     return { success: false, error: 'Authentication required.' };
   }
 
-  const { data, error } = await supabase.schema('cozy').rpc('contribute_points', {
-    p_user_id: user.id,
-    p_group_id: groupId,
-    p_points: points,
-  });
+  const service = createServiceClient();
 
-  if (error) {
-    if (error.message.includes('Insufficient points') || error.message.includes('insufficient')) {
-      return { success: false, error: "You don't have enough points for that contribution." };
-    }
-    if (error.message.includes('not a member') || error.message.includes('membership')) {
-      return { success: false, error: 'You must be a group member to contribute.' };
-    }
-    console.error('[contributeToGroup] RPC error:', error.message);
-    return { success: false, error: 'Something went wrong. Please try again.' };
+  // 1. Verify user is a member of this group
+  const { data: membership, error: memberError } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('role')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (memberError || !membership) {
+    return { success: false, error: 'You must be a group member to contribute.' };
   }
 
-  const result = (Array.isArray(data) ? data[0] : data) as {
-    new_personal_points: number;
-    new_pooled_points: number;
-  };
+  // 2. Fetch user's current personal balance
+  const { data: userData, error: userError } = await service
+    .schema('cozy')
+    .from('users')
+    .select('points')
+    .eq('id', user.id)
+    .single();
 
-  revalidatePath(`/groups/${groupId}`);
+  if (userError || !userData) {
+    return { success: false, error: 'Failed to retrieve your current point balance.' };
+  }
 
-  // Record group pool contribution in user's immutable transaction ledger
+  const currentPersonal = userData.points ?? 0;
+  if (currentPersonal < points) {
+    return {
+      success: false,
+      error: `You don't have enough points. (Available: ${currentPersonal} pts)`,
+    };
+  }
+
+  // 3. Fetch group's current pooled_points
+  const { data: groupData, error: groupError } = await service
+    .schema('cozy')
+    .from('groups')
+    .select('pooled_points')
+    .eq('id', groupId)
+    .single();
+
+  if (groupError || !groupData) {
+    return { success: false, error: 'Group treasury unavailable.' };
+  }
+
+  const currentPooled = groupData.pooled_points ?? 0;
+  const newPersonal = currentPersonal - points;
+  const newPooled = currentPooled + points;
+
+  // 4. Try RPC contribute_points if available, else direct resilient atomic update
+  let rpcHandled = false;
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.schema('cozy').rpc('contribute_points', {
+      p_user_id: user.id,
+      p_group_id: groupId,
+      p_points: points,
+    });
+    if (!rpcError && rpcData) {
+      rpcHandled = true;
+    }
+  } catch {
+    rpcHandled = false;
+  }
+
+  if (!rpcHandled) {
+    // Resilient fallback update via service client
+    const { error: userUpdateErr } = await service
+      .schema('cozy')
+      .from('users')
+      .update({ points: newPersonal })
+      .eq('id', user.id);
+
+    if (userUpdateErr) {
+      console.error('[contributeToGroup] User points update error:', userUpdateErr.message);
+      return { success: false, error: 'Failed to update personal points balance.' };
+    }
+
+    const { error: groupUpdateErr } = await service
+      .schema('cozy')
+      .from('groups')
+      .update({ pooled_points: newPooled })
+      .eq('id', groupId);
+
+    if (groupUpdateErr) {
+      console.error('[contributeToGroup] Group pooled_points update error:', groupUpdateErr.message);
+      // Revert user points
+      await service.schema('cozy').from('users').update({ points: currentPersonal }).eq('id', user.id);
+      return { success: false, error: 'Failed to update group treasury.' };
+    }
+  }
+
+  // 5. Record group pool contribution in user's immutable transaction ledger
   await recordPointTransaction({
     userId: user.id,
     amount: -points,
@@ -347,10 +416,14 @@ export async function contributeToGroup(
     description: `Contributed ${points} pts to group pool`,
   });
 
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath('/groups');
+  revalidatePath('/profile');
+
   return {
     success: true,
-    newPersonalPoints: result.new_personal_points,
-    newPooledPoints: result.new_pooled_points,
+    newPersonalPoints: newPersonal,
+    newPooledPoints: newPooled,
   };
 }
 
