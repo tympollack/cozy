@@ -22,6 +22,49 @@ interface DbVillageMapThemeRow {
   updated_at?: string;
 }
 
+const TRUSTED_IMAGE_DOMAINS = [
+  'sunshade.icu',
+  'supabase.co',
+  'vercel.app',
+  'unsplash.com',
+  'makerverse.com',
+];
+
+/**
+ * Validates theme background image URLs against trusted relative paths and CDN origins.
+ */
+function sanitizeThemeImageUrl(url: unknown, fallbackUrl: string): string {
+  if (typeof url !== 'string' || !url.trim()) return fallbackUrl;
+  const trimmed = url.trim();
+
+  // Safe relative paths (e.g. /images/neighborhood-village.jpg)
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    if (trimmed.includes('..') || trimmed.includes('\\')) {
+      return fallbackUrl;
+    }
+    return trimmed;
+  }
+
+  // Trusted remote HTTPS origins
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:') {
+      return fallbackUrl;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    const isTrusted = TRUSTED_IMAGE_DOMAINS.some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+    );
+    if (isTrusted) {
+      return trimmed;
+    }
+  } catch {
+    // Malformed URL
+  }
+
+  return fallbackUrl;
+}
+
 /**
  * Normalizes a database row from cozy.village_map_themes into a VillageMapTheme.
  */
@@ -34,10 +77,12 @@ function normalizeThemeRow(row: DbVillageMapThemeRow): VillageMapTheme {
     y: Math.min(100, Math.max(0, Number(a.y) || 0)),
   }));
 
+  const safeBgImage = sanitizeThemeImageUrl(row.background_image, fallback.backgroundImage);
+
   return {
     id: row.id,
     name: row.name || fallback.name,
-    backgroundImage: row.background_image || fallback.backgroundImage,
+    backgroundImage: safeBgImage,
     palette: (row.palette === 'futuristic' ? 'futuristic' : 'cozy') as 'cozy' | 'futuristic',
     vignetteGradient: row.vignette_gradient || fallback.vignetteGradient,
     anchors: cleanAnchors.length > 0 ? cleanAnchors : fallback.anchors,

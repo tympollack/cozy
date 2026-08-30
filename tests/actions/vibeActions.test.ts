@@ -20,6 +20,12 @@ vi.mock('@/lib/supabase', () => ({
       from: (tableName: string) => ({
         select: () => ({
           eq: (col1: string, val1: unknown) => ({
+            maybeSingle: () => {
+              if (tableName === 'users') {
+                return Promise.resolve({ data: { vibe_status: 'neutral' }, error: null });
+              }
+              return Promise.resolve({ data: null, error: null });
+            },
             eq: (col2: string, val2: unknown) => ({
               maybeSingle: () => {
                 if (tableName === 'group_members' && val2 === 'group-123') {

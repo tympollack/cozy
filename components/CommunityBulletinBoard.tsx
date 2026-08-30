@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Pin, Plus, Sparkles, Trophy } from 'lucide-react';
 import {
@@ -43,9 +43,17 @@ export function CommunityBulletinBoard({
   const [newDesc, setNewDesc] = useState('');
   const [newMult, setNewMult] = useState(1.5);
 
-  const { addPoints, addGroupPoints, groupPoints, setGroupPoints } = useCozyStore();
+  const [localGroupPoints, setLocalGroupPoints] = useState<number>(groupPooledPoints ?? 0);
 
-  const currentGroupPts = groupPooledPoints !== undefined ? groupPooledPoints : (groupPoints ?? 0);
+  useEffect(() => {
+    if (groupPooledPoints !== undefined) {
+      setLocalGroupPoints(groupPooledPoints);
+    }
+  }, [groupPooledPoints]);
+
+  const { addPoints, addGroupPoints, setGroupPoints } = useCozyStore();
+
+  const currentGroupPts = localGroupPoints;
   const isAllThemesUnlocked = currentGroupPts >= 10000;
   const nextTheme = THEME_UNLOCK_THRESHOLDS.find((t) => currentGroupPts < t.points);
   const prevPoints = THEME_UNLOCK_THRESHOLDS.filter((t) => currentGroupPts >= t.points).slice(-1)[0]?.points ?? 0;
@@ -62,6 +70,7 @@ export function CommunityBulletinBoard({
 
     // Optimistic UI update
     setCompletedIds((prev) => new Set(prev).add(chId));
+    setLocalGroupPoints((prev) => prev + bonusGroupPts);
     addPoints(15);
     addGroupPoints(bonusGroupPts);
 
@@ -69,7 +78,10 @@ export function CommunityBulletinBoard({
       const res = await completeGroupChallenge(groupId, chId);
       if (res.success) {
         if (res.newPersonalPoints !== undefined) setPointsInStore(res.newPersonalPoints);
-        if (res.newGroupPoints !== undefined) setGroupPoints(res.newGroupPoints);
+        if (res.newGroupPoints !== undefined) {
+          setLocalGroupPoints(res.newGroupPoints);
+          setGroupPoints(res.newGroupPoints);
+        }
       } else {
         // Rollback optimistic state on rejected action
         setCompletedIds((prev) => {
@@ -77,6 +89,7 @@ export function CommunityBulletinBoard({
           next.delete(chId);
           return next;
         });
+        setLocalGroupPoints((prev) => Math.max(0, prev - bonusGroupPts));
         addPoints(-15);
         addGroupPoints(-bonusGroupPts);
       }
@@ -87,6 +100,7 @@ export function CommunityBulletinBoard({
         next.delete(chId);
         return next;
       });
+      setLocalGroupPoints((prev) => Math.max(0, prev - bonusGroupPts));
       addPoints(-15);
       addGroupPoints(-bonusGroupPts);
     }

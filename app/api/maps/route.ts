@@ -36,6 +36,18 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+
+      const isAdmin =
+        user.app_metadata?.role === 'admin' ||
+        user.user_metadata?.role === 'admin' ||
+        user.role === 'service_role';
+
+      if (!isAdmin) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: Administrative privileges required to purge global caches.' },
+          { status: 403 }
+        );
+      }
     }
 
     // 2. Perform tag revalidation (Next.js 16 revalidateTag contract requires cache life profile)

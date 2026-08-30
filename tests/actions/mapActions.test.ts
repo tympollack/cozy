@@ -151,4 +151,44 @@ describe('Map Actions (mapActions.ts) & Dynamic Plot Coordinates', () => {
     expect(theme.anchors[0]).toEqual({ x: 0, y: 100 });
     expect(theme.anchors[1]).toEqual({ x: 45.5, y: 60.2 });
   });
+
+  it('sanitizes untrusted remote background image URLs to prevent arbitrary origin loading', async () => {
+    const mockDbThemes = [
+      {
+        id: 'untrusted_theme',
+        name: 'Untrusted Theme',
+        background_image: 'https://evil-attacker.com/malicious.png',
+        palette: 'cozy',
+        vignette_gradient: null,
+        anchors: [{ x: 50, y: 50 }],
+        is_active: true,
+        display_order: 0,
+      },
+      {
+        id: 'trusted_theme',
+        name: 'Trusted Theme',
+        background_image: 'https://images.unsplash.com/photo-custom?auto=format',
+        palette: 'cozy',
+        vignette_gradient: null,
+        anchors: [{ x: 50, y: 50 }],
+        is_active: true,
+        display_order: 1,
+      },
+    ];
+
+    mockServiceSelect.mockReturnValue({
+      order: vi.fn().mockResolvedValue({
+        data: mockDbThemes,
+        error: null,
+      }),
+    });
+
+    const untrustedTheme = await getVillageMapTheme('untrusted_theme');
+    // Untrusted domain is stripped and falls back to default
+    expect(untrustedTheme.backgroundImage).toBe('/images/neighborhood-village.jpg');
+
+    const trustedTheme = await getVillageMapTheme('trusted_theme');
+    // Trusted domain is preserved
+    expect(trustedTheme.backgroundImage).toBe('https://images.unsplash.com/photo-custom?auto=format');
+  });
 });

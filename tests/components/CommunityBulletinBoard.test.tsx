@@ -133,4 +133,29 @@ describe('CommunityBulletinBoard Component', () => {
     expect(screen.getAllByRole('button', { name: /Complete Challenge/i })[0]).toBeInTheDocument();
     expect(useCozyStore.getState().points).toBe(50);
   });
+
+  it('reactively updates theme unlock progress display when completing challenge with initial groupPooledPoints prop', async () => {
+    const user = userEvent.setup();
+    mockCompleteGroupChallenge.mockResolvedValue({
+      success: true,
+      newPersonalPoints: 65,
+      newGroupPoints: 475,
+    });
+
+    render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={400}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('400 / 500 pts')).toBeInTheDocument();
+
+    const completeButtons = screen.getAllByRole('button', { name: /Complete Challenge/i });
+    await user.click(completeButtons[0]);
+
+    // Authoritative newGroupPoints updates the display from 400 -> 475
+    expect(await screen.findByText('475 / 500 pts')).toBeInTheDocument();
+  });
 });

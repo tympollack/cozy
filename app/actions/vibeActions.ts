@@ -69,7 +69,17 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  // 1. Call the RPC to enforce constraints, update status & get group peers
+  // 1. Check current status for deduplication before update
+  const service = createServiceClient();
+  const { data: userCurrent } = await service
+    .schema('cozy')
+    .from('users')
+    .select('vibe_status')
+    .eq('id', user.id)
+    .maybeSingle();
+  const wasAlreadyRaincloud = userCurrent?.vibe_status === 'raincloud';
+
+  // 2. Call the RPC to enforce constraints, update status & get group peers
   let groupPeers: GroupPeer[] = [];
   try {
     const { data: peers, error: rpcError } = await supabase.schema('cozy').rpc('update_vibe_status', {
@@ -79,7 +89,6 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
 
     if (rpcError) {
       console.warn('[updateVibeStatus] RPC update error, falling back to direct table update:', rpcError.message);
-      const service = createServiceClient();
       const { error: directUpdateError } = await service
         .schema('cozy')
         .from('users')
@@ -101,8 +110,8 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
     return { success: false, groupPeers: [], error: 'Failed to update vibe status.' };
   }
 
-  // 2. If status is raincloud, execute cozy.process_raincloud_waterfall to schedule staggered peer pings
-  if (status === 'raincloud') {
+  // 3. If transitioning to raincloud (and not already raincloud), schedule staggered peer notifications
+  if (status === 'raincloud' && !wasAlreadyRaincloud) {
     try {
       const service = createServiceClient();
       let activeGroupId: string | undefined = undefined;

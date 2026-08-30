@@ -375,8 +375,34 @@ export async function contributeToGroup(
     new_pooled_points?: number;
   };
 
-  const newPersonalPoints = typeof row?.new_personal_points === 'number' ? row.new_personal_points : undefined;
-  const newPooledPoints = typeof row?.new_pooled_points === 'number' ? row.new_pooled_points : undefined;
+  let newPersonalPoints = typeof row?.new_personal_points === 'number' ? row.new_personal_points : undefined;
+  let newPooledPoints = typeof row?.new_pooled_points === 'number' ? row.new_pooled_points : undefined;
+
+  // Reconcile authoritative balances from DB if RPC returned an unexpected payload shape
+  if (typeof newPersonalPoints !== 'number' || typeof newPooledPoints !== 'number') {
+    try {
+      const service = createServiceClient();
+      const [uRes, gRes] = await Promise.all([
+        service.schema('cozy').from('users').select('points').eq('id', user.id).maybeSingle(),
+        service.schema('cozy').from('groups').select('pooled_points').eq('id', groupId).maybeSingle(),
+      ]);
+
+      if (typeof uRes.data?.points === 'number' && typeof gRes.data?.pooled_points === 'number') {
+        newPersonalPoints = uRes.data.points;
+        newPooledPoints = gRes.data.pooled_points;
+      }
+    } catch {
+      // Reconcile failed
+    }
+  }
+
+  // If numeric balances could not be verified, do not record phantom ledger entries or report false success
+  if (typeof newPersonalPoints !== 'number' || typeof newPooledPoints !== 'number') {
+    return {
+      success: false,
+      error: 'Failed to verify updated point balances. Please refresh.',
+    };
+  }
 
   // 4. Record group pool contribution in user's immutable transaction ledger
   await recordPointTransaction({

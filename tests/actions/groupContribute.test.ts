@@ -163,4 +163,18 @@ describe('contributeToGroup Atomic Server Action & Concurrency Safety', () => {
     // Balance remained 40 without being overdrawn
     expect(currentPersonal).toBe(40);
   });
+
+  it('rejects and avoids ledger recording when RPC returns empty/invalid non-numeric balances', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user_alice' } }, error: null });
+    mockSchemaRpc.mockResolvedValue({
+      data: [{}], // Empty row without new_personal_points or new_pooled_points
+      error: null,
+    });
+
+    const res = await contributeToGroup('grp_1', 10);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('Failed to verify updated point balances');
+    expect(mockRecordPointTransaction).not.toHaveBeenCalled();
+  });
 });
