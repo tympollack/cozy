@@ -149,6 +149,14 @@ export async function uploadPost(formData: FormData): Promise<UploadPostResult> 
       description: lightFile && darkFile ? 'Shared dual Light & Dark spaces (+50 pts)' : 'Shared a cozy space (+20 pts)',
     });
 
+    // Trigger daily space reset habit engine reward if applicable
+    try {
+      const { submitDailySpaceReset } = await import('@/app/actions/dailyActions');
+      await submitDailySpaceReset(extractedPostId as string);
+    } catch (resetErr) {
+      console.warn('[uploadPost] Daily space reset trigger note:', resetErr);
+    }
+
     return { success: true, postId: extractedPostId as string };
   } catch (err) {
     console.error('[uploadPost] Upload error:', err);

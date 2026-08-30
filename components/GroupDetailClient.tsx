@@ -502,6 +502,7 @@ export function GroupDetailClient({
         {/* Community Bulletin Board for Weekly Challenges */}
         <CommunityBulletinBoard
           groupId={safeGroup.id}
+          groupPooledPoints={safeGroup.pooled_points ?? 0}
           isFuturistic={isFuturistic}
           isAdmin={currentRole === 'admin'}
         />

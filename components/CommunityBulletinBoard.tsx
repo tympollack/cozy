@@ -15,6 +15,7 @@ import { useCozyStore } from '@/store/useCozyStore';
 
 interface CommunityBulletinBoardProps {
   groupId: string;
+  groupPooledPoints?: number;
   isFuturistic?: boolean;
   isAdmin: boolean;
 }
@@ -29,6 +30,7 @@ const THEME_UNLOCK_THRESHOLDS = [
 
 export function CommunityBulletinBoard({
   groupId,
+  groupPooledPoints,
   isFuturistic = false,
   isAdmin,
 }: CommunityBulletinBoardProps) {
@@ -43,28 +45,50 @@ export function CommunityBulletinBoard({
 
   const { addPoints, addGroupPoints, groupPoints, setGroupPoints } = useCozyStore();
 
-  const currentGroupPts = groupPoints ?? 150;
-  const nextTheme = THEME_UNLOCK_THRESHOLDS.find((t) => currentGroupPts < t.points) || THEME_UNLOCK_THRESHOLDS[THEME_UNLOCK_THRESHOLDS.length - 1];
+  const currentGroupPts = groupPooledPoints !== undefined ? groupPooledPoints : (groupPoints ?? 0);
+  const isAllThemesUnlocked = currentGroupPts >= 10000;
+  const nextTheme = THEME_UNLOCK_THRESHOLDS.find((t) => currentGroupPts < t.points);
   const prevPoints = THEME_UNLOCK_THRESHOLDS.filter((t) => currentGroupPts >= t.points).slice(-1)[0]?.points ?? 0;
-  const themeProgress = Math.min(100, Math.max(0, Math.round(((currentGroupPts - prevPoints) / (nextTheme.points - prevPoints)) * 100)));
+  const themeProgress = isAllThemesUnlocked
+    ? 100
+    : nextTheme && nextTheme.points > prevPoints
+    ? Math.min(100, Math.max(0, Math.round(((currentGroupPts - prevPoints) / (nextTheme.points - prevPoints)) * 100)))
+    : 100;
 
   async function handleComplete(chId: string, mult: number) {
     if (completedIds.has(chId)) return;
 
+    const bonusGroupPts = Math.round(25 * mult);
+
     // Optimistic UI update
     setCompletedIds((prev) => new Set(prev).add(chId));
     addPoints(15);
-    const bonusGroupPts = Math.round(25 * mult);
     addGroupPoints(bonusGroupPts);
 
     try {
       const res = await completeGroupChallenge(groupId, chId);
       if (res.success) {
-        if (res.newPersonalPoints) setPointsInStore(res.newPersonalPoints);
-        if (res.newGroupPoints) setGroupPoints(res.newGroupPoints);
+        if (res.newPersonalPoints !== undefined) setPointsInStore(res.newPersonalPoints);
+        if (res.newGroupPoints !== undefined) setGroupPoints(res.newGroupPoints);
+      } else {
+        // Rollback optimistic state on rejected action
+        setCompletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(chId);
+          return next;
+        });
+        addPoints(-15);
+        addGroupPoints(-bonusGroupPts);
       }
     } catch {
-      // Retain optimistic state
+      // Rollback optimistic state on error
+      setCompletedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(chId);
+        return next;
+      });
+      addPoints(-15);
+      addGroupPoints(-bonusGroupPts);
     }
   }
 
@@ -166,9 +190,17 @@ export function CommunityBulletinBoard({
         <div className="flex items-center justify-between text-xs font-700">
           <span className="flex items-center gap-1.5" style={{ color: isFuturistic ? '#80c8e0' : 'var(--cozy-bark)' }}>
             <span>🎨 Theme Unlock Progress:</span>
-            <span className="font-800 text-[--cozy-amber]">{nextTheme.emoji} {nextTheme.name}</span>
+            {isAllThemesUnlocked ? (
+              <span className="font-800 text-[--cozy-amber]">✨ All Themes Unlocked!</span>
+            ) : (
+              <span className="font-800 text-[--cozy-amber]">{nextTheme?.emoji} {nextTheme?.name}</span>
+            )}
           </span>
-          <span className="font-800 text-[--cozy-gold]">{currentGroupPts} / {nextTheme.points} pts</span>
+          <span className="font-800 text-[--cozy-gold]">
+            {isAllThemesUnlocked
+              ? `${currentGroupPts.toLocaleString()} pts (Max Tier)`
+              : `${currentGroupPts.toLocaleString()} / ${nextTheme?.points.toLocaleString()} pts`}
+          </span>
         </div>
         <div className="w-full h-2 rounded-full bg-black/10 mt-2 overflow-hidden">
           <motion.div

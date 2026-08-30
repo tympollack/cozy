@@ -33,6 +33,17 @@ type Step = 'drag' | 'form';
 //               then calls createItemPin and reports success to the parent.
 // ---------------------------------------------------------------------------
 
+function isMakerverseUrl(urlStr?: string | null): boolean {
+  if (!urlStr) return false;
+  try {
+    const formatted = urlStr.startsWith('http://') || urlStr.startsWith('https://') ? urlStr : `https://${urlStr}`;
+    const parsed = new URL(formatted);
+    return parsed.hostname === 'makerverse.com' || parsed.hostname.endsWith('.makerverse.com');
+  } catch {
+    return false;
+  }
+}
+
 export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
   // ── Refs ────────────────────────────────────────────────────────────────
   // containerRef: the full overlay div — used as the drag boundary AND for
@@ -373,7 +384,7 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!url || !url.includes('makerverse.com')) {
+                        if (!isMakerverseUrl(url)) {
                           setUrl('https://makerverse.com/item/');
                         }
                         const input = document.getElementById('pin-url') as HTMLInputElement | null;
@@ -382,18 +393,18 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
                         }
                       }}
                       className={`w-full py-2 px-3 rounded-xl border text-xs font-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                        url.includes('makerverse.com')
+                        isMakerverseUrl(url)
                           ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-400 dark:border-amber-500/50 shadow-xs'
                           : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 border-stone-200 dark:border-stone-700/60 hover:bg-amber-50 dark:hover:bg-[#342821] hover:text-amber-900'
                       }`}
                     >
                       <Sparkles size={13} className="text-amber-600 dark:text-amber-400" />
-                      <span>{url.includes('makerverse.com') ? '✓ Makerverse Shop Item Linked' : 'Link Makerverse Shop Item'}</span>
+                      <span>{isMakerverseUrl(url) ? '✓ Makerverse Shop Item Linked' : 'Link Makerverse Shop Item'}</span>
                     </button>
                   </div>
 
                   <p className="mt-1.5 text-[10px] text-[--cozy-muted] px-1">
-                    {url.includes('makerverse.com')
+                    {isMakerverseUrl(url)
                       ? '✨ Item will be linked to your Makerverse catalog.'
                       : 'https:// will be added automatically if omitted.'}
                   </p>

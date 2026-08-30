@@ -24,6 +24,17 @@ interface ShoppableImageProps {
 // PinDot — renders a single pulsing dot + its popover
 // ---------------------------------------------------------------------------
 
+function isMakerverseUrl(urlStr?: string | null): boolean {
+  if (!urlStr) return false;
+  try {
+    const formatted = urlStr.startsWith('http://') || urlStr.startsWith('https://') ? urlStr : `https://${urlStr}`;
+    const parsed = new URL(formatted);
+    return parsed.hostname === 'makerverse.com' || parsed.hostname.endsWith('.makerverse.com');
+  } catch {
+    return false;
+  }
+}
+
 interface PinDotProps {
   pin: ItemPin;
   isOwner: boolean;
@@ -34,6 +45,8 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
   const [isOpen, setIsOpen]           = useState(false);
   const [isPending, startTransition]  = useTransition();
   const [deleteError, setDeleteError] = useState(false);
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const isMakerverse = isMakerverseUrl(pin.url);
 
   const toggle = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -111,6 +124,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
         {isOpen && (
           <motion.div
             key="popover"
+            ref={cardRef}
             role="dialog"
             aria-label={`Item details: ${pin.title}`}
             className="absolute left-1/2 bottom-full mb-4
@@ -131,7 +145,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
             </p>
 
             {/* Makerverse Item Badge */}
-            {pin.url && pin.url.includes('makerverse.com') && (
+            {isMakerverse && (
               <div className="flex justify-center mb-2.5">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-800 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 shadow-2xs">
                   <Sparkles size={9} className="text-amber-600 dark:text-amber-400" />
@@ -153,7 +167,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
                   hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
               >
                 <ShoppingBag size={12} className="text-stone-950" />
-                <span>{pin.url && pin.url.includes('makerverse.com') ? 'Makerverse' : 'Shop'}</span>
+                <span>{isMakerverse ? 'Makerverse' : 'Shop'}</span>
                 <ExternalLink size={10} className="text-stone-950/80" />
               </a>
 

@@ -14,6 +14,7 @@ let mockPostsTable: Array<Record<string, unknown>> = [];
 let mockUsersTable: Record<string, { points: number }> = {};
 let mockGroupsTable: Record<string, { pooled_points: number }> = {};
 let mockGroupMembersTable: Array<{ user_id: string; group_id: string }> = [];
+let mockTransactionsTable: Array<{ id: string; user_id: string; transaction_type: string }> = [];
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
@@ -35,22 +36,52 @@ vi.mock('@/lib/supabase', () => ({
                 error: null,
               }),
             }),
-            eq: (col2: string, val2: unknown) => ({
-              maybeSingle: () => {
-                const found = mockPostsTable.find((p) => p[col1] === val1 && p[col2] === val2);
-                return Promise.resolve({ data: found || null, error: null });
-              },
-            }),
+            eq: (col2: string, val2: unknown) => {
+              if (tableName === 'transactions') {
+                return {
+                  gte: () => ({
+                    limit: () => Promise.resolve({
+                      data: mockTransactionsTable.filter((t) => t.user_id === val1 && t.transaction_type === val2),
+                      error: null,
+                    }),
+                  }),
+                };
+              }
+              return {
+                maybeSingle: () => {
+                  const found = mockPostsTable.find((p) => p[col1] === val1 && p[col2] === val2);
+                  return Promise.resolve({ data: found || null, error: null });
+                },
+              };
+            },
             single: () => {
               if (tableName === 'users') {
                 const user = mockUsersTable[val1 as string];
-                return Promise.resolve({ data: user ? { points: user.points } : null, error: null });
+                return Promise.resolve({ data: user ? { points: user.points } : null, error: user ? null : { message: 'User not found' } });
               }
               if (tableName === 'groups') {
                 const group = mockGroupsTable[val1 as string];
                 return Promise.resolve({ data: group ? { pooled_points: group.pooled_points } : null, error: null });
               }
               return Promise.resolve({ data: null, error: null });
+            },
+            limit: () => {
+              if (tableName === 'group_members') {
+                return Promise.resolve({
+                  data: mockGroupMembersTable.filter((m) => m.user_id === val1),
+                  error: null,
+                });
+              }
+              return Promise.resolve({ data: [], error: null });
+            },
+            then: (resolve: (val: unknown) => void) => {
+              if (tableName === 'group_members') {
+                return Promise.resolve({
+                  data: mockGroupMembersTable.filter((m) => m.user_id === val1),
+                  error: null,
+                }).then(resolve);
+              }
+              return Promise.resolve({ data: [], error: null }).then(resolve);
             },
           }),
         }),
@@ -85,6 +116,7 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
     mockUsersTable = { 'user-123': { points: 100 } };
     mockGroupsTable = { 'group-abc': { pooled_points: 200 } };
     mockGroupMembersTable = [{ user_id: 'user-123', group_id: 'group-abc' }];
+    mockTransactionsTable = [];
     mockRecordTransaction.mockResolvedValue(true);
     mockRpc.mockResolvedValue({ data: { personal_points: 125, groups_updated: 1 }, error: null });
   });
@@ -169,6 +201,43 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
       expect(result.error).toMatch(/Post not found or unauthorized/i);
     });
 
+    it('rejects space posts created on previous days', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+      const yesterday = new Date(Date.now() - 86400000 * 2).toISOString();
+      mockPostsTable = [
+        {
+          id: 'post-old',
+          user_id: 'user-123',
+          light_img_url: 'https://r2.cozy.dev/light-old.webp',
+          dark_img_url: null,
+          created_at: yesterday,
+        },
+      ];
+
+      const result = await submitDailySpaceReset('post-old');
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Daily space reset requires a space uploaded today/i);
+    });
+
+    it('rejects duplicate redemption when daily reset already claimed today', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+      mockPostsTable = [
+        {
+          id: 'post-today',
+          user_id: 'user-123',
+          light_img_url: 'https://r2.cozy.dev/light.webp',
+          dark_img_url: null,
+          created_at: new Date().toISOString(),
+        },
+      ];
+      // Seed existing transaction
+      mockTransactionsTable = [{ id: 'tx-1', user_id: 'user-123', transaction_type: 'daily_space_reset' }];
+
+      const result = await submitDailySpaceReset('post-today');
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Daily space reset already claimed for today/i);
+    });
+
     it('awards +25 points for single mode upload and updates ledger', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
       mockPostsTable = [
@@ -177,6 +246,7 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
           user_id: 'user-123',
           light_img_url: 'https://r2.cozy.dev/light.webp',
           dark_img_url: null,
+          created_at: new Date().toISOString(),
         },
       ];
 
@@ -202,6 +272,7 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
           user_id: 'user-123',
           light_img_url: 'https://r2.cozy.dev/light.webp',
           dark_img_url: 'https://r2.cozy.dev/dark.webp',
+          created_at: new Date().toISOString(),
         },
       ];
 

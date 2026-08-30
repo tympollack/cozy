@@ -69,4 +69,30 @@ describe('Shoppable Pins & Makerverse Linking', () => {
     const shopLink = screen.getByRole('link', { name: /Makerverse/i });
     expect(shopLink).toHaveAttribute('href', 'https://makerverse.com/item/ceramic-mug-001');
   });
+
+  it('does not display Makerverse badge for spoofed external domains', async () => {
+    const user = userEvent.setup();
+    const pins: ItemPin[] = [
+      {
+        id: 'pin_spoofed',
+        user_id: 'user_attacker',
+        title: 'Suspicious External Item',
+        url: 'https://attacker-makerverse.com/phish',
+        x_percent: 30,
+        y_percent: 30,
+      },
+    ];
+
+    render(
+      <ShoppableImage itemPins={pins} currentUserId="user_me">
+        <div>Photo</div>
+      </ShoppableImage>
+    );
+
+    const pinButton = screen.getByRole('button', { name: /details for Suspicious External Item/i });
+    await user.click(pinButton);
+
+    expect(screen.queryByText('Makerverse Shop')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Shop/i })).toBeInTheDocument();
+  });
 });

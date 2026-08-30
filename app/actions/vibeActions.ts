@@ -105,23 +105,44 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
   if (status === 'raincloud') {
     try {
       const service = createServiceClient();
-      let activeGroupId = groupId;
-      if (!activeGroupId) {
-        const { data: membership } = await service
+      let activeGroupId: string | undefined = undefined;
+
+      if (groupId) {
+        // Security check: verify authenticated user is a legitimate member of the requested group
+        const { data: verifiedMembership } = await service
           .schema('cozy')
           .from('group_members')
           .select('group_id')
           .eq('user_id', user.id)
+          .eq('group_id', groupId)
+          .maybeSingle();
+
+        activeGroupId = verifiedMembership?.group_id;
+      }
+
+      // Fallback: select the user's primary/most recent verified group membership
+      if (!activeGroupId) {
+        const { data: primaryMembership } = await service
+          .schema('cozy')
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .order('joined_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        activeGroupId = membership?.group_id;
+
+        activeGroupId = primaryMembership?.group_id;
       }
 
       if (activeGroupId) {
-        await service.schema('cozy').rpc('process_raincloud_waterfall', {
+        const { error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
           p_target_user_id: user.id,
           p_group_id: activeGroupId,
         });
+
+        if (waterfallError) {
+          console.error('[updateVibeStatus] Waterfall RPC error:', waterfallError.message);
+        }
       }
     } catch (waterfallErr) {
       console.warn('[updateVibeStatus] Waterfall execution note:', waterfallErr);

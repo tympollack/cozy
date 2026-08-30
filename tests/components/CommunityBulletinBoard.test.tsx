@@ -96,4 +96,41 @@ describe('CommunityBulletinBoard Component', () => {
 
     expect(await screen.findByText('Plant Herb Garden 🌿')).toBeInTheDocument();
   });
+
+  it('renders max themes unlocked without NaN when group points reach or exceed 10000', () => {
+    render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={10500}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText(/All Themes Unlocked!/i)).toBeInTheDocument();
+    expect(screen.getByText(/10,500 pts \(Max Tier\)/i)).toBeInTheDocument();
+  });
+
+  it('rolls back optimistic points and completed state when challenge completion fails', async () => {
+    const user = userEvent.setup();
+    mockCompleteGroupChallenge.mockResolvedValue({
+      success: false,
+      error: 'Challenge already completed by user.',
+    });
+
+    render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={350}
+        isAdmin={false}
+      />
+    );
+
+    const completeButtons = screen.getAllByRole('button', { name: /Complete Challenge/i });
+    await user.click(completeButtons[0]);
+
+    expect(mockCompleteGroupChallenge).toHaveBeenCalled();
+    // After rejection, rollback ensures button still available and points reverted
+    expect(screen.getAllByRole('button', { name: /Complete Challenge/i })[0]).toBeInTheDocument();
+    expect(useCozyStore.getState().points).toBe(50);
+  });
 });

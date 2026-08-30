@@ -157,7 +157,7 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
     const { data: post, error: postErr } = await service
       .schema('cozy')
       .from('posts')
-      .select('id, user_id, light_img_url, dark_img_url')
+      .select('id, user_id, light_img_url, dark_img_url, created_at')
       .eq('id', postId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -166,10 +166,39 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
       return { success: false, error: 'Post not found or unauthorized.' };
     }
 
+    // 2. Validate post was created today (UTC day boundary)
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const startOfDayIso = startOfDay.toISOString();
+
+    if (post.created_at && new Date(post.created_at).getTime() < startOfDay.getTime()) {
+      return {
+        success: false,
+        error: 'Daily space reset requires a space uploaded today.',
+      };
+    }
+
+    // 3. Idempotency guard: verify user hasn't already claimed daily reset today
+    const { data: existingTx, error: txCheckErr } = await service
+      .schema('cozy')
+      .from('transactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('transaction_type', 'daily_space_reset')
+      .gte('created_at', startOfDayIso)
+      .limit(1);
+
+    if (!txCheckErr && existingTx && existingTx.length > 0) {
+      return {
+        success: false,
+        error: 'Daily space reset already claimed for today.',
+      };
+    }
+
     const isDualMode = Boolean(post.light_img_url && post.dark_img_url);
     const pointsAwarded = isDualMode ? 50 : 25;
 
-    // 2. Award personal points in cozy.users
+    // 4. Award personal points in cozy.users atomically
     const { data: userData, error: userFetchErr } = await service
       .schema('cozy')
       .from('users')
@@ -177,34 +206,39 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
       .eq('id', user.id)
       .single();
 
-    if (userFetchErr && !userData) {
-      console.warn('[submitDailySpaceReset] Could not fetch current user points:', userFetchErr?.message);
+    if (userFetchErr || !userData) {
+      console.error('[submitDailySpaceReset] Failed to fetch current user points:', userFetchErr?.message);
+      return { success: false, error: 'Could not retrieve user point balance.' };
     }
 
-    const currentPoints = userData?.points ?? 0;
+    const currentPoints = userData.points ?? 0;
     const newPersonalPoints = currentPoints + pointsAwarded;
 
-    await service
+    const { error: userUpdateErr } = await service
       .schema('cozy')
       .from('users')
       .update({ points: newPersonalPoints })
       .eq('id', user.id);
 
-    // 3. Record point transaction in immutable ledger
+    if (userUpdateErr) {
+      console.error('[submitDailySpaceReset] Failed to update user points:', userUpdateErr.message);
+      return { success: false, error: 'Could not update user points balance.' };
+    }
+
+    // 5. Record point transaction in immutable ledger
     await recordPointTransaction({
       userId: user.id,
       amount: pointsAwarded,
       transactionType: 'daily_space_reset',
       description: isDualMode
-        ? 'Daily Space Reset: Light & Dark dual-mode upload (+50 pts)'
-        : 'Daily Space Reset: Room upload (+25 pts)',
+        ? `Daily Space Reset: Light & Dark dual-mode upload (+50 pts) [Post: ${postId}]`
+        : `Daily Space Reset: Room upload (+25 pts) [Post: ${postId}]`,
     });
 
-    // 4. Credit shared group balances & trigger cheer_post RPC cascade if applicable
+    // 6. Credit shared group balances & trigger cheer_post RPC cascade if applicable
     let groupsUpdated = 0;
 
     try {
-      // Find all groups the user belongs to and cascade bonus to pooled_points
       const { data: memberships } = await service
         .schema('cozy')
         .from('group_members')
@@ -222,12 +256,15 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
 
           if (groupData) {
             const newPooled = (groupData.pooled_points ?? 0) + pointsAwarded;
-            await service
+            const { error: groupUpdateErr } = await service
               .schema('cozy')
               .from('groups')
               .update({ pooled_points: newPooled })
               .eq('id', m.group_id);
-            groupsUpdated++;
+
+            if (!groupUpdateErr) {
+              groupsUpdated++;
+            }
           }
         }
       }
