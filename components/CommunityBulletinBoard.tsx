@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Pin, Plus, Sparkles, Trophy } from 'lucide-react';
 import {
@@ -43,15 +43,22 @@ export function CommunityBulletinBoard({
   const [newDesc, setNewDesc] = useState('');
   const [newMult, setNewMult] = useState(1.5);
 
-  const [localGroupPoints, setLocalGroupPoints] = useState<number>(groupPooledPoints ?? 0);
+  const { addPoints, addGroupPoints, groupPoints, setGroupPoints } = useCozyStore();
+
+  const [localGroupPoints, setLocalGroupPoints] = useState<number>(
+    groupPooledPoints !== undefined ? groupPooledPoints : (groupPoints ?? 0)
+  );
+
+  const prevGroupPooledPointsRef = useRef(groupPooledPoints);
 
   useEffect(() => {
-    if (groupPooledPoints !== undefined) {
+    if (groupPooledPoints !== undefined && groupPooledPoints !== prevGroupPooledPointsRef.current) {
+      prevGroupPooledPointsRef.current = groupPooledPoints;
       setLocalGroupPoints(groupPooledPoints);
+    } else if (groupPooledPoints === undefined && typeof groupPoints === 'number') {
+      setLocalGroupPoints(groupPoints);
     }
-  }, [groupPooledPoints]);
-
-  const { addPoints, addGroupPoints, setGroupPoints } = useCozyStore();
+  }, [groupPooledPoints, groupPoints]);
 
   const currentGroupPts = localGroupPoints;
   const isAllThemesUnlocked = currentGroupPts >= 10000;
