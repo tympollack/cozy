@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, TrendingUp, Sparkles, ChevronRight, ArrowUpCircle, X } from 'lucide-react';
 import { contributeToGroup, upgradeGroupTier } from '@/app/actions/groupActions';
@@ -34,6 +34,8 @@ const UPGRADE_PATH: Record<string, string> = {
   space_station: '', // max tier
 };
 
+import { useCozyStore } from '@/store/useCozyStore';
+
 // ---------------------------------------------------------------------------
 // Contribute Points Modal
 // ---------------------------------------------------------------------------
@@ -46,6 +48,9 @@ interface ContributeModalProps {
 }
 
 function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: ContributeModalProps) {
+  const userPoints = useCozyStore((s) => s.points);
+  const setPoints = useCozyStore((s) => s.setPoints);
+
   const [amount, setAmount] = useState(10);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +67,15 @@ function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: Contribu
         setError(result.error ?? 'Something went wrong.');
         return;
       }
+      if (result.newPersonalPoints !== undefined) {
+        setPoints(result.newPersonalPoints);
+      }
       onSuccess(result.newPersonalPoints!, result.newPooledPoints!);
       onClose();
     });
   }
+
+  const isInsufficient = typeof userPoints === 'number' && userPoints < amount;
 
   return (
     <motion.div
@@ -118,13 +128,28 @@ function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: Contribu
           Transfer your personal points into the shared group bank to unlock cosmetic upgrades for the whole group.
         </p>
 
+        {/* User personal point balance pill */}
+        <div
+          className="flex items-center justify-between text-xs px-3.5 py-2.5 rounded-2xl"
+          style={{
+            background: isFuturistic ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            border: isFuturistic ? '1px solid rgba(0,220,255,0.15)' : '1px solid rgba(0,0,0,0.08)',
+          }}
+        >
+          <span style={{ color: isFuturistic ? '#8ab4c4' : '#8a7060' }}>Your personal balance</span>
+          <span className="font-800 flex items-center gap-1" style={{ color: isFuturistic ? '#00dcff' : '#c4704a' }}>
+            <Coins size={14} />
+            {userPoints ?? 0} pts
+          </span>
+        </div>
+
         {/* Quick select buttons */}
         <div className="flex gap-2 flex-wrap">
           {QUICK_AMOUNTS.map((q) => (
             <button
               key={q}
               onClick={() => setAmount(q)}
-              className="px-3 py-1.5 rounded-full text-xs font-700 transition-all"
+              className="px-3 py-1.5 rounded-full text-xs font-700 transition-all cursor-pointer"
               style={{
                 background: amount === q
                   ? (isFuturistic ? 'rgba(0,220,255,0.20)' : 'rgba(240,192,96,0.25)')
@@ -165,6 +190,12 @@ function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: Contribu
           />
         </div>
 
+        {isInsufficient && !error && (
+          <p className="text-xs text-amber-500 font-500">
+            You only have {userPoints} pts available.
+          </p>
+        )}
+
         {error && (
           <p className="text-xs text-rose-400 font-500">{error}</p>
         )}
@@ -172,8 +203,8 @@ function ContributeModal({ groupId, isFuturistic, onClose, onSuccess }: Contribu
         {/* Confirm button */}
         <button
           onClick={handleContribute}
-          disabled={isPending || amount < 1}
-          className="w-full py-3 rounded-2xl text-sm font-800 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isPending || amount < 1 || isInsufficient}
+          className="w-full py-3 rounded-2xl text-sm font-800 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           style={{
             background: isFuturistic
               ? 'linear-gradient(135deg, rgba(0,100,180,0.8), rgba(80,0,160,0.8))'
@@ -204,6 +235,13 @@ interface GroupBankProps {
 
 export function GroupBank({ group, currentUserRole, memberCount }: GroupBankProps) {
   const [pooledPoints, setPooledPoints] = useState(group?.pooled_points ?? 0);
+
+  useEffect(() => {
+    if (group?.pooled_points !== undefined) {
+      setPooledPoints(group.pooled_points);
+    }
+  }, [group?.pooled_points]);
+
   const [showContribute, setShowContribute] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [isPendingUpgrade, startUpgradeTransition] = useTransition();

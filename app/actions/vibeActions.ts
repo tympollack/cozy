@@ -57,7 +57,7 @@ export interface VibeResult {
  *
  * @param status - One of the allowed VibeStatus values ('sunshine' | 'neutral' | 'raincloud').
  */
-export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> {
+export async function updateVibeStatus(status: VibeStatus, groupId?: string): Promise<VibeResult> {
   const supabase = await createServerClient();
 
   const {
@@ -69,7 +69,17 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  // 1. Call the RPC to enforce constraints, update status & get group peers
+  // 1. Check current status for deduplication before update
+  const service = createServiceClient();
+  const { data: userCurrent } = await service
+    .schema('cozy')
+    .from('users')
+    .select('vibe_status')
+    .eq('id', user.id)
+    .maybeSingle();
+  const wasAlreadyRaincloud = userCurrent?.vibe_status === 'raincloud';
+
+  // 2. Call the RPC to enforce constraints, update status & get group peers
   let groupPeers: GroupPeer[] = [];
   try {
     const { data: peers, error: rpcError } = await supabase.schema('cozy').rpc('update_vibe_status', {
@@ -79,7 +89,6 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
 
     if (rpcError) {
       console.warn('[updateVibeStatus] RPC update error, falling back to direct table update:', rpcError.message);
-      const service = createServiceClient();
       const { error: directUpdateError } = await service
         .schema('cozy')
         .from('users')
@@ -99,6 +108,54 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
   } catch (err) {
     console.error('[updateVibeStatus] Unexpected error:', err);
     return { success: false, groupPeers: [], error: 'Failed to update vibe status.' };
+  }
+
+  // 3. If transitioning to raincloud (and not already raincloud), schedule staggered peer notifications
+  if (status === 'raincloud' && !wasAlreadyRaincloud) {
+    try {
+      const service = createServiceClient();
+      let activeGroupId: string | undefined = undefined;
+
+      if (groupId) {
+        // Security check: verify authenticated user is a legitimate member of the requested group
+        const { data: verifiedMembership } = await service
+          .schema('cozy')
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .eq('group_id', groupId)
+          .maybeSingle();
+
+        activeGroupId = verifiedMembership?.group_id;
+      }
+
+      // Fallback: select the user's primary/most recent verified group membership
+      if (!activeGroupId) {
+        const { data: primaryMembership } = await service
+          .schema('cozy')
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .order('joined_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        activeGroupId = primaryMembership?.group_id;
+      }
+
+      if (activeGroupId) {
+        const { error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
+          p_target_user_id: user.id,
+          p_group_id: activeGroupId,
+        });
+
+        if (waterfallError) {
+          console.error('[updateVibeStatus] Waterfall RPC error:', waterfallError.message);
+        }
+      }
+    } catch (waterfallErr) {
+      console.warn('[updateVibeStatus] Waterfall execution note:', waterfallErr);
+    }
   }
 
   if (NEGATIVE_STATUSES.has(status) && groupPeers.length > 0) {

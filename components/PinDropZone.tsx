@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, useMotionValue, AnimatePresence } from 'framer-motion';
-import { Check, X, Loader2, Tag, Link, ArrowRight } from 'lucide-react';
+import { Check, X, Loader2, Tag, Link, ArrowRight, Sparkles } from 'lucide-react';
 import { createItemPin } from '@/app/actions/pinActions';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -32,6 +33,17 @@ type Step = 'drag' | 'form';
 //               then calls createItemPin and reports success to the parent.
 // ---------------------------------------------------------------------------
 
+function isMakerverseUrl(urlStr?: string | null): boolean {
+  if (!urlStr) return false;
+  try {
+    const formatted = urlStr.startsWith('http://') || urlStr.startsWith('https://') ? urlStr : `https://${urlStr}`;
+    const parsed = new URL(formatted);
+    return parsed.hostname === 'makerverse.com' || parsed.hostname.endsWith('.makerverse.com');
+  } catch {
+    return false;
+  }
+}
+
 export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
   // ── Refs ────────────────────────────────────────────────────────────────
   // containerRef: the full overlay div — used as the drag boundary AND for
@@ -48,6 +60,11 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
   const [isLoading, setIsLoading]     = useState(false);
   const [errorMsg, setErrorMsg]       = useState('');
 
+  useModalBackButton({
+    isOpen: true,
+    onClose: onCancel,
+  });
+
   // framer-motion values for the reticle position.
   // We use useMotionValue instead of drag state so we can read the committed
   // pixel offset at any point without causing re-renders on every frame.
@@ -58,18 +75,20 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
   // Identical to DraggableSticker: center of element relative to container,
   // expressed as a percentage of container dimensions, clamped to [0, 100].
   const handleConfirmLocation = useCallback(() => {
-    if (!containerRef.current || !reticleRef.current) return;
+    if (containerRef.current && reticleRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const reticleRect   = reticleRef.current.getBoundingClientRect();
+      const width = containerRect.width || 1;
+      const height = containerRect.height || 1;
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const reticleRect   = reticleRef.current.getBoundingClientRect();
+      const reticleCenterX = reticleRect.left + reticleRect.width  / 2 - containerRect.left;
+      const reticleCenterY = reticleRect.top  + reticleRect.height / 2 - containerRect.top;
 
-    const reticleCenterX = reticleRect.left + reticleRect.width  / 2 - containerRect.left;
-    const reticleCenterY = reticleRect.top  + reticleRect.height / 2 - containerRect.top;
-
-    setCoordinates({
-      xPercent: Math.min(100, Math.max(0, (reticleCenterX / containerRect.width)  * 100)),
-      yPercent: Math.min(100, Math.max(0, (reticleCenterY / containerRect.height) * 100)),
-    });
+      setCoordinates({
+        xPercent: Math.min(100, Math.max(0, (reticleCenterX / width)  * 100)),
+        yPercent: Math.min(100, Math.max(0, (reticleCenterY / height) * 100)),
+      });
+    }
 
     setStep('form');
   }, []);
@@ -318,12 +337,30 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
 
                 {/* URL field */}
                 <div>
-                  <label
-                    htmlFor="pin-url"
-                    className="block text-xs font-700 text-[--cozy-bark] mb-1.5 tracking-wide uppercase"
-                  >
-                    Shop Link
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="pin-url"
+                      className="block text-xs font-700 text-[--cozy-bark] tracking-wide uppercase"
+                    >
+                      Shop Link
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUrl('https://makerverse.com/item/');
+                        const input = document.getElementById('pin-url') as HTMLInputElement | null;
+                        if (input) {
+                          input.focus();
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-800 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 transition-all cursor-pointer active:scale-95"
+                      title="Link Makerverse Shop Item"
+                    >
+                      <Sparkles size={10} className="text-amber-600 dark:text-amber-400" />
+                      <span>Makerverse</span>
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <Link
                       size={14}
@@ -334,7 +371,7 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
                       type="text"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
-                      placeholder="amazon.com/dp/..."
+                      placeholder="makerverse.com/item/... or amazon.com/dp/..."
                       className="w-full bg-white/70 border border-[--cozy-amber]/30
                         rounded-2xl pl-9 pr-4 py-3 text-sm text-[--cozy-night]
                         placeholder:text-[--cozy-muted]/60
@@ -342,8 +379,34 @@ export function PinDropZone({ postId, onCancel, onSuccess }: PinDropZoneProps) {
                         focus:border-[--cozy-amber] transition-all duration-150"
                     />
                   </div>
+
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isMakerverseUrl(url)) {
+                          setUrl('https://makerverse.com/item/');
+                        }
+                        const input = document.getElementById('pin-url') as HTMLInputElement | null;
+                        if (input) {
+                          input.focus();
+                        }
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl border text-xs font-800 flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        isMakerverseUrl(url)
+                          ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-400 dark:border-amber-500/50 shadow-xs'
+                          : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 border-stone-200 dark:border-stone-700/60 hover:bg-amber-50 dark:hover:bg-[#342821] hover:text-amber-900'
+                      }`}
+                    >
+                      <Sparkles size={13} className="text-amber-600 dark:text-amber-400" />
+                      <span>{isMakerverseUrl(url) ? '✓ Makerverse Shop Item Linked' : 'Link Makerverse Shop Item'}</span>
+                    </button>
+                  </div>
+
                   <p className="mt-1.5 text-[10px] text-[--cozy-muted] px-1">
-                    https:// will be added automatically if omitted.
+                    {isMakerverseUrl(url)
+                      ? '✨ Item will be linked to your Makerverse catalog.'
+                      : 'https:// will be added automatically if omitted.'}
                   </p>
                 </div>
 

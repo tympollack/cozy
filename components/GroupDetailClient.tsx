@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Crown } from 'lucide-react';
 import type { GroupRow, GroupMemberRow, MyGroupEntry } from '@/app/actions/groupActions';
 import { getGroupPageBundle } from '@/app/actions/groupActions';
 import type { GroupChallenge } from '@/lib/challengeDefaults';
+import type { VillageMapTheme } from '@/config/villageMapThemes';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import { GroupMapView } from '@/components/GroupMapView';
 import { GroupBank } from '@/components/GroupBank';
@@ -22,6 +23,7 @@ interface GroupBundleData {
   memberCount: number;
   activeChallenge: GroupChallenge | null;
   cachedAt: number;
+  mapTheme?: VillageMapTheme;
 }
 
 // Module-level in-memory client cache preserved across route navigation
@@ -38,6 +40,7 @@ interface GroupDetailClientProps {
   currentUserId: string;
   activeChallenge?: GroupChallenge | null;
   myGroups?: MyGroupEntry[];
+  initialMapTheme?: VillageMapTheme;
 }
 
 export function GroupDetailClient({
@@ -48,6 +51,7 @@ export function GroupDetailClient({
   currentUserId,
   activeChallenge = null,
   myGroups = [],
+  initialMapTheme,
 }: GroupDetailClientProps) {
   const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -93,9 +97,10 @@ export function GroupDetailClient({
         memberCount,
         activeChallenge,
         cachedAt: existing ? existing.cachedAt : now,
+        mapTheme: initialMapTheme || existing?.mapTheme,
       });
     }
-  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge]);
+  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge, initialMapTheme]);
 
   // Supabase Realtime channel subscription for instant broadcast & postgres_changes
   useEffect(() => {
@@ -174,6 +179,7 @@ export function GroupDetailClient({
     memberCount,
     activeChallenge,
     cachedAt: 0,
+    mapTheme: initialMapTheme,
   };
 
   const safeGroup = activeBundle.group || group || {
@@ -251,6 +257,7 @@ export function GroupDetailClient({
               memberCount: res.groupWithMembers.memberCount,
               activeChallenge: res.activeChallenge,
               cachedAt: Date.now(),
+              mapTheme: res.groupWithMembers.mapTheme,
             });
             setActiveGroupId((curr) => (curr === targetGroupId ? targetGroupId : curr));
           }
@@ -268,6 +275,7 @@ export function GroupDetailClient({
               memberCount: res.groupWithMembers.memberCount,
               activeChallenge: res.activeChallenge,
               cachedAt: Date.now(),
+              mapTheme: res.groupWithMembers.mapTheme,
             });
             setActiveGroupId(targetGroupId);
             window.history.pushState(null, '', `/groups/${targetGroupId}`);
@@ -301,6 +309,7 @@ export function GroupDetailClient({
               memberCount: res.groupWithMembers.memberCount,
               activeChallenge: res.activeChallenge,
               cachedAt: Date.now(),
+              mapTheme: res.groupWithMembers.mapTheme,
             });
           }
         }).catch(() => {});
@@ -482,6 +491,7 @@ export function GroupDetailClient({
           group={safeGroup}
           members={sortedMembers}
           currentUserId={currentUserId}
+          mapTheme={activeBundle.mapTheme || initialMapTheme}
           onSelectPeer={(id, name) => {
             if (id === currentUserId) {
               router.push('/profile');
@@ -502,6 +512,7 @@ export function GroupDetailClient({
         {/* Community Bulletin Board for Weekly Challenges */}
         <CommunityBulletinBoard
           groupId={safeGroup.id}
+          groupPooledPoints={safeGroup.pooled_points ?? 0}
           isFuturistic={isFuturistic}
           isAdmin={currentRole === 'admin'}
         />

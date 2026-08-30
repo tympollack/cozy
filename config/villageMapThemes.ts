@@ -106,23 +106,45 @@ export const VILLAGE_MAP_THEMES: Record<string, VillageMapTheme> = {
   orbital_collective: ORBITAL_COLLECTIVE,
 };
 
-/** Maps group type keys → theme id. */
-const GROUP_TYPE_TO_THEME: Record<string, string> = {
+/** Maps group type keys and theme IDs → resolved village map theme id. */
+export const GROUP_TYPE_TO_THEME: Record<string, string> = {
+  // Cozy themes
   household: 'mossy_hearth_village',
   building: 'mossy_hearth_village',
   village: 'mossy_hearth_village',
+  default_dollhouse: 'mossy_hearth_village',
+  cozy_building: 'mossy_hearth_village',
+  cozy_village: 'mossy_hearth_village',
+  mossy_hearth_village: 'mossy_hearth_village',
+
+  // Futuristic themes
   neighborhood: 'orbital_collective',
   town: 'orbital_collective',
   city: 'orbital_collective',
   island: 'orbital_collective',
   space_station: 'orbital_collective',
+  neon_neighborhood: 'orbital_collective',
+  cyber_town: 'orbital_collective',
+  neon_city: 'orbital_collective',
+  island_collective: 'orbital_collective',
+  orbital_collective: 'orbital_collective',
 };
 
 /**
- * Returns the VillageMapTheme for a given group type string.
- * Falls back to mossy_hearth_village for unrecognised types.
+ * Returns the VillageMapTheme for a given group type or theme ID string.
+ * Supports dynamic theme map overrides fetched from database, falling back
+ * to built-in static themes.
  */
-export function getThemeForGroup(groupType: string): VillageMapTheme {
-  const themeId = GROUP_TYPE_TO_THEME[groupType] ?? 'mossy_hearth_village';
-  return VILLAGE_MAP_THEMES[themeId] ?? MOSSY_HEARTH_VILLAGE;
+export function getThemeForGroup(
+  groupTypeOrThemeId: string,
+  themeMap: Record<string, VillageMapTheme> = VILLAGE_MAP_THEMES
+): VillageMapTheme {
+  if (themeMap[groupTypeOrThemeId]) {
+    return themeMap[groupTypeOrThemeId];
+  }
+  const mappedId = GROUP_TYPE_TO_THEME[groupTypeOrThemeId];
+  if (mappedId && themeMap[mappedId]) {
+    return themeMap[mappedId];
+  }
+  return themeMap['mossy_hearth_village'] || Object.values(themeMap)[0] || MOSSY_HEARTH_VILLAGE;
 }

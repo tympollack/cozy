@@ -7,6 +7,8 @@ import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 export type { GroupTypeMeta } from '@/config/groupDefinitions';
+import type { VillageMapTheme } from '@/config/villageMapThemes';
+import { getVillageMapTheme } from '@/app/actions/mapActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +51,7 @@ export interface GroupWithMembers {
   members: GroupMemberRow[];
   currentUserRole: 'admin' | 'member' | null;
   memberCount: number;
+  mapTheme?: VillageMapTheme;
 }
 
 export interface MyGroupEntry {
@@ -312,31 +315,96 @@ export async function contributeToGroup(
     return { success: false, error: 'Authentication required.' };
   }
 
-  const { data, error } = await supabase.schema('cozy').rpc('contribute_points', {
+  // 1. Invoke atomic database RPC transaction
+  // Try cozy schema first, then fallback to public schema RPC alias
+  let rpcData: any = null;
+  let rpcError: any = null;
+
+  const rpcPayload = {
     p_user_id: user.id,
     p_group_id: groupId,
     p_points: points,
-  });
-
-  if (error) {
-    if (error.message.includes('Insufficient points') || error.message.includes('insufficient')) {
-      return { success: false, error: "You don't have enough points for that contribution." };
-    }
-    if (error.message.includes('not a member') || error.message.includes('membership')) {
-      return { success: false, error: 'You must be a group member to contribute.' };
-    }
-    console.error('[contributeToGroup] RPC error:', error.message);
-    return { success: false, error: 'Something went wrong. Please try again.' };
-  }
-
-  const result = (Array.isArray(data) ? data[0] : data) as {
-    new_personal_points: number;
-    new_pooled_points: number;
   };
 
-  revalidatePath(`/groups/${groupId}`);
+  try {
+    const res = await supabase.schema('cozy').rpc('contribute_points', rpcPayload);
+    rpcData = res.data;
+    rpcError = res.error;
+  } catch (err: any) {
+    rpcError = err;
+  }
 
-  // Record group pool contribution in user's immutable transaction ledger
+  if (
+    rpcError &&
+    (rpcError.message?.includes('not found') ||
+      rpcError.message?.includes('does not exist') ||
+      rpcError.code === 'PGRST202')
+  ) {
+    try {
+      const res = await supabase.rpc('contribute_points', rpcPayload);
+      rpcData = res.data;
+      rpcError = res.error;
+    } catch (err: any) {
+      rpcError = err;
+    }
+  }
+
+  // 2. Handle domain errors & validation failures without executing non-atomic writes
+  if (rpcError) {
+    const msg = (rpcError.message || '').toLowerCase();
+    if (msg.includes('insufficient points') || msg.includes('insufficient')) {
+      return { success: false, error: "You don't have enough points for that contribution." };
+    }
+    if (msg.includes('not a member') || msg.includes('membership')) {
+      return { success: false, error: 'You must be a group member to contribute.' };
+    }
+    if (msg.includes('group not found') || msg.includes('not found')) {
+      return { success: false, error: 'Group not found.' };
+    }
+    if (msg.includes('positive')) {
+      return { success: false, error: 'Contribution must be a positive whole number.' };
+    }
+
+    console.error('[contributeToGroup] RPC error:', rpcError.message || rpcError);
+    return { success: false, error: rpcError.message || 'Something went wrong. Please try again.' };
+  }
+
+  // 3. Extract authoritative balances directly from the atomic transaction result
+  const row = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as {
+    new_personal_points?: number;
+    new_pooled_points?: number;
+  };
+
+  let newPersonalPoints = typeof row?.new_personal_points === 'number' ? row.new_personal_points : undefined;
+  let newPooledPoints = typeof row?.new_pooled_points === 'number' ? row.new_pooled_points : undefined;
+
+  // Reconcile authoritative balances from DB if RPC returned an unexpected payload shape
+  if (typeof newPersonalPoints !== 'number' || typeof newPooledPoints !== 'number') {
+    try {
+      const service = createServiceClient();
+      const [uRes, gRes] = await Promise.all([
+        service.schema('cozy').from('users').select('points').eq('id', user.id).maybeSingle(),
+        service.schema('cozy').from('groups').select('pooled_points').eq('id', groupId).maybeSingle(),
+      ]);
+
+      if (typeof uRes.data?.points === 'number' && typeof gRes.data?.pooled_points === 'number') {
+        newPersonalPoints = uRes.data.points;
+        newPooledPoints = gRes.data.pooled_points;
+      }
+    } catch {
+      // Reconcile failed
+    }
+  }
+
+  // If numeric balances could not be verified, do not record phantom ledger entries or report false success
+  if (typeof newPersonalPoints !== 'number' || typeof newPooledPoints !== 'number') {
+    return {
+      success: false,
+      error: 'Failed to verify updated point balances. Please refresh.',
+    };
+  }
+
+  // 4. Record group pool contribution in user's immutable transaction ledger
   await recordPointTransaction({
     userId: user.id,
     amount: -points,
@@ -344,10 +412,14 @@ export async function contributeToGroup(
     description: `Contributed ${points} pts to group pool`,
   });
 
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath('/groups');
+  revalidatePath('/profile');
+
   return {
     success: true,
-    newPersonalPoints: result.new_personal_points,
-    newPooledPoints: result.new_pooled_points,
+    newPersonalPoints,
+    newPooledPoints,
   };
 }
 
@@ -439,6 +511,7 @@ export const getMyGroups = cache(async (): Promise<MyGroupEntry[]> => {
 interface RawGroupBundle {
   group: GroupRow;
   members: GroupMemberRow[];
+  mapTheme?: VillageMapTheme;
 }
 
 const getCachedGroupData = unstable_cache(
@@ -468,8 +541,11 @@ const getCachedGroupData = unstable_cache(
     const group = groupRes.data as GroupRow;
     const memberships = memberRes.data ?? [];
 
+    // Fetch dynamic map theme for group's theme_id and type
+    const mapTheme = await getVillageMapTheme(group.theme_id, group.type);
+
     if (memberships.length === 0) {
-      return { group, members: [] };
+      return { group, members: [], mapTheme };
     }
 
     // 2. Fetch user profiles for all member user_ids directly from cozy.users
@@ -521,12 +597,13 @@ const getCachedGroupData = unstable_cache(
     return {
       group,
       members,
+      mapTheme,
     };
   },
   ['group-data-bundle-cache'],
   {
-    tags: ['groups'],
-    revalidate: 60,
+    tags: ['groups', 'village_map_themes'],
+    revalidate: 30,
   }
 );
 
@@ -542,7 +619,7 @@ export const getGroupWithMembers = cache(async (
   const data = await getCachedGroupData(groupId);
   if (!data) return null;
 
-  const { group, members } = data;
+  const { group, members, mapTheme } = data;
 
   const currentUserRole =
     user
@@ -554,6 +631,7 @@ export const getGroupWithMembers = cache(async (
     members,
     currentUserRole,
     memberCount: members.length,
+    mapTheme,
   };
 });
 
