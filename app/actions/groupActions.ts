@@ -315,100 +315,70 @@ export async function contributeToGroup(
     return { success: false, error: 'Authentication required.' };
   }
 
-  const service = createServiceClient();
+  // 1. Invoke atomic database RPC transaction
+  // Try cozy schema first, then fallback to public schema RPC alias
+  let rpcData: any = null;
+  let rpcError: any = null;
 
-  // 1. Verify user is a member of this group
-  const { data: membership, error: memberError } = await service
-    .schema('cozy')
-    .from('group_members')
-    .select('role')
-    .eq('group_id', groupId)
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const rpcPayload = {
+    p_user_id: user.id,
+    p_group_id: groupId,
+    p_points: points,
+  };
 
-  if (memberError || !membership) {
-    return { success: false, error: 'You must be a group member to contribute.' };
-  }
-
-  // 2. Fetch user's current personal balance
-  const { data: userData, error: userError } = await service
-    .schema('cozy')
-    .from('users')
-    .select('points')
-    .eq('id', user.id)
-    .single();
-
-  if (userError || !userData) {
-    return { success: false, error: 'Failed to retrieve your current point balance.' };
-  }
-
-  const currentPersonal = userData.points ?? 0;
-  if (currentPersonal < points) {
-    return {
-      success: false,
-      error: `You don't have enough points. (Available: ${currentPersonal} pts)`,
-    };
-  }
-
-  // 3. Fetch group's current pooled_points
-  const { data: groupData, error: groupError } = await service
-    .schema('cozy')
-    .from('groups')
-    .select('pooled_points')
-    .eq('id', groupId)
-    .single();
-
-  if (groupError || !groupData) {
-    return { success: false, error: 'Group treasury unavailable.' };
-  }
-
-  const currentPooled = groupData.pooled_points ?? 0;
-  const newPersonal = currentPersonal - points;
-  const newPooled = currentPooled + points;
-
-  // 4. Try RPC contribute_points if available, else direct resilient atomic update
-  let rpcHandled = false;
   try {
-    const { data: rpcData, error: rpcError } = await supabase.schema('cozy').rpc('contribute_points', {
-      p_user_id: user.id,
-      p_group_id: groupId,
-      p_points: points,
-    });
-    if (!rpcError && rpcData) {
-      rpcHandled = true;
-    }
-  } catch {
-    rpcHandled = false;
+    const res = await supabase.schema('cozy').rpc('contribute_points', rpcPayload);
+    rpcData = res.data;
+    rpcError = res.error;
+  } catch (err: any) {
+    rpcError = err;
   }
 
-  if (!rpcHandled) {
-    // Resilient fallback update via service client
-    const { error: userUpdateErr } = await service
-      .schema('cozy')
-      .from('users')
-      .update({ points: newPersonal })
-      .eq('id', user.id);
-
-    if (userUpdateErr) {
-      console.error('[contributeToGroup] User points update error:', userUpdateErr.message);
-      return { success: false, error: 'Failed to update personal points balance.' };
-    }
-
-    const { error: groupUpdateErr } = await service
-      .schema('cozy')
-      .from('groups')
-      .update({ pooled_points: newPooled })
-      .eq('id', groupId);
-
-    if (groupUpdateErr) {
-      console.error('[contributeToGroup] Group pooled_points update error:', groupUpdateErr.message);
-      // Revert user points
-      await service.schema('cozy').from('users').update({ points: currentPersonal }).eq('id', user.id);
-      return { success: false, error: 'Failed to update group treasury.' };
+  if (
+    rpcError &&
+    (rpcError.message?.includes('not found') ||
+      rpcError.message?.includes('does not exist') ||
+      rpcError.code === 'PGRST202')
+  ) {
+    try {
+      const res = await supabase.rpc('contribute_points', rpcPayload);
+      rpcData = res.data;
+      rpcError = res.error;
+    } catch (err: any) {
+      rpcError = err;
     }
   }
 
-  // 5. Record group pool contribution in user's immutable transaction ledger
+  // 2. Handle domain errors & validation failures without executing non-atomic writes
+  if (rpcError) {
+    const msg = (rpcError.message || '').toLowerCase();
+    if (msg.includes('insufficient points') || msg.includes('insufficient')) {
+      return { success: false, error: "You don't have enough points for that contribution." };
+    }
+    if (msg.includes('not a member') || msg.includes('membership')) {
+      return { success: false, error: 'You must be a group member to contribute.' };
+    }
+    if (msg.includes('group not found') || msg.includes('not found')) {
+      return { success: false, error: 'Group not found.' };
+    }
+    if (msg.includes('positive')) {
+      return { success: false, error: 'Contribution must be a positive whole number.' };
+    }
+
+    console.error('[contributeToGroup] RPC error:', rpcError.message || rpcError);
+    return { success: false, error: rpcError.message || 'Something went wrong. Please try again.' };
+  }
+
+  // 3. Extract authoritative balances directly from the atomic transaction result
+  const row = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as {
+    new_personal_points?: number;
+    new_pooled_points?: number;
+  };
+
+  const newPersonalPoints = typeof row?.new_personal_points === 'number' ? row.new_personal_points : undefined;
+  const newPooledPoints = typeof row?.new_pooled_points === 'number' ? row.new_pooled_points : undefined;
+
+  // 4. Record group pool contribution in user's immutable transaction ledger
   await recordPointTransaction({
     userId: user.id,
     amount: -points,
@@ -422,8 +392,8 @@ export async function contributeToGroup(
 
   return {
     success: true,
-    newPersonalPoints: newPersonal,
-    newPooledPoints: newPooled,
+    newPersonalPoints,
+    newPooledPoints,
   };
 }
 
