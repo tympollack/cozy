@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, X, ExternalLink } from 'lucide-react';
+import { ShoppingBag, X, ExternalLink, Sparkles } from 'lucide-react';
 import { deleteItemPin } from '@/app/actions/pinActions';
 import type { ItemPin } from '@/store/useCozyStore';
 
@@ -126,9 +126,19 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Title */}
-            <p className="text-[13px] font-900 text-stone-900 dark:text-stone-100 leading-snug mb-3 text-center line-clamp-2">
+            <p className="text-[13px] font-900 text-stone-900 dark:text-stone-100 leading-snug mb-2 text-center line-clamp-2">
               {pin.title}
             </p>
+
+            {/* Makerverse Item Badge */}
+            {pin.url && pin.url.includes('makerverse.com') && (
+              <div className="flex justify-center mb-2.5">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-800 bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 shadow-2xs">
+                  <Sparkles size={9} className="text-amber-600 dark:text-amber-400" />
+                  Makerverse Shop
+                </span>
+              </div>
+            )}
 
             {/* CTA row */}
             <div className="flex items-center gap-2">
@@ -143,7 +153,7 @@ function PinDot({ pin, isOwner, onDeleted }: PinDotProps) {
                   hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
               >
                 <ShoppingBag size={12} className="text-stone-950" />
-                <span>Shop</span>
+                <span>{pin.url && pin.url.includes('makerverse.com') ? 'Makerverse' : 'Shop'}</span>
                 <ExternalLink size={10} className="text-stone-950/80" />
               </a>
 

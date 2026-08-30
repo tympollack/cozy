@@ -6,9 +6,10 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Check, ArrowRight, LayoutGrid,
-  Lock, Coins,
+  Lock, Coins, Camera,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
+import { useModalBackButton } from '@/hooks/useModalBackButton';
 import {
   SHELL_DEFINITIONS,
   getShellDefinition,
@@ -75,6 +76,15 @@ export function ProfileShell({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
+
+  useModalBackButton({
+    isOpen: Boolean(selectedSlotForAssignment || expandedPost || isThemeMenuOpen),
+    onClose: () => {
+      if (selectedSlotForAssignment) setSelectedSlotForAssignment(null);
+      else if (expandedPost) setExpandedPost(null);
+      else if (isThemeMenuOpen) setIsThemeMenuOpen(false);
+    },
+  });
 
   // Sync server-provided authoritative expansion state into the client Zustand store
   useEffect(() => {
@@ -633,10 +643,28 @@ export function ProfileShell({
                 {/* Unassigned Posts Grid */}
                 <div className="flex-1 overflow-y-auto py-4 space-y-3">
                   {unassignedPosts.length === 0 ? (
-                    <div className="text-center py-10 space-y-2">
-                      <LayoutGrid size={32} className="mx-auto text-[--cozy-muted]" />
-                      <p className="text-sm font-600 text-[--cozy-bark]">All your spaces are already assigned!</p>
-                      <p className="text-xs text-[--cozy-muted]">Share a new space or unassign an existing nook first.</p>
+                    <div className="text-center py-8 space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-600/30 flex items-center justify-center mx-auto text-amber-700 dark:text-amber-400 shadow-xs">
+                        <LayoutGrid size={24} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-800 text-[--cozy-bark] dark:text-amber-100">
+                          All your spaces are already assigned!
+                        </p>
+                        <p className="text-xs text-[--cozy-muted] mt-0.5 max-w-xs mx-auto">
+                          Share a new space or unassign an existing nook first.
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        <Link
+                          href="/camera"
+                          onClick={() => setSelectedSlotForAssignment(null)}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-800 text-xs bg-gradient-to-r from-[--cozy-rust] to-[--cozy-amber] text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Camera size={14} />
+                          <span>Create a New Space</span>
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">

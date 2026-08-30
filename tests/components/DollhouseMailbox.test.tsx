@@ -98,7 +98,7 @@ describe('DollhouseMailbox Component', () => {
     expect(mockDeclineCallingCard).toHaveBeenCalledWith('peer-card-42', '/profile/maya');
   });
 
-  it('switches to Private Notes tab in mailbox modal and renders empty notes message when empty', async () => {
+  it('switches to Porch Support tab in mailbox modal and renders empty message when empty', async () => {
     const user = userEvent.setup();
     mockGetPrivateNotes.mockResolvedValueOnce([]);
 
@@ -115,10 +115,10 @@ describe('DollhouseMailbox Component', () => {
     const mailboxButton = screen.getByRole('button', { name: /Open Mailbox/i });
     await user.click(mailboxButton);
 
-    const notesTab = screen.getByRole('button', { name: /Private Notes/i });
-    await user.click(notesTab);
+    const porchTab = screen.getByRole('button', { name: /Porch Support/i });
+    await user.click(porchTab);
 
-    expect(await screen.findByText(/No private notes yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No porch items yet/i)).toBeInTheDocument();
   });
 
   it('allows visitors to leave a Calling Card and handles send errors', async () => {

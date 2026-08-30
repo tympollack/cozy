@@ -57,7 +57,7 @@ export interface VibeResult {
  *
  * @param status - One of the allowed VibeStatus values ('sunshine' | 'neutral' | 'raincloud').
  */
-export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> {
+export async function updateVibeStatus(status: VibeStatus, groupId?: string): Promise<VibeResult> {
   const supabase = await createServerClient();
 
   const {
@@ -99,6 +99,33 @@ export async function updateVibeStatus(status: VibeStatus): Promise<VibeResult> 
   } catch (err) {
     console.error('[updateVibeStatus] Unexpected error:', err);
     return { success: false, groupPeers: [], error: 'Failed to update vibe status.' };
+  }
+
+  // 2. If status is raincloud, execute cozy.process_raincloud_waterfall to schedule staggered peer pings
+  if (status === 'raincloud') {
+    try {
+      const service = createServiceClient();
+      let activeGroupId = groupId;
+      if (!activeGroupId) {
+        const { data: membership } = await service
+          .schema('cozy')
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        activeGroupId = membership?.group_id;
+      }
+
+      if (activeGroupId) {
+        await service.schema('cozy').rpc('process_raincloud_waterfall', {
+          p_target_user_id: user.id,
+          p_group_id: activeGroupId,
+        });
+      }
+    } catch (waterfallErr) {
+      console.warn('[updateVibeStatus] Waterfall execution note:', waterfallErr);
+    }
   }
 
   if (NEGATIVE_STATUSES.has(status) && groupPeers.length > 0) {
