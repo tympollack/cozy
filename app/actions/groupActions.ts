@@ -7,6 +7,8 @@ import { recordPointTransaction } from '@/app/actions/ledgerActions';
 
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 export type { GroupTypeMeta } from '@/config/groupDefinitions';
+import type { VillageMapTheme } from '@/config/villageMapThemes';
+import { getVillageMapTheme } from '@/app/actions/mapActions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +51,7 @@ export interface GroupWithMembers {
   members: GroupMemberRow[];
   currentUserRole: 'admin' | 'member' | null;
   memberCount: number;
+  mapTheme?: VillageMapTheme;
 }
 
 export interface MyGroupEntry {
@@ -439,6 +442,7 @@ export const getMyGroups = cache(async (): Promise<MyGroupEntry[]> => {
 interface RawGroupBundle {
   group: GroupRow;
   members: GroupMemberRow[];
+  mapTheme?: VillageMapTheme;
 }
 
 const getCachedGroupData = unstable_cache(
@@ -468,8 +472,11 @@ const getCachedGroupData = unstable_cache(
     const group = groupRes.data as GroupRow;
     const memberships = memberRes.data ?? [];
 
+    // Fetch dynamic map theme for group's theme_id and type
+    const mapTheme = await getVillageMapTheme(group.theme_id, group.type);
+
     if (memberships.length === 0) {
-      return { group, members: [] };
+      return { group, members: [], mapTheme };
     }
 
     // 2. Fetch user profiles for all member user_ids directly from cozy.users
@@ -521,12 +528,13 @@ const getCachedGroupData = unstable_cache(
     return {
       group,
       members,
+      mapTheme,
     };
   },
   ['group-data-bundle-cache'],
   {
-    tags: ['groups'],
-    revalidate: 60,
+    tags: ['groups', 'village_map_themes'],
+    revalidate: 30,
   }
 );
 
@@ -542,7 +550,7 @@ export const getGroupWithMembers = cache(async (
   const data = await getCachedGroupData(groupId);
   if (!data) return null;
 
-  const { group, members } = data;
+  const { group, members, mapTheme } = data;
 
   const currentUserRole =
     user
@@ -554,6 +562,7 @@ export const getGroupWithMembers = cache(async (
     members,
     currentUserRole,
     memberCount: members.length,
+    mapTheme,
   };
 });
 

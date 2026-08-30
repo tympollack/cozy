@@ -182,6 +182,7 @@ export default async function GroupViewPage({ params }: GroupPageProps) {
       currentUserId={user.id}
       activeChallenge={activeChallenge}
       myGroups={myGroups}
+      initialMapTheme={result.mapTheme}
     />
   );
 }

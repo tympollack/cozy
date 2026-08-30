@@ -6,7 +6,7 @@ import type { GroupRow, GroupMemberRow } from '@/app/actions/groupActions';
 import type { GroupChallenge } from '@/lib/challengeDefaults';
 import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 import type { VibeStatus } from '@/store/useCozyStore';
-import { getThemeForGroup } from '@/config/villageMapThemes';
+import { getThemeForGroup, type VillageMapTheme } from '@/config/villageMapThemes';
 import { UserPlotNode } from '@/components/UserPlotNode';
 import { VacantPlotNode } from '@/components/VacantPlotNode';
 import type { PlotSize } from '@/components/UserPlotNode';
@@ -59,6 +59,7 @@ interface GroupMapViewProps {
   onOpenInvite?: () => void;
   activeChallenge?: GroupChallenge | null;
   burstTargetUserId?: string | null;
+  mapTheme?: VillageMapTheme;
 }
 
 export function GroupMapView({
@@ -69,13 +70,14 @@ export function GroupMapView({
   onOpenInvite,
   activeChallenge = null,
   burstTargetUserId = null,
+  mapTheme,
 }: GroupMapViewProps) {
   const safeMembers = Array.isArray(members) ? members : [];
   const meta        = GROUP_TYPE_META[group?.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
 
-  // Resolve background theme + anchor layout
-  const theme = getThemeForGroup(group?.type ?? 'household');
+  // Resolve background theme + anchor layout (dynamic from DB with static fallback)
+  const theme = mapTheme || getThemeForGroup(group?.theme_id || group?.type || 'household');
   const maxAnchors = theme.anchors.length;
 
   // How many open invite slots to show (caps at remaining anchors)
@@ -165,6 +167,8 @@ export function GroupMapView({
         return (
           <motion.div
             key={member ? member.user_id : `vacant-${i}`}
+            data-testid="plot-anchor"
+            data-plot-index={i}
             className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10"
             style={{ left: `${anchor.x}%`, top: `${anchor.y}%` }}
             initial={{ opacity: 0, scale: 0.8 }}
