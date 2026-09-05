@@ -119,12 +119,20 @@ interface CozyState {
    */
   vibeStatus: VibeStatus;
   /**
+   * Calendar date (YYYY-MM-DD) of the user's most recent atmospheric check-in.
+   * When null or different from today's date, today's daily vibe check is due.
+   */
+  lastVibeCheckDate: string | null;
+  /**
    * The group's shared pooled_points balance.
    * Null when the user has no group (solo).
    */
   groupPoints: number | null;
   setGroupId: (id: string | null) => void;
-  setVibeStatus: (status: VibeStatus) => void;
+  setVibeStatus: (status: VibeStatus, stampDate?: boolean) => void;
+  setLastVibeCheckDate: (date: string | null) => void;
+  markVibeCheckedToday: () => void;
+  isVibeCheckDue: () => boolean;
   setGroupPoints: (n: number | null) => void;
   /** Optimistically increment the group pool after a co-op bonus cheer. */
   addGroupPoints: (n: number) => void;
@@ -221,9 +229,22 @@ export const useCozyStore = create<CozyState>()(
       // --- Groups ---
       groupId: null,
       vibeStatus: 'neutral',
+      lastVibeCheckDate: null,
       groupPoints: null,
       setGroupId: (id) => set({ groupId: id }),
-      setVibeStatus: (status) => set({ vibeStatus: status }),
+      setVibeStatus: (status, stampDate = true) =>
+        set({
+          vibeStatus: status,
+          ...(stampDate ? { lastVibeCheckDate: new Date().toISOString().slice(0, 10) } : {}),
+        }),
+      setLastVibeCheckDate: (date) => set({ lastVibeCheckDate: date }),
+      markVibeCheckedToday: () =>
+        set({ lastVibeCheckDate: new Date().toISOString().slice(0, 10) }),
+      isVibeCheckDue: () => {
+        const lastDate = get().lastVibeCheckDate;
+        const today = new Date().toISOString().slice(0, 10);
+        return !lastDate || lastDate !== today;
+      },
       setGroupPoints: (n) => set({ groupPoints: n }),
       addGroupPoints: (n) =>
         set((s) => ({
@@ -266,6 +287,7 @@ export const useCozyStore = create<CozyState>()(
         themesUnlocked: state.themesUnlocked,
         groupId: state.groupId,
         vibeStatus: state.vibeStatus,
+        lastVibeCheckDate: state.lastVibeCheckDate,
         groupPoints: state.groupPoints,
         groupNotifications: state.groupNotifications,
       }),

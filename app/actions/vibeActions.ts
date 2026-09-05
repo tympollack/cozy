@@ -11,13 +11,28 @@ import { revalidatePath, revalidateTag } from 'next/cache';
  * The canonical set of vibe statuses accepted by the DB CHECK constraint.
  * Expand this list in a coordinated migration + code change when the MVP enum grows.
  */
-export type VibeStatus = 'sunshine' | 'neutral' | 'raincloud';
+export type VibeStatus = 'sunshine' | 'neutral' | 'raincloud' | string;
+
+export interface VibeTriggerConfig {
+  triggersWaterfall: boolean;
+  eventType?: string;
+  title?: string;
+  messageTemplate?: (name: string) => string;
+}
 
 /**
- * Statuses that are considered negative triggers for peer-support notifications.
- * Currently only 'raincloud' — matches the DB CHECK constraint and RPC logic.
+ * Extensible configuration mapping vibe statuses to waterfall and peer-support events.
+ * Raincloud is configured by default, but any future statuses that signal needing
+ * to be checked on can be seamlessly added here.
  */
-const NEGATIVE_STATUSES: ReadonlySet<VibeStatus> = new Set(['raincloud']);
+const VIBE_TRIGGER_CONFIG: Record<string, VibeTriggerConfig> = {
+  raincloud: {
+    triggersWaterfall: true,
+    eventType: 'support_needed',
+    title: '🌧️ Raincloud Check-In',
+    messageTemplate: (name: string) => `${name} is sitting under a raincloud and could use some warmth.`,
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,9 +47,9 @@ export interface GroupPeer {
 export interface VibeResult {
   success: boolean;
   /**
-   * Populated when `status` is a negative trigger AND the user belongs to at
-   * least one group. Intended as scaffolding for the future push-notification
-   * layer. Will be an empty array (not null) when the user is solo or the
+   * Populated when `status` is a configured trigger AND the user belongs to at
+   * least one group. Intended as scaffolding for the push-notification
+   * and peer-support layer. Will be an empty array (not null) when the user is solo or the
    * status is positive/neutral.
    */
   groupPeers: GroupPeer[];
@@ -48,14 +63,11 @@ export interface VibeResult {
 /**
  * Updates the authenticated user's vibe_status in cozy.users.
  *
- * When the status is 'raincloud' (or any future negative trigger) and the user
- * belongs to one or more groups, the action also returns the other group peers
- * so the calling layer can eventually dispatch peer-support notifications.
+ * When the status is configured to trigger peer support (e.g. 'raincloud') and the user
+ * belongs to one or more groups, the action dispatches the waterfall engine
+ * and returns group peers for client awareness.
  *
- * Users with no group memberships receive an empty groupPeers array regardless
- * of status — handled gracefully in the RPC.
- *
- * @param status - One of the allowed VibeStatus values ('sunshine' | 'neutral' | 'raincloud').
+ * @param status - VibeStatus value ('sunshine' | 'neutral' | 'raincloud' or future statuses).
  */
 export async function updateVibeStatus(status: VibeStatus, groupId?: string): Promise<VibeResult> {
   const supabase = await createServerClient();
@@ -69,15 +81,45 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  // 1. Check current status for deduplication before update
+  const triggerConfig = VIBE_TRIGGER_CONFIG[status];
+  const shouldTriggerWaterfall = Boolean(triggerConfig?.triggersWaterfall);
+
+  // 1. Date-aware deduplication check:
+  // Instead of string comparison alone (which breaks on consecutive days),
+  // check whether a support notification was already triggered today for this target user.
   const service = createServiceClient();
-  const { data: userCurrent } = await service
-    .schema('cozy')
-    .from('users')
-    .select('vibe_status')
-    .eq('id', user.id)
-    .maybeSingle();
-  const wasAlreadyRaincloud = userCurrent?.vibe_status === 'raincloud';
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const startOfDayISO = startOfDay.toISOString();
+
+  let hasTriggeredToday = false;
+  if (shouldTriggerWaterfall) {
+    try {
+      const { data: existingWaterfallNotifs } = await service
+        .schema('cozy')
+        .from('notifications')
+        .select('id, metadata')
+        .eq('type', 'peer_checkin')
+        .contains('metadata', { target_user_id: user.id })
+        .gte('created_at', startOfDayISO)
+        .limit(10);
+
+      if (existingWaterfallNotifs && existingWaterfallNotifs.length > 0) {
+        hasTriggeredToday = existingWaterfallNotifs.some((n) => {
+          const meta = n.metadata as Record<string, unknown> | undefined;
+          // Unambiguously check for waterfall alerts for this target user;
+          // do NOT conflate with outgoing or incoming peer support deliveries (support_type).
+          return (
+            meta?.target_user_id === user.id &&
+            !meta?.support_type &&
+            (meta?.source === 'waterfall' || meta?.source === 'waterfall_fallback' || meta?.event_type === 'support_needed' || !meta?.source)
+          );
+        });
+      }
+    } catch {
+      hasTriggeredToday = false;
+    }
+  }
 
   // 2. Call the RPC to enforce constraints, update status & get group peers
   let groupPeers: GroupPeer[] = [];
@@ -110,10 +152,9 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
     return { success: false, groupPeers: [], error: 'Failed to update vibe status.' };
   }
 
-  // 3. If transitioning to raincloud (and not already raincloud), schedule staggered peer notifications
-  if (status === 'raincloud' && !wasAlreadyRaincloud) {
+  // 3. If transitioning to a status that triggers peer support and haven't triggered today, schedule waterfall
+  if (shouldTriggerWaterfall && !hasTriggeredToday) {
     try {
-      const service = createServiceClient();
       let activeGroupId: string | undefined = undefined;
 
       if (groupId) {
@@ -144,13 +185,82 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
       }
 
       if (activeGroupId) {
-        const { error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
-          p_target_user_id: user.id,
-          p_group_id: activeGroupId,
-        });
+        // Generalized waterfall dispatch:
+        // 1. Attempt generalized process_notification_waterfall RPC
+        let dispatched = false;
+        try {
+          const { data: genData, error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
+            p_target_user_id: user.id,
+            p_group_id: activeGroupId,
+            p_status: status,
+          });
+          const genResult = genData as { success?: boolean; status?: string; error?: string } | null;
+          if (!genError && (!genResult || genResult.success !== false)) {
+            dispatched = true;
+          } else {
+            console.warn(
+              '[updateVibeStatus] process_notification_waterfall failed or rejected, trying fallback:',
+              genError?.message || genResult?.error
+            );
+          }
+        } catch {
+          dispatched = false;
+        }
 
-        if (waterfallError) {
-          console.error('[updateVibeStatus] Waterfall RPC error:', waterfallError.message);
+        // 2. Fallback to process_raincloud_waterfall RPC
+        if (!dispatched) {
+          try {
+            const { data: rfData, error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
+              p_target_user_id: user.id,
+              p_group_id: activeGroupId,
+            });
+            const rfResult = rfData as { success?: boolean; status?: string; error?: string } | null;
+            if (!waterfallError && (!rfResult || rfResult.success !== false)) {
+              dispatched = true;
+            } else {
+              console.warn(
+                '[updateVibeStatus] process_raincloud_waterfall failed or rejected:',
+                waterfallError?.message || rfResult?.error
+              );
+            }
+          } catch (waterfallErr) {
+            console.warn('[updateVibeStatus] Waterfall execution note:', waterfallErr);
+          }
+        }
+
+        // 3. Fallback: Direct notification insertion for group peers if RPCs are unavailable
+        if (!dispatched && groupPeers.length > 0) {
+          try {
+            const senderName = user.user_metadata?.display_name || 'A Neighbor';
+            const title = triggerConfig?.title || '🌧️ Peer Check-In';
+            const message = triggerConfig?.messageTemplate
+              ? triggerConfig.messageTemplate(senderName)
+              : `${senderName} is under a raincloud and could use some warmth.`;
+
+            const notifRecords = groupPeers.map((peer) => ({
+              user_id: peer.userId,
+              type: 'peer_checkin',
+              title,
+              message,
+              metadata: {
+                peer_id: user.id,
+                target_user_id: user.id,
+                group_id: activeGroupId,
+                event_type: 'support_needed',
+                action_url: '/profile',
+                source: 'waterfall_fallback',
+              },
+              is_read: false,
+              created_at: new Date().toISOString(),
+            }));
+
+            const { error: insertError } = await service.schema('cozy').from('notifications').insert(notifRecords);
+            if (insertError) {
+              console.error('[updateVibeStatus] Direct notification fallback insert failed:', insertError.message);
+            }
+          } catch (directInsertErr) {
+            console.warn('[updateVibeStatus] Direct notification insert note:', directInsertErr);
+          }
         }
       }
     } catch (waterfallErr) {
@@ -158,10 +268,10 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
     }
   }
 
-  if (NEGATIVE_STATUSES.has(status) && groupPeers.length > 0) {
+  if (shouldTriggerWaterfall && groupPeers.length > 0) {
     console.info(
       `[updateVibeStatus] User ${user.id} set status to '${status}'. ` +
-        `${groupPeers.length} group peer(s) queued for future notification.`
+        `${groupPeers.length} group peer(s) queued for peer support notification.`
     );
   }
 
@@ -291,19 +401,61 @@ export async function sendPeerSupport(
   }
 
   if (type === 'note' && payload?.noteText) {
-    // Store in cozy.private_notes table if exists, or handle fallback
+    // Store in cozy.private_notes table; verify successful insert before notifying recipient
     try {
-      await service.schema('cozy').from('private_notes').insert({
+      const { error: noteInsertError } = await service.schema('cozy').from('private_notes').insert({
         sender_id: user.id,
         sender_name: senderName,
         recipient_id: recipientId,
         message: payload.noteText.trim(),
+        delivered_to_porch: true,
         created_at: new Date().toISOString(),
       });
-    } catch {
-      // Gracefully log if table isn't created in local dev Postgres
-      console.info('[sendPeerSupport] Note logged for user', recipientId);
+
+      if (noteInsertError) {
+        console.error('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
+        return { success: false, error: 'Failed to deliver private note. Please try again.' };
+      }
+    } catch (noteErr) {
+      console.error('[sendPeerSupport] Exception inserting private note:', noteErr);
+      return { success: false, error: 'Failed to deliver private note. Please try again.' };
     }
+  }
+
+  // Insert recipient notification in cozy.notifications so bell badge updates
+  try {
+    let notifTitle = '💛 Peer Support Received';
+    let notifMsg = `${senderName} sent you some warm thoughts!`;
+    if (type === 'brew') {
+      notifTitle = '☕ Warm Brew Delivered';
+      notifMsg = `${senderName} sent you a warm brew! (+5 pts)`;
+    } else if (type === 'sticker') {
+      notifTitle = '🎨 Comfort Sticker';
+      notifMsg = `${senderName} placed a comfort sticker on your space! (+5 pts)`;
+    } else if (type === 'note') {
+      notifTitle = '💌 Private Supportive Note';
+      notifMsg = `${senderName} left a warm note on your porch.`;
+    }
+
+    const { error: notifError } = await service.schema('cozy').from('notifications').insert({
+      user_id: recipientId,
+      type: 'peer_checkin',
+      title: notifTitle,
+      message: notifMsg,
+      metadata: {
+        peer_id: user.id,
+        support_type: type,
+        action_url: '/profile',
+      },
+      is_read: false,
+      created_at: new Date().toISOString(),
+    });
+
+    if (notifError) {
+      console.warn('[sendPeerSupport] Notification insert warning:', notifError.message);
+    }
+  } catch (notifErr) {
+    console.warn('[sendPeerSupport] Recipient notification insert note:', notifErr);
   }
 
   return { success: true, senderPoints: newSenderPoints };

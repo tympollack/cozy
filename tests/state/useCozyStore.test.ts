@@ -16,6 +16,7 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
       themesUnlocked: false,
       groupId: null,
       vibeStatus: 'neutral',
+      lastVibeCheckDate: null,
       groupPoints: null,
       groupNotifications: {},
     });
@@ -193,6 +194,53 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
 
       store.clearGroupNotificationPref(gId);
       expect(useCozyStore.getState().groupNotifications[gId]).toBeUndefined();
+    });
+  });
+
+  describe('Daily Atmospheric Vibe Tracking & Rollover', () => {
+    it('returns isVibeCheckDue = true when lastVibeCheckDate is null', () => {
+      expect(useCozyStore.getState().lastVibeCheckDate).toBeNull();
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(true);
+    });
+
+    it('returns isVibeCheckDue = true when lastVibeCheckDate is from yesterday', () => {
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate('2026-08-01');
+      expect(store.isVibeCheckDue()).toBe(true);
+    });
+
+    it('returns isVibeCheckDue = false when checked in today', () => {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate(todayISO);
+      expect(store.isVibeCheckDue()).toBe(false);
+    });
+
+    it('automatically stamps lastVibeCheckDate when setVibeStatus is called', () => {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const store = useCozyStore.getState();
+      store.setVibeStatus('raincloud');
+      expect(useCozyStore.getState().vibeStatus).toBe('raincloud');
+      expect(useCozyStore.getState().lastVibeCheckDate).toBe(todayISO);
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(false);
+    });
+
+    it('does not stamp lastVibeCheckDate when stampDate is false (optimistic update)', () => {
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate(null);
+      store.setVibeStatus('sunshine', false);
+      expect(useCozyStore.getState().vibeStatus).toBe('sunshine');
+      expect(useCozyStore.getState().lastVibeCheckDate).toBeNull();
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(true);
+    });
+
+    it('stamps lastVibeCheckDate when markVibeCheckedToday is called', () => {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate(null);
+      store.markVibeCheckedToday();
+      expect(useCozyStore.getState().lastVibeCheckDate).toBe(todayISO);
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(false);
     });
   });
 });

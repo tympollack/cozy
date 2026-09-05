@@ -1,10 +1,11 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getUserNotifications,
   markNotificationAsRead,
   triggerDailyTaskNudge,
   receiveAdminBroadcast,
   processRaincloudWaterfallAction,
+  processNotificationWaterfallAction,
   getNotices,
 } from '@/app/actions/notificationActions';
 
@@ -61,7 +62,7 @@ vi.mock('@/lib/supabase', () => ({
   createServiceClient: () => ({
     schema: (schemaName: string) => ({
       rpc: (rpcName: string, params: any) => {
-        if (rpcName === 'process_raincloud_waterfall') {
+        if (rpcName === 'process_notification_waterfall' || rpcName === 'process_raincloud_waterfall') {
           return Promise.resolve({ data: mockRpcResult, error: null });
         }
         return Promise.resolve({ data: null, error: null });
@@ -202,6 +203,23 @@ vi.mock('@/lib/supabase', () => ({
           };
         }
 
+        if (table === 'group_members') {
+          return {
+            select: () => ({
+              eq: (_c1: string, uId: any) => ({
+                eq: (_c2: string, gId: any) => ({
+                  maybeSingle: () => {
+                    if (gId === 'group-100') {
+                      return Promise.resolve({ data: { group_id: 'group-100' }, error: null });
+                    }
+                    return Promise.resolve({ data: null, error: null });
+                  },
+                }),
+              }),
+            }),
+          };
+        }
+
         return { select: vi.fn() };
       },
     }),
@@ -315,59 +333,118 @@ describe('Notification Actions (notificationActions.ts)', () => {
   });
 
   describe('triggerDailyTaskNudge', () => {
-    it('creates daily_task notification when room capture is incomplete today', async () => {
+    it('creates morning Light photo daily_task notification during daytime', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-28T10:00:00Z'));
+
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [];
       mockNotificationsDb = [];
 
-      const res = await triggerDailyTaskNudge();
+      const res = await triggerDailyTaskNudge(0);
       expect(res.success).toBe(true);
       expect(res.nudged).toBe(true);
-      expect(res.message).toContain('daily space reset');
+      expect(res.targetPhase).toBe('light');
+      expect(res.message).toContain('Light photo');
       expect(mockNotificationsDb).toHaveLength(1);
       expect(mockNotificationsDb[0].type).toBe('daily_task');
+      expect(mockNotificationsDb[0].title).toBe('☀️ Morning Space Check-in');
+      expect(mockNotificationsDb[0].metadata?.target_phase).toBe('light');
       expect(mockNotificationsDb[0].user_id).toBe('user-me');
+
+      vi.useRealTimers();
     });
 
-    it('does not duplicate nudge if post was already created today', async () => {
+    it('creates evening Dark photo daily_task notification during evening/night', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-28T22:00:00Z'));
+
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockPostsDb = [];
+      mockNotificationsDb = [];
+
+      const res = await triggerDailyTaskNudge(0);
+      expect(res.success).toBe(true);
+      expect(res.nudged).toBe(true);
+      expect(res.targetPhase).toBe('dark');
+      expect(res.message).toContain('Dark photo');
+      expect(mockNotificationsDb).toHaveLength(1);
+      expect(mockNotificationsDb[0].type).toBe('daily_task');
+      expect(mockNotificationsDb[0].title).toBe('🌙 Evening Space Check-in');
+      expect(mockNotificationsDb[0].metadata?.target_phase).toBe('dark');
+      expect(mockNotificationsDb[0].user_id).toBe('user-me');
+
+      vi.useRealTimers();
+    });
+
+    it('skips morning nudge if Light photo was already posted today, but still allows evening nudge', async () => {
+      vi.useFakeTimers();
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [
         {
           id: 'post-today',
           user_id: 'user-me',
           light_img_url: 'light.jpg',
-          dark_img_url: 'dark.jpg',
+          dark_img_url: '',
           cheer_count: 0,
-          created_at: new Date().toISOString(),
+          created_at: '2026-08-28T09:00:00Z',
         },
       ];
+      mockNotificationsDb = [];
 
-      const res = await triggerDailyTaskNudge();
-      expect(res.success).toBe(true);
-      expect(res.nudged).toBe(false);
-      expect(res.message).toMatch(/already logged today/i);
+      // Morning check-in (10:00) should skip since Light photo was posted
+      vi.setSystemTime(new Date('2026-08-28T10:00:00Z'));
+      const resMorning = await triggerDailyTaskNudge(0);
+      expect(resMorning.success).toBe(true);
+      expect(resMorning.nudged).toBe(false);
+      expect(resMorning.message).toMatch(/already completed today/i);
       expect(mockNotificationsDb).toHaveLength(0);
+
+      // Evening check-in (20:00) should prompt for Dark photo!
+      vi.setSystemTime(new Date('2026-08-28T20:00:00Z'));
+      const resEvening = await triggerDailyTaskNudge(0);
+      expect(resEvening.success).toBe(true);
+      expect(resEvening.nudged).toBe(true);
+      expect(resEvening.targetPhase).toBe('dark');
+      expect(mockNotificationsDb).toHaveLength(1);
+      expect(mockNotificationsDb[0].title).toBe('🌙 Evening Space Check-in');
+
+      vi.useRealTimers();
     });
 
-    it('does not duplicate nudge if daily_task notification already sent today', async () => {
+    it('does not duplicate nudge for the same phase if already sent today', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-28T10:00:00Z'));
+
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [];
       mockNotificationsDb = [
         {
-          id: 'nudge-today',
+          id: 'nudge-morning',
           user_id: 'user-me',
           type: 'daily_task',
-          title: 'Daily Space Reset',
-          message: 'Time for your daily space reset!',
+          title: '☀️ Morning Space Check-in',
+          message: "Capture today's Light photo!",
+          metadata: { target_phase: 'light' },
           is_read: false,
-          created_at: new Date().toISOString(),
+          created_at: '2026-08-28T06:00:00Z',
         },
       ];
 
-      const res = await triggerDailyTaskNudge();
-      expect(res.success).toBe(true);
-      expect(res.nudged).toBe(false);
-      expect(res.message).toMatch(/already sent today/i);
+      // Second morning check should deduplicate
+      const resMorning = await triggerDailyTaskNudge(0);
+      expect(resMorning.success).toBe(true);
+      expect(resMorning.nudged).toBe(false);
+      expect(resMorning.message).toMatch(/Morning check-in nudge already sent today/i);
+
+      // Night check should still trigger evening nudge
+      vi.setSystemTime(new Date('2026-08-28T20:00:00Z'));
+      const resEvening = await triggerDailyTaskNudge(0);
+      expect(resEvening.success).toBe(true);
+      expect(resEvening.nudged).toBe(true);
+      expect(resEvening.targetPhase).toBe('dark');
+
+      vi.useRealTimers();
     });
   });
 
@@ -396,8 +473,46 @@ describe('Notification Actions (notificationActions.ts)', () => {
     });
   });
 
-  describe('processRaincloudWaterfallAction', () => {
-    it('executes the Serene Cascade waterfall RPC', async () => {
+  describe('processNotificationWaterfallAction & processRaincloudWaterfallAction', () => {
+    it('rejects unauthenticated callers', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('No session') });
+      const res = await processNotificationWaterfallAction('user-1', 'group-100');
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/Authentication required/i);
+    });
+
+    it('rejects callers attempting to trigger waterfall for another user', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'attacker' } }, error: null });
+      const res = await processNotificationWaterfallAction('victim', 'group-100');
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/Unauthorized/i);
+    });
+
+    it('rejects caller when caller is not a verified member of the group', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+      const res = await processNotificationWaterfallAction('user-1', 'group-unverified');
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/not a verified member/i);
+    });
+
+    it('executes the generalized notification waterfall RPC for authorized member', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+      mockRpcResult = {
+        success: true,
+        status: 'notified',
+        notified_user_id: 'user-2',
+        notified_name: 'Bob',
+        message: 'Dispatched peer-support waterfall.',
+      };
+
+      const res = await processNotificationWaterfallAction('user-1', 'group-100', 'raincloud');
+      expect(res.success).toBe(true);
+      expect(res.status).toBe('notified');
+      expect(res.message).toContain('Dispatched peer-support waterfall');
+    });
+
+    it('executes legacy processRaincloudWaterfallAction with backwards compatibility', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
       mockRpcResult = {
         success: true,
         status: 'notified',
