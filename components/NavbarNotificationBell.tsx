@@ -44,7 +44,7 @@ export function NavbarNotificationBell({
   // Trigger daily task check-in nudge and fetch initial notifications on mount
   useEffect(() => {
     if (userId) {
-      triggerDailyTaskNudge(new Date().getHours())
+      triggerDailyTaskNudge(-new Date().getTimezoneOffset())
         .catch((err) => console.warn('[NavbarNotificationBell] Nudge check error:', err))
         .finally(() => {
           fetchLatestNotifications();

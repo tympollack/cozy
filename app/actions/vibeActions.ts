@@ -25,7 +25,7 @@ export interface VibeTriggerConfig {
  * Raincloud is configured by default, but any future statuses that signal needing
  * to be checked on can be seamlessly added here.
  */
-export const VIBE_TRIGGER_CONFIG: Record<string, VibeTriggerConfig> = {
+const VIBE_TRIGGER_CONFIG: Record<string, VibeTriggerConfig> = {
   raincloud: {
     triggersWaterfall: true,
     eventType: 'support_needed',
@@ -100,13 +100,20 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
         .from('notifications')
         .select('id, metadata')
         .eq('type', 'peer_checkin')
+        .contains('metadata', { target_user_id: user.id })
         .gte('created_at', startOfDayISO)
         .limit(10);
 
       if (existingWaterfallNotifs && existingWaterfallNotifs.length > 0) {
         hasTriggeredToday = existingWaterfallNotifs.some((n) => {
           const meta = n.metadata as Record<string, unknown> | undefined;
-          return meta?.target_user_id === user.id || meta?.peer_id === user.id;
+          // Unambiguously check for waterfall alerts for this target user;
+          // do NOT conflate with outgoing or incoming peer support deliveries (support_type).
+          return (
+            meta?.target_user_id === user.id &&
+            !meta?.support_type &&
+            (meta?.source === 'waterfall' || meta?.source === 'waterfall_fallback' || meta?.event_type === 'support_needed' || !meta?.source)
+          );
         });
       }
     } catch {
@@ -182,13 +189,19 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
         // 1. Attempt generalized process_notification_waterfall RPC
         let dispatched = false;
         try {
-          const { error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
+          const { data: genData, error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
             p_target_user_id: user.id,
             p_group_id: activeGroupId,
             p_status: status,
           });
-          if (!genError) {
+          const genResult = genData as { success?: boolean; status?: string; error?: string } | null;
+          if (!genError && (!genResult || genResult.success !== false)) {
             dispatched = true;
+          } else {
+            console.warn(
+              '[updateVibeStatus] process_notification_waterfall failed or rejected, trying fallback:',
+              genError?.message || genResult?.error
+            );
           }
         } catch {
           dispatched = false;
@@ -197,14 +210,18 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
         // 2. Fallback to process_raincloud_waterfall RPC
         if (!dispatched) {
           try {
-            const { error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
+            const { data: rfData, error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
               p_target_user_id: user.id,
               p_group_id: activeGroupId,
             });
-            if (!waterfallError) {
+            const rfResult = rfData as { success?: boolean; status?: string; error?: string } | null;
+            if (!waterfallError && (!rfResult || rfResult.success !== false)) {
               dispatched = true;
             } else {
-              console.error('[updateVibeStatus] Waterfall RPC error:', waterfallError.message);
+              console.warn(
+                '[updateVibeStatus] process_raincloud_waterfall failed or rejected:',
+                waterfallError?.message || rfResult?.error
+              );
             }
           } catch (waterfallErr) {
             console.warn('[updateVibeStatus] Waterfall execution note:', waterfallErr);
@@ -229,6 +246,7 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
                 peer_id: user.id,
                 target_user_id: user.id,
                 group_id: activeGroupId,
+                event_type: 'support_needed',
                 action_url: '/profile',
                 source: 'waterfall_fallback',
               },
@@ -236,7 +254,10 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
               created_at: new Date().toISOString(),
             }));
 
-            await service.schema('cozy').from('notifications').insert(notifRecords);
+            const { error: insertError } = await service.schema('cozy').from('notifications').insert(notifRecords);
+            if (insertError) {
+              console.error('[updateVibeStatus] Direct notification fallback insert failed:', insertError.message);
+            }
           } catch (directInsertErr) {
             console.warn('[updateVibeStatus] Direct notification insert note:', directInsertErr);
           }
@@ -380,9 +401,9 @@ export async function sendPeerSupport(
   }
 
   if (type === 'note' && payload?.noteText) {
-    // Store in cozy.private_notes table if exists, or handle fallback
+    // Store in cozy.private_notes table; verify successful insert before notifying recipient
     try {
-      await service.schema('cozy').from('private_notes').insert({
+      const { error: noteInsertError } = await service.schema('cozy').from('private_notes').insert({
         sender_id: user.id,
         sender_name: senderName,
         recipient_id: recipientId,
@@ -390,9 +411,14 @@ export async function sendPeerSupport(
         delivered_to_porch: true,
         created_at: new Date().toISOString(),
       });
-    } catch {
-      // Gracefully log if table isn't created in local dev Postgres
-      console.info('[sendPeerSupport] Note logged for user', recipientId);
+
+      if (noteInsertError) {
+        console.error('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
+        return { success: false, error: 'Failed to deliver private note. Please try again.' };
+      }
+    } catch (noteErr) {
+      console.error('[sendPeerSupport] Exception inserting private note:', noteErr);
+      return { success: false, error: 'Failed to deliver private note. Please try again.' };
     }
   }
 
@@ -411,7 +437,7 @@ export async function sendPeerSupport(
       notifMsg = `${senderName} left a warm note on your porch.`;
     }
 
-    await service.schema('cozy').from('notifications').insert({
+    const { error: notifError } = await service.schema('cozy').from('notifications').insert({
       user_id: recipientId,
       type: 'peer_checkin',
       title: notifTitle,
@@ -424,6 +450,10 @@ export async function sendPeerSupport(
       is_read: false,
       created_at: new Date().toISOString(),
     });
+
+    if (notifError) {
+      console.warn('[sendPeerSupport] Notification insert warning:', notifError.message);
+    }
   } catch (notifErr) {
     console.warn('[sendPeerSupport] Recipient notification insert note:', notifErr);
   }

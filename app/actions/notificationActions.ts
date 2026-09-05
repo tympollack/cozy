@@ -171,12 +171,13 @@ export async function markNotificationAsRead(
 // 3. triggerDailyTaskNudge
 //
 // Dual morning/afternoon & evening check-in engine:
-// - Morning/Afternoon (05:00 - 17:59): Prompts for Light photo to start daily reset (+25 pts).
-// - Evening/Night (18:00 - 04:59): Prompts for Dark photo to complete dual mode (+50 pts).
-// Deduplicates per phase per day so morning and evening notifications don't conflict.
+// - Morning/Afternoon (05:00 - 17:59 local): Prompts for Light photo to start daily reset (+25 pts).
+// - Evening/Night (18:00 - 04:59 local): Prompts for Dark photo to complete dual mode (+50 pts).
+// Anchored securely to server Date.now() with caller timezone offset [-720, 840].
+// Deduplicates per phase per local day so morning and evening notifications don't conflict.
 // ---------------------------------------------------------------------------
 
-export async function triggerDailyTaskNudge(clientHour?: number): Promise<{
+export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promise<{
   success: boolean;
   nudged: boolean;
   targetPhase?: 'light' | 'dark';
@@ -196,14 +197,27 @@ export async function triggerDailyTaskNudge(clientHour?: number): Promise<{
   const service = createServiceClient();
 
   try {
-    const currentHour = typeof clientHour === 'number' ? clientHour : new Date().getHours();
-    const isDaytime = currentHour >= 5 && currentHour < 18;
+    // Validate caller-supplied client timezone offset in minutes [-720 to +840] (UTC-12 to UTC+14)
+    const validOffsetMinutes =
+      typeof clientOffsetMinutes === 'number' &&
+      Number.isFinite(clientOffsetMinutes) &&
+      clientOffsetMinutes >= -720 &&
+      clientOffsetMinutes <= 840
+        ? clientOffsetMinutes
+        : -new Date().getTimezoneOffset();
+
+    // Securely derive local time anchored to server Date.now()
+    const clientNow = new Date(Date.now() + validOffsetMinutes * 60 * 1000);
+    const localHour = clientNow.getUTCHours();
+    const isDaytime = localHour >= 5 && localHour < 18;
     const targetPhase: 'light' | 'dark' = isDaytime ? 'light' : 'dark';
 
-    // Check if user has posted today (start of day UTC)
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const startOfDayISO = startOfDay.toISOString();
+    // Compute start of user's local calendar day in UTC for accurate daily deduplication
+    const startOfLocalDay = new Date(
+      Date.UTC(clientNow.getUTCFullYear(), clientNow.getUTCMonth(), clientNow.getUTCDate()) -
+        validOffsetMinutes * 60 * 1000
+    );
+    const startOfDayISO = startOfLocalDay.toISOString();
 
     const { data: todayPosts, error: postError } = await service
       .schema('cozy')
@@ -378,36 +392,69 @@ export async function processNotificationWaterfallAction(
     return { success: false, error: 'targetUserId and groupId are required.' };
   }
 
+  // 1. Authenticate caller
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  // 2. Authorize caller: callers cannot trigger a support waterfall claiming another user needs support
+  if (user.id !== targetUserId) {
+    return { success: false, error: 'Unauthorized: You can only trigger waterfalls for your own account.' };
+  }
+
   const service = createServiceClient();
 
+  // 3. Verify group membership
+  const { data: verifiedMembership } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', user.id)
+    .eq('group_id', groupId)
+    .maybeSingle();
+
+  if (!verifiedMembership) {
+    return { success: false, error: 'Caller is not a verified member of the requested group.' };
+  }
+
   try {
-    // 1. Try generalized process_notification_waterfall RPC
+    // 4. Try generalized process_notification_waterfall RPC
     const { data: genData, error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
       p_target_user_id: targetUserId,
       p_group_id: groupId,
       p_status: status,
     });
 
-    if (!genError && genData) {
-      const result = genData as {
-        success?: boolean;
-        status?: string;
-        message?: string;
-        error?: string;
-      };
+    const genResult = genData as {
+      success?: boolean;
+      status?: string;
+      message?: string;
+      error?: string;
+    } | null;
+
+    if (!genError && genResult && genResult.success !== false) {
       return {
-        success: result.success ?? true,
-        status: result.status,
-        message: result.message,
-        error: result.error,
+        success: genResult.success ?? true,
+        status: genResult.status,
+        message: genResult.message,
+        error: genResult.error,
       };
     }
 
-    if (genError) {
-      console.warn('[processNotificationWaterfallAction] Generalized RPC not available, trying fallback:', genError.message);
+    if (genError || (genResult && genResult.success === false)) {
+      console.warn(
+        '[processNotificationWaterfallAction] Generalized RPC not available or rejected, trying fallback:',
+        genError?.message || genResult?.error
+      );
     }
 
-    // 2. Fallback to process_raincloud_waterfall RPC
+    // 5. Fallback to process_raincloud_waterfall RPC
     const { data, error } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
       p_target_user_id: targetUserId,
       p_group_id: groupId,

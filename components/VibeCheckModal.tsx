@@ -78,14 +78,19 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
   if (!mounted) return null;
 
   async function handleSelect(status: VibeStatus) {
+    const prevStatus = useCozyStore.getState().vibeStatus;
+    const prevDate = useCozyStore.getState().lastVibeCheckDate;
     setSelected(status);
     setIsSubmitting(true);
-    setVibeStatus(status);
+    setVibeStatus(status, false); // Optimistic UI update without prematurely marking check-in complete
 
     try {
       const activeGroupId = useCozyStore.getState().groupId ?? undefined;
       const res = await updateVibeStatus(status, activeGroupId);
       if (res.success) {
+        // Stamp daily check-in completion only after server action succeeds
+        useCozyStore.getState().markVibeCheckedToday();
+
         // Broadcast to realtime channels so peers see the update instantly
         try {
           const supabase = createBrowserClient();
@@ -142,9 +147,17 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
             `Weather updated to ${status === 'sunshine' ? '☀️ Sunshine' : '☕ Cozy'}! Enjoy your space.`
           );
         }
+      } else {
+        // Roll back optimistic state on failure so daily prompt stays active
+        setVibeStatus(prevStatus, false);
+        useCozyStore.getState().setLastVibeCheckDate(prevDate);
+        setSelected(prevStatus);
       }
     } catch {
-      // Keep optimistic Zustand update
+      // Roll back on network/server error so daily prompt stays active
+      setVibeStatus(prevStatus, false);
+      useCozyStore.getState().setLastVibeCheckDate(prevDate);
+      setSelected(prevStatus);
     } finally {
       setIsSubmitting(false);
       setTimeout(() => {

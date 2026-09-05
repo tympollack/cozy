@@ -129,8 +129,9 @@ interface CozyState {
    */
   groupPoints: number | null;
   setGroupId: (id: string | null) => void;
-  setVibeStatus: (status: VibeStatus) => void;
+  setVibeStatus: (status: VibeStatus, stampDate?: boolean) => void;
   setLastVibeCheckDate: (date: string | null) => void;
+  markVibeCheckedToday: () => void;
   isVibeCheckDue: () => boolean;
   setGroupPoints: (n: number | null) => void;
   /** Optimistically increment the group pool after a co-op bonus cheer. */
@@ -231,12 +232,14 @@ export const useCozyStore = create<CozyState>()(
       lastVibeCheckDate: null,
       groupPoints: null,
       setGroupId: (id) => set({ groupId: id }),
-      setVibeStatus: (status) =>
+      setVibeStatus: (status, stampDate = true) =>
         set({
           vibeStatus: status,
-          lastVibeCheckDate: new Date().toISOString().slice(0, 10),
+          ...(stampDate ? { lastVibeCheckDate: new Date().toISOString().slice(0, 10) } : {}),
         }),
       setLastVibeCheckDate: (date) => set({ lastVibeCheckDate: date }),
+      markVibeCheckedToday: () =>
+        set({ lastVibeCheckDate: new Date().toISOString().slice(0, 10) }),
       isVibeCheckDue: () => {
         const lastDate = get().lastVibeCheckDate;
         const today = new Date().toISOString().slice(0, 10);

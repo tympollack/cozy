@@ -224,5 +224,23 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
       expect(useCozyStore.getState().lastVibeCheckDate).toBe(todayISO);
       expect(useCozyStore.getState().isVibeCheckDue()).toBe(false);
     });
+
+    it('does not stamp lastVibeCheckDate when stampDate is false (optimistic update)', () => {
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate(null);
+      store.setVibeStatus('sunshine', false);
+      expect(useCozyStore.getState().vibeStatus).toBe('sunshine');
+      expect(useCozyStore.getState().lastVibeCheckDate).toBeNull();
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(true);
+    });
+
+    it('stamps lastVibeCheckDate when markVibeCheckedToday is called', () => {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const store = useCozyStore.getState();
+      store.setLastVibeCheckDate(null);
+      store.markVibeCheckedToday();
+      expect(useCozyStore.getState().lastVibeCheckDate).toBe(todayISO);
+      expect(useCozyStore.getState().isVibeCheckDue()).toBe(false);
+    });
   });
 });
