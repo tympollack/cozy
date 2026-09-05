@@ -6,7 +6,7 @@ import { getUserProfileData } from '@/app/actions/profileActions';
 import { getShellDefinition, isSlotInShell } from '@/config/shellDefinitions';
 import { ProfileShell } from '@/components/ProfileShell';
 import { ProfileGrid } from '@/app/profile/ProfileGrid';
-import { Sparkles, Home, Archive } from 'lucide-react';
+import { Sparkles, Home, Archive, Camera } from 'lucide-react';
 
 interface UsernamePageProps {
   params: Promise<{
@@ -29,23 +29,12 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
   const supabase = await createServerClient();
   const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-  // 1. Resolve user ID if target is UUID or username lookup
+  // 1. Resolve target user UUID from route param
   let targetUserId: string | null = null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUsernameOrId);
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-  if (uuidRegex.test(targetUsernameOrId)) {
-    // Check if target UUID exists in cozy.users
-    const { data: foundByUuid } = await supabase
-      .schema('cozy')
-      .from('users')
-      .select('id')
-      .eq('id', targetUsernameOrId)
-      .maybeSingle();
-
-    if (foundByUuid) {
-      targetUserId = foundByUuid.id;
-    }
+  if (isUuid) {
+    targetUserId = targetUsernameOrId;
   } else {
     // Lookup by display_name
     const { data: foundByName } = await supabase
@@ -80,63 +69,50 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
     !isOwner && currentUserId
       ? getPeerStatus(currentUserId, targetUserId)
       : Promise.resolve('none' as const),
-    // Pending inbox (only relevant for the owner)
-    isOwner && currentUserId
-      ? getPendingCallingCards(currentUserId)
+    // Pending incoming cards to display in dollhouse mailbox (owner-only)
+    isOwner
+      ? getPendingCallingCards(targetUserId)
       : Promise.resolve([]),
   ]);
 
-  // Convenience boolean for future Nook-gating (obscure private Nooks from non-peers)
   const isPeer = peerStatus === 'accepted';
 
   const slottedPosts = posts.filter((p) => isSlotInShell(p.shell_slot, currentShellDef));
   const unassignedPosts = posts.filter((p) => !isSlotInShell(p.shell_slot, currentShellDef));
 
   return (
-    <div className="cozy-page-bg px-4 py-8 pb-20">
-      <div className="max-w-3xl mx-auto space-y-8">
+    <div className="cozy-page-bg px-4 py-3 sm:py-4 pb-16">
+      <div className="max-w-3xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-1">
           <div>
-            <h1 className="text-2xl font-800 text-[--cozy-bark] flex items-center gap-2">
-              <Home className="text-[--cozy-rust]" size={24} />
-              {isOwner ? 'My Cozy Shell' : `${targetUsernameOrId}'s Cozy Shell`}
+            <h1 className="text-lg sm:text-xl font-800 text-[--cozy-bark] flex items-center gap-2 leading-tight">
+              <Home className="text-[--cozy-rust]" size={20} />
+              {isOwner ? 'My Cozy Shell & Spaces' : `${targetUsernameOrId}'s Cozy Shell`}
             </h1>
-            <p className="text-sm text-[--cozy-muted] mt-1">
+            <p className="text-xs text-[--cozy-muted] mt-0.5">
               {posts.length === 0
                 ? 'No spaces shared yet.'
                 : `${posts.length} space${posts.length !== 1 ? 's' : ''} total • ${slottedPosts.length} in nooks`}
             </p>
           </div>
-
-          {isOwner && (
-            <Link
-              href="/camera"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full
-                font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
-                shadow-md hover:scale-105 active:scale-95 transition-all border border-amber-500/50"
-            >
-              <Sparkles size={14} className="fill-stone-900 text-stone-900" />
-              <span>New Space</span>
-            </Link>
-          )}
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-2xl">
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-2.5 rounded-2xl">
             {error}
           </div>
         )}
 
         {posts.length === 0 ? (
-          <div className="text-center py-20 space-y-4 bg-white/50 backdrop-blur-md rounded-3xl border border-[--cozy-amber]/20 p-8">
-            <div className="text-6xl" role="img" aria-label="House">
+          <div className="text-center py-16 space-y-4 bg-white/50 backdrop-blur-md rounded-3xl border border-[--cozy-amber]/20 p-8">
+            <div className="text-5xl" role="img" aria-label="House">
               🏡
             </div>
-            <h3 className="text-lg font-700 text-[--cozy-bark]">
-              {isOwner ? 'Your Shell is Empty' : 'This Shell is Empty'}
+            <h3 className="text-base font-800 text-[--cozy-bark]">
+              {isOwner ? 'Your Shell Awaits' : 'Empty Shell'}
             </h3>
-            <p className="text-sm text-[--cozy-muted] max-w-sm mx-auto">
+            <p className="text-xs text-[--cozy-muted] max-w-sm mx-auto">
               {isOwner
                 ? 'Share your first cozy room photo to populate your 2.5D dollhouse nooks!'
                 : 'No shared spaces have been placed in this shell yet.'}
@@ -158,22 +134,43 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
               currentUserId={currentUserId}
             />
 
-            {/* Unassigned / Archive Spaces Grid */}
-            <div className="pt-6 border-t border-[--cozy-amber]/20 space-y-4">
+            {/* Unassigned / Archive Spaces Drawer */}
+            <div className="pt-4 border-t border-[--cozy-amber]/20 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <Archive size={18} className="text-[--cozy-rust]" />
-                  <h2 className="text-lg font-800 text-[--cozy-bark]">
+                  <h2 className="text-base font-800 text-[--cozy-bark]">
                     {isOwner ? 'Unsorted Spaces' : 'Archive Spaces'} ({unassignedPosts.length})
                   </h2>
                 </div>
+                {isOwner && (
+                  <Link
+                    href="/camera"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full
+                      font-800 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300
+                      shadow-xs hover:scale-105 active:scale-95 transition-all border border-amber-500/50 cursor-pointer"
+                  >
+                    <Sparkles size={13} className="fill-stone-900 text-stone-900" />
+                    <span>+ New Space</span>
+                  </Link>
+                )}
               </div>
 
               {unassignedPosts.length === 0 ? (
-                <div className="text-center py-8 bg-white/40 backdrop-blur-sm rounded-2xl border border-[--cozy-amber]/15">
-                  <p className="text-xs font-600 text-[--cozy-muted]">
-                    ✨ All spaces are assigned to interactive nooks!
+                <div className="text-center py-5 px-4 bg-white/40 backdrop-blur-sm rounded-2xl border border-[--cozy-amber]/15 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs font-600 text-[--cozy-muted] flex items-center gap-1.5">
+                    <span>✨</span>
+                    <span>All spaces are assigned to interactive nooks!</span>
                   </p>
+                  {isOwner && (
+                    <Link
+                      href="/camera"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-800 text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/40 hover:bg-amber-200 transition-colors cursor-pointer"
+                    >
+                      <Camera size={13} />
+                      <span>Snap a space</span>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <ProfileGrid posts={unassignedPosts} />
