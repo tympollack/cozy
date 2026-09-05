@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
@@ -170,13 +170,16 @@ export async function markNotificationAsRead(
 // ---------------------------------------------------------------------------
 // 3. triggerDailyTaskNudge
 //
-// Validates if the daily room capture/routine has been logged today;
-// if incomplete, creates a daily_task notification ("Time for your daily space reset!").
+// Dual morning/afternoon & evening check-in engine:
+// - Morning/Afternoon (05:00 - 17:59): Prompts for Light photo to start daily reset (+25 pts).
+// - Evening/Night (18:00 - 04:59): Prompts for Dark photo to complete dual mode (+50 pts).
+// Deduplicates per phase per day so morning and evening notifications don't conflict.
 // ---------------------------------------------------------------------------
 
-export async function triggerDailyTaskNudge(): Promise<{
+export async function triggerDailyTaskNudge(clientHour?: number): Promise<{
   success: boolean;
   nudged: boolean;
+  targetPhase?: 'light' | 'dark';
   message?: string;
   error?: string;
 }> {
@@ -193,7 +196,11 @@ export async function triggerDailyTaskNudge(): Promise<{
   const service = createServiceClient();
 
   try {
-    // Check if user has posted today (last 24 hours / start of day UTC)
+    const currentHour = typeof clientHour === 'number' ? clientHour : new Date().getHours();
+    const isDaytime = currentHour >= 5 && currentHour < 18;
+    const targetPhase: 'light' | 'dark' = isDaytime ? 'light' : 'dark';
+
+    // Check if user has posted today (start of day UTC)
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const startOfDayISO = startOfDay.toISOString();
@@ -201,36 +208,66 @@ export async function triggerDailyTaskNudge(): Promise<{
     const { data: todayPosts, error: postError } = await service
       .schema('cozy')
       .from('posts')
-      .select('id')
+      .select('id, light_img_url, dark_img_url')
       .eq('user_id', user.id)
-      .gte('created_at', startOfDayISO)
-      .limit(1);
+      .gte('created_at', startOfDayISO);
 
     if (!postError && todayPosts && todayPosts.length > 0) {
-      return {
-        success: true,
-        nudged: false,
-        message: 'Daily space reset already logged today.',
-      };
+      const hasCompletedPhase = todayPosts.some(
+        (post: { light_img_url?: string | null; dark_img_url?: string | null }) => {
+          if (targetPhase === 'light') {
+            return Boolean(post.light_img_url);
+          } else {
+            return Boolean(post.dark_img_url);
+          }
+        }
+      );
+
+      if (hasCompletedPhase) {
+        return {
+          success: true,
+          nudged: false,
+          targetPhase,
+          message: `${targetPhase === 'light' ? 'Daytime (Light)' : 'Evening (Dark)'} space check-in already completed today.`,
+        };
+      }
     }
 
-    // Check if a daily_task notification has already been generated today to avoid duplicate alerts
+    // Check if a daily_task notification for this phase has already been generated today
     const { data: existingNudges, error: nudgeError } = await service
       .schema('cozy')
       .from('notifications')
-      .select('id')
+      .select('id, metadata')
       .eq('user_id', user.id)
       .eq('type', 'daily_task')
-      .gte('created_at', startOfDayISO)
-      .limit(1);
+      .gte('created_at', startOfDayISO);
 
     if (!nudgeError && existingNudges && existingNudges.length > 0) {
-      return {
-        success: true,
-        nudged: false,
-        message: 'Daily task nudge already sent today.',
-      };
+      const alreadyNudgedForPhase = existingNudges.some((n) => {
+        const meta = n.metadata as NotificationMetadata | undefined;
+        if (meta?.target_phase) {
+          return meta.target_phase === targetPhase;
+        }
+        // Legacy fallback: existing un-phased nudge matches light
+        return targetPhase === 'light';
+      });
+
+      if (alreadyNudgedForPhase) {
+        return {
+          success: true,
+          nudged: false,
+          targetPhase,
+          message: `${targetPhase === 'light' ? 'Morning' : 'Evening'} check-in nudge already sent today.`,
+        };
+      }
     }
+
+    // Prepare phase-specific notification copy
+    const title = targetPhase === 'light' ? '☀️ Morning Space Check-in' : '🌙 Evening Space Check-in';
+    const message =
+      targetPhase === 'light'
+        ? "Capture today's Light photo to brighten your space and start your daily reset (+25 pts)!"
+        : "Capture tonight's Dark photo to complete your Light & Dark dual mode and claim full bonus points (+50 pts)!";
 
     // Insert daily task nudge notification
     const { error: insertError } = await service
@@ -239,11 +276,12 @@ export async function triggerDailyTaskNudge(): Promise<{
       .insert({
         user_id: user.id,
         type: 'daily_task',
-        title: 'Daily Space Reset',
-        message: 'Time for your daily space reset! Capture your Light & Dark room to keep your cozy streak alive.',
+        title,
+        message,
         metadata: {
           target_app: 'cozy',
-          action_url: '/camera',
+          target_phase: targetPhase,
+          action_url: `/camera?mode=${targetPhase}`,
         },
         is_read: false,
         created_at: new Date().toISOString(),
@@ -251,13 +289,14 @@ export async function triggerDailyTaskNudge(): Promise<{
 
     if (insertError) {
       console.error('[triggerDailyTaskNudge] Insert error:', insertError.message);
-      return { success: false, nudged: false, error: insertError.message };
+      return { success: false, nudged: false, targetPhase, error: insertError.message };
     }
 
     return {
       success: true,
       nudged: true,
-      message: 'Time for your daily space reset!',
+      targetPhase,
+      message,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to trigger daily task nudge.';
@@ -325,14 +364,15 @@ export async function receiveAdminBroadcast(
 }
 
 // ---------------------------------------------------------------------------
-// 5. processRaincloudWaterfallAction
+// 5. processNotificationWaterfallAction & processRaincloudWaterfallAction
 //
-// Triggers the cozy.process_raincloud_waterfall RPC to execute the Serene Cascade.
+// Triggers the generalized notification waterfall RPC, falling back to process_raincloud_waterfall.
 // ---------------------------------------------------------------------------
 
-export async function processRaincloudWaterfallAction(
+export async function processNotificationWaterfallAction(
   targetUserId: string,
-  groupId: string
+  groupId: string,
+  status: string = 'raincloud'
 ): Promise<{ success: boolean; status?: string; message?: string; error?: string }> {
   if (!targetUserId || !groupId) {
     return { success: false, error: 'targetUserId and groupId are required.' };
@@ -341,13 +381,40 @@ export async function processRaincloudWaterfallAction(
   const service = createServiceClient();
 
   try {
+    // 1. Try generalized process_notification_waterfall RPC
+    const { data: genData, error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
+      p_target_user_id: targetUserId,
+      p_group_id: groupId,
+      p_status: status,
+    });
+
+    if (!genError && genData) {
+      const result = genData as {
+        success?: boolean;
+        status?: string;
+        message?: string;
+        error?: string;
+      };
+      return {
+        success: result.success ?? true,
+        status: result.status,
+        message: result.message,
+        error: result.error,
+      };
+    }
+
+    if (genError) {
+      console.warn('[processNotificationWaterfallAction] Generalized RPC not available, trying fallback:', genError.message);
+    }
+
+    // 2. Fallback to process_raincloud_waterfall RPC
     const { data, error } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
       p_target_user_id: targetUserId,
       p_group_id: groupId,
     });
 
     if (error) {
-      console.error('[processRaincloudWaterfallAction] RPC error:', error.message);
+      console.error('[processNotificationWaterfallAction] Fallback RPC error:', error.message);
       return { success: false, error: error.message };
     }
 
@@ -368,6 +435,13 @@ export async function processRaincloudWaterfallAction(
     const message = err instanceof Error ? err.message : 'Failed to process waterfall.';
     return { success: false, error: message };
   }
+}
+
+export async function processRaincloudWaterfallAction(
+  targetUserId: string,
+  groupId: string
+): Promise<{ success: boolean; status?: string; message?: string; error?: string }> {
+  return processNotificationWaterfallAction(targetUserId, groupId, 'raincloud');
 }
 
 // ---------------------------------------------------------------------------

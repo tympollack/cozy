@@ -1,10 +1,11 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getUserNotifications,
   markNotificationAsRead,
   triggerDailyTaskNudge,
   receiveAdminBroadcast,
   processRaincloudWaterfallAction,
+  processNotificationWaterfallAction,
   getNotices,
 } from '@/app/actions/notificationActions';
 
@@ -61,7 +62,7 @@ vi.mock('@/lib/supabase', () => ({
   createServiceClient: () => ({
     schema: (schemaName: string) => ({
       rpc: (rpcName: string, params: any) => {
-        if (rpcName === 'process_raincloud_waterfall') {
+        if (rpcName === 'process_notification_waterfall' || rpcName === 'process_raincloud_waterfall') {
           return Promise.resolve({ data: mockRpcResult, error: null });
         }
         return Promise.resolve({ data: null, error: null });
@@ -315,59 +316,97 @@ describe('Notification Actions (notificationActions.ts)', () => {
   });
 
   describe('triggerDailyTaskNudge', () => {
-    it('creates daily_task notification when room capture is incomplete today', async () => {
+    it('creates morning Light photo daily_task notification during daytime (e.g. 10:00)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [];
       mockNotificationsDb = [];
 
-      const res = await triggerDailyTaskNudge();
+      const res = await triggerDailyTaskNudge(10);
       expect(res.success).toBe(true);
       expect(res.nudged).toBe(true);
-      expect(res.message).toContain('daily space reset');
+      expect(res.targetPhase).toBe('light');
+      expect(res.message).toContain('Light photo');
       expect(mockNotificationsDb).toHaveLength(1);
       expect(mockNotificationsDb[0].type).toBe('daily_task');
+      expect(mockNotificationsDb[0].title).toBe('☀️ Morning Space Check-in');
+      expect(mockNotificationsDb[0].metadata?.target_phase).toBe('light');
       expect(mockNotificationsDb[0].user_id).toBe('user-me');
     });
 
-    it('does not duplicate nudge if post was already created today', async () => {
+    it('creates evening Dark photo daily_task notification during evening/night (e.g. 20:00)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockPostsDb = [];
+      mockNotificationsDb = [];
+
+      const res = await triggerDailyTaskNudge(20);
+      expect(res.success).toBe(true);
+      expect(res.nudged).toBe(true);
+      expect(res.targetPhase).toBe('dark');
+      expect(res.message).toContain('Dark photo');
+      expect(mockNotificationsDb).toHaveLength(1);
+      expect(mockNotificationsDb[0].type).toBe('daily_task');
+      expect(mockNotificationsDb[0].title).toBe('🌙 Evening Space Check-in');
+      expect(mockNotificationsDb[0].metadata?.target_phase).toBe('dark');
+      expect(mockNotificationsDb[0].user_id).toBe('user-me');
+    });
+
+    it('skips morning nudge if Light photo was already posted today, but still allows evening nudge', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [
         {
           id: 'post-today',
           user_id: 'user-me',
           light_img_url: 'light.jpg',
-          dark_img_url: 'dark.jpg',
+          dark_img_url: '',
           cheer_count: 0,
           created_at: new Date().toISOString(),
         },
       ];
+      mockNotificationsDb = [];
 
-      const res = await triggerDailyTaskNudge();
-      expect(res.success).toBe(true);
-      expect(res.nudged).toBe(false);
-      expect(res.message).toMatch(/already logged today/i);
+      // Morning check-in (10:00) should skip since Light photo was posted
+      const resMorning = await triggerDailyTaskNudge(10);
+      expect(resMorning.success).toBe(true);
+      expect(resMorning.nudged).toBe(false);
+      expect(resMorning.message).toMatch(/already completed today/i);
       expect(mockNotificationsDb).toHaveLength(0);
+
+      // Evening check-in (20:00) should prompt for Dark photo!
+      const resEvening = await triggerDailyTaskNudge(20);
+      expect(resEvening.success).toBe(true);
+      expect(resEvening.nudged).toBe(true);
+      expect(resEvening.targetPhase).toBe('dark');
+      expect(mockNotificationsDb).toHaveLength(1);
+      expect(mockNotificationsDb[0].title).toBe('🌙 Evening Space Check-in');
     });
 
-    it('does not duplicate nudge if daily_task notification already sent today', async () => {
+    it('does not duplicate nudge for the same phase if already sent today', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
       mockPostsDb = [];
       mockNotificationsDb = [
         {
-          id: 'nudge-today',
+          id: 'nudge-morning',
           user_id: 'user-me',
           type: 'daily_task',
-          title: 'Daily Space Reset',
-          message: 'Time for your daily space reset!',
+          title: '☀️ Morning Space Check-in',
+          message: "Capture today's Light photo!",
+          metadata: { target_phase: 'light' },
           is_read: false,
           created_at: new Date().toISOString(),
         },
       ];
 
-      const res = await triggerDailyTaskNudge();
-      expect(res.success).toBe(true);
-      expect(res.nudged).toBe(false);
-      expect(res.message).toMatch(/already sent today/i);
+      // Second morning check should deduplicate
+      const resMorning = await triggerDailyTaskNudge(10);
+      expect(resMorning.success).toBe(true);
+      expect(resMorning.nudged).toBe(false);
+      expect(resMorning.message).toMatch(/Morning check-in nudge already sent today/i);
+
+      // Night check should still trigger evening nudge
+      const resEvening = await triggerDailyTaskNudge(20);
+      expect(resEvening.success).toBe(true);
+      expect(resEvening.nudged).toBe(true);
+      expect(resEvening.targetPhase).toBe('dark');
     });
   });
 
@@ -396,8 +435,23 @@ describe('Notification Actions (notificationActions.ts)', () => {
     });
   });
 
-  describe('processRaincloudWaterfallAction', () => {
-    it('executes the Serene Cascade waterfall RPC', async () => {
+  describe('processNotificationWaterfallAction & processRaincloudWaterfallAction', () => {
+    it('executes the generalized notification waterfall RPC', async () => {
+      mockRpcResult = {
+        success: true,
+        status: 'notified',
+        notified_user_id: 'user-2',
+        notified_name: 'Bob',
+        message: 'Dispatched peer-support waterfall.',
+      };
+
+      const res = await processNotificationWaterfallAction('user-1', 'group-100', 'raincloud');
+      expect(res.success).toBe(true);
+      expect(res.status).toBe('notified');
+      expect(res.message).toContain('Dispatched peer-support waterfall');
+    });
+
+    it('executes legacy processRaincloudWaterfallAction with backwards compatibility', async () => {
       mockRpcResult = {
         success: true,
         status: 'notified',

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { Bell } from 'lucide-react';
@@ -7,6 +7,7 @@ import {
   getUserNotifications,
   type CozyNotificationItem,
   markNotificationAsRead,
+  triggerDailyTaskNudge,
 } from '@/app/actions/notificationActions';
 import { NotificationDrawer } from '@/components/NotificationDrawer';
 
@@ -40,10 +41,18 @@ export function NavbarNotificationBell({
     }
   }, []);
 
-  // Fetch initial notifications on mount
+  // Trigger daily task check-in nudge and fetch initial notifications on mount
   useEffect(() => {
-    fetchLatestNotifications();
-  }, [fetchLatestNotifications]);
+    if (userId) {
+      triggerDailyTaskNudge(new Date().getHours())
+        .catch((err) => console.warn('[NavbarNotificationBell] Nudge check error:', err))
+        .finally(() => {
+          fetchLatestNotifications();
+        });
+    } else {
+      fetchLatestNotifications();
+    }
+  }, [userId, fetchLatestNotifications]);
 
   // Setup Supabase Realtime subscription
   useEffect(() => {

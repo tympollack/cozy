@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@sunshade/ui": ["../sunshade-hub-ui/packages/ui/src/index.ts"],
+      "@sunshade/ui/*": ["../sunshade-hub-ui/packages/ui/src/*"]
     }
   },
   "include": [
