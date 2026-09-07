@@ -86,7 +86,8 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
 
     try {
       const activeGroupId = useCozyStore.getState().groupId ?? undefined;
-      const res = await updateVibeStatus(status, activeGroupId);
+      const clientOffset = -new Date().getTimezoneOffset();
+      const res = await updateVibeStatus(status, activeGroupId, clientOffset);
       if (res.success) {
         // Stamp daily check-in completion only after server action succeeds
         useCozyStore.getState().markVibeCheckedToday();

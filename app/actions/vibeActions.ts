@@ -69,7 +69,11 @@ export interface VibeResult {
  *
  * @param status - VibeStatus value ('sunshine' | 'neutral' | 'raincloud' or future statuses).
  */
-export async function updateVibeStatus(status: VibeStatus, groupId?: string): Promise<VibeResult> {
+export async function updateVibeStatus(
+  status: VibeStatus,
+  groupId?: string,
+  clientOffsetMinutes?: number
+): Promise<VibeResult> {
   const supabase = await createServerClient();
 
   const {
@@ -87,10 +91,23 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
   // 1. Date-aware deduplication check:
   // Instead of string comparison alone (which breaks on consecutive days),
   // check whether a support notification was already triggered today for this target user.
+  // Validate client timezone offset to align deduplication with user local midnight.
   const service = createServiceClient();
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const startOfDayISO = startOfDay.toISOString();
+  const validOffsetMinutes =
+    typeof clientOffsetMinutes === 'number' &&
+    Number.isFinite(clientOffsetMinutes) &&
+    clientOffsetMinutes >= -720 &&
+    clientOffsetMinutes <= 840
+      ? clientOffsetMinutes
+      : 0;
+
+  const nowShifted = new Date(Date.now() + validOffsetMinutes * 60000);
+  const localYear = nowShifted.getUTCFullYear();
+  const localMonth = String(nowShifted.getUTCMonth() + 1).padStart(2, '0');
+  const localDate = String(nowShifted.getUTCDate()).padStart(2, '0');
+  const startOfLocalDay = new Date(`${localYear}-${localMonth}-${localDate}T00:00:00.000Z`);
+  startOfLocalDay.setTime(startOfLocalDay.getTime() - validOffsetMinutes * 60000);
+  const startOfDayISO = startOfLocalDay.toISOString();
 
   let hasTriggeredToday = false;
   if (shouldTriggerWaterfall) {
@@ -102,7 +119,8 @@ export async function updateVibeStatus(status: VibeStatus, groupId?: string): Pr
         .eq('type', 'peer_checkin')
         .contains('metadata', { target_user_id: user.id })
         .gte('created_at', startOfDayISO)
-        .limit(10);
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (existingWaterfallNotifs && existingWaterfallNotifs.length > 0) {
         hasTriggeredToday = existingWaterfallNotifs.some((n) => {
@@ -400,7 +418,10 @@ export async function sendPeerSupport(
     }
   }
 
-  if (type === 'note' && payload?.noteText) {
+  if (type === 'note') {
+    if (!payload?.noteText || !payload.noteText.trim()) {
+      return { success: false, error: 'Note text cannot be empty.' };
+    }
     // Store in cozy.private_notes table; verify successful insert before notifying recipient
     try {
       const { error: noteInsertError } = await service.schema('cozy').from('private_notes').insert({

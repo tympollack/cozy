@@ -8,6 +8,8 @@ let mockInsertedNotes: any[] = [];
 let mockInsertedNotifications: any[] = [];
 let mockUpdatedUsers: any[] = [];
 
+let mockExistingNotifications: any[] = [];
+
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
     auth: {
@@ -23,6 +25,20 @@ vi.mock('@/lib/supabase', () => ({
       from: (tableName: string) => ({
         select: () => ({
           eq: (col1: string, val1: unknown) => ({
+            contains: (colMeta: string, metaObj: any) => ({
+              gte: (colTime: string, timeVal: string) => ({
+                order: (colOrder: string, orderOpts: any) => ({
+                  limit: (num: number) => {
+                    return Promise.resolve({
+                      data: mockExistingNotifications.filter((n) => {
+                        return n.type === val1 && n.metadata?.target_user_id === metaObj?.target_user_id;
+                      }),
+                      error: null,
+                    });
+                  },
+                }),
+              }),
+            }),
             single: () => {
               if (tableName === 'users') {
                 return Promise.resolve({ data: { id: val1, points: 10, display_name: 'Cozy Jordan' }, error: null });
@@ -102,6 +118,7 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     mockInsertedNotes = [];
     mockInsertedNotifications = [];
     mockUpdatedUsers = [];
+    mockExistingNotifications = [];
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-vibe-1' } }, error: null });
     mockRpc.mockResolvedValue({
       data: [{ peer_user_id: 'peer-1', peer_name: 'Jordan' }],
@@ -185,5 +202,69 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(res.senderPoints).toBe(15);
     expect(mockInsertedNotifications).toHaveLength(1);
     expect(mockInsertedNotifications[0].title).toContain('Warm Brew Delivered');
+  });
+
+  it('rejects sending note peer support if noteText is empty or whitespace', async () => {
+    const resEmpty = await sendPeerSupport('user-peer-2', 'note', { noteText: '' });
+    expect(resEmpty.success).toBe(false);
+    expect(resEmpty.error).toMatch(/Please write a warm note before sending/i);
+
+    const resWhitespace = await sendPeerSupport('user-peer-2', 'note', { noteText: '   ' });
+    expect(resWhitespace.success).toBe(false);
+    expect(resWhitespace.error).toMatch(/Please write a warm note before sending/i);
+    expect(mockInsertedNotes).toHaveLength(0);
+    expect(mockInsertedNotifications).toHaveLength(0);
+  });
+
+  it('deduplicates waterfall when a waterfall notification was already triggered today', async () => {
+    mockExistingNotifications = [
+      {
+        id: 'notif-wf-today',
+        type: 'peer_checkin',
+        metadata: {
+          target_user_id: 'user-vibe-1',
+          source: 'waterfall',
+        },
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const res = await updateVibeStatus('raincloud', 'group-123');
+    expect(res.success).toBe(true);
+    // Because hasTriggeredToday is true, neither RPC waterfall should be dispatched
+    expect(mockServiceRpc).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress waterfall if notifications for this user are only peer support deliveries', async () => {
+    mockExistingNotifications = [
+      {
+        id: 'notif-support-today',
+        type: 'peer_checkin',
+        metadata: {
+          target_user_id: 'user-vibe-1',
+          peer_id: 'user-vibe-1',
+          support_type: 'brew',
+        },
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const res = await updateVibeStatus('raincloud', 'group-123');
+    expect(res.success).toBe(true);
+    expect(mockServiceRpc).toHaveBeenCalledWith('process_notification_waterfall', {
+      p_target_user_id: 'user-vibe-1',
+      p_group_id: 'group-123',
+      p_status: 'raincloud',
+    });
+  });
+
+  it('accepts clientOffsetMinutes to calculate local midnight for deduplication', async () => {
+    const res = await updateVibeStatus('raincloud', 'group-123', -300);
+    expect(res.success).toBe(true);
+    expect(mockServiceRpc).toHaveBeenCalledWith('process_notification_waterfall', {
+      p_target_user_id: 'user-vibe-1',
+      p_group_id: 'group-123',
+      p_status: 'raincloud',
+    });
   });
 });
