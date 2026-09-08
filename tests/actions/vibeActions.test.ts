@@ -29,10 +29,19 @@ vi.mock('@/lib/supabase', () => ({
               gte: (colTime: string, timeVal: string) => ({
                 order: (colOrder: string, orderOpts: any) => ({
                   limit: (num: number) => {
+                    const filtered = mockExistingNotifications.filter((n) => {
+                      const matchesType = n.type === val1;
+                      const matchesMeta = n.metadata?.target_user_id === metaObj?.target_user_id;
+                      const matchesGte = !timeVal || (n[colTime] && n[colTime] >= timeVal);
+                      return matchesType && matchesMeta && matchesGte;
+                    });
+                    if (orderOpts?.ascending === false) {
+                      filtered.sort((a, b) => (b[colOrder] || '').localeCompare(a[colOrder] || ''));
+                    } else {
+                      filtered.sort((a, b) => (a[colOrder] || '').localeCompare(b[colOrder] || ''));
+                    }
                     return Promise.resolve({
-                      data: mockExistingNotifications.filter((n) => {
-                        return n.type === val1 && n.metadata?.target_user_id === metaObj?.target_user_id;
-                      }),
+                      data: filtered.slice(0, num),
                       error: null,
                     });
                   },
@@ -258,13 +267,81 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     });
   });
 
-  it('accepts clientOffsetMinutes to calculate local midnight for deduplication', async () => {
-    const res = await updateVibeStatus('raincloud', 'group-123', -300);
+  it('does not deduplicate waterfall if existing waterfall notification was from yesterday', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-28T12:00:00Z'));
+
+    mockExistingNotifications = [
+      {
+        id: 'notif-yesterday',
+        type: 'peer_checkin',
+        metadata: {
+          target_user_id: 'user-vibe-1',
+          source: 'waterfall',
+        },
+        created_at: '2026-08-27T18:00:00Z', // yesterday
+      },
+    ];
+
+    const res = await updateVibeStatus('raincloud', 'group-123', 0);
     expect(res.success).toBe(true);
     expect(mockServiceRpc).toHaveBeenCalledWith('process_notification_waterfall', {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
     });
+
+    vi.useRealTimers();
+  });
+
+  it('accepts clientOffsetMinutes to calculate local midnight for deduplication across timezone boundaries', async () => {
+    vi.useFakeTimers();
+    // System time: 2026-08-28 02:00:00 UTC
+    // In UTC-4 (offset: -240): local time is 2026-08-27 22:00:00 (August 27th local day)
+    // Local day start: 2026-08-27T00:00:00 local = 2026-08-27T04:00:00.000Z
+    vi.setSystemTime(new Date('2026-08-28T02:00:00Z'));
+
+    // Notification A: Aug 27 03:00 UTC (before local midnight Aug 27 04:00 UTC -> previous day local)
+    mockExistingNotifications = [
+      {
+        id: 'notif-prev-local-day',
+        type: 'peer_checkin',
+        metadata: {
+          target_user_id: 'user-vibe-1',
+          source: 'waterfall',
+        },
+        created_at: '2026-08-27T03:00:00.000Z',
+      },
+    ];
+
+    const resBeforeLocalDay = await updateVibeStatus('raincloud', 'group-123', -240);
+    expect(resBeforeLocalDay.success).toBe(true);
+    expect(mockServiceRpc).toHaveBeenCalledWith('process_notification_waterfall', {
+      p_target_user_id: 'user-vibe-1',
+      p_group_id: 'group-123',
+      p_status: 'raincloud',
+    });
+
+    mockServiceRpc.mockClear();
+
+    // Notification B: Aug 27 05:00 UTC (after local midnight Aug 27 04:00 UTC -> today local!)
+    mockExistingNotifications = [
+      {
+        id: 'notif-today-local-day',
+        type: 'peer_checkin',
+        metadata: {
+          target_user_id: 'user-vibe-1',
+          source: 'waterfall',
+        },
+        created_at: '2026-08-27T05:00:00.000Z',
+      },
+    ];
+
+    const resTodayLocalDay = await updateVibeStatus('raincloud', 'group-123', -240);
+    expect(resTodayLocalDay.success).toBe(true);
+    // Suppressed because it triggered earlier today in the user's local timezone
+    expect(mockServiceRpc).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });
