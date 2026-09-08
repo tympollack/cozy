@@ -158,4 +158,101 @@ describe('CommunityBulletinBoard Component', () => {
     // Authoritative newGroupPoints updates the display from 400 -> 475
     expect(await screen.findByText('475 / 500 pts')).toBeInTheDocument();
   });
+
+  it('[REV-COZY-01] resets prevGroupPooledPointsRef on undefined returns so points update when prop returns to previous value', () => {
+    useCozyStore.setState({ groupPoints: 200 });
+
+    const { rerender } = render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={350}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('350 / 500 pts')).toBeInTheDocument();
+
+    // 1. groupPooledPoints transitions to undefined (falls back to store's 200)
+    rerender(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={undefined}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('200 / 500 pts')).toBeInTheDocument();
+
+    // 2. groupPooledPoints returns to 350. Because ref was reset on undefined, it must update back to 350.
+    rerender(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={350}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('350 / 500 pts')).toBeInTheDocument();
+  });
+
+  it('[REV-COZY-02] incorporates groupId into change detection ref to detect switching between groups with identical points', async () => {
+    const user = userEvent.setup();
+    mockCreateGroupChallenge.mockResolvedValue({ success: true });
+
+    const { rerender } = render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={500}
+        isAdmin={true}
+      />
+    );
+
+    expect(screen.getByText('500 / 1,200 pts')).toBeInTheDocument();
+
+    // Complete a challenge in group-1 to test completedIds reset
+    mockCompleteGroupChallenge.mockResolvedValueOnce({
+      success: true,
+      newPersonalPoints: 65,
+      newGroupPoints: 538,
+    });
+    const completeBtns = screen.getAllByRole('button', { name: /Complete Challenge/i });
+    await user.click(completeBtns[0]);
+    expect(await screen.findByText(/Completed/i)).toBeInTheDocument();
+
+    // Switch to group-2 which happens to have the exact same initial pooled points (500)
+    rerender(
+      <CommunityBulletinBoard
+        groupId="group-2"
+        groupPooledPoints={500}
+        isAdmin={true}
+      />
+    );
+
+    // Should re-initialize local points to 500 and reset completed state
+    expect(screen.getByText('500 / 1,200 pts')).toBeInTheDocument();
+
+    // Challenge button in group-2 should be active/uncompleted
+    const newCompleteBtns = screen.getAllByRole('button', { name: /Complete Challenge/i });
+    expect(newCompleteBtns.length).toBeGreaterThan(0);
+
+    // Pinning a challenge in group-2 should target group-2
+    const pinBtn = screen.getByRole('button', { name: /Pin Challenge/i });
+    await user.click(pinBtn);
+
+    const titleInput = screen.getByPlaceholderText(/Clean & organize kitchen shelf/i);
+    const descInput = screen.getByPlaceholderText(/Describe the therapeutic cleaning/i);
+    await user.type(titleInput, 'Group 2 Challenge 🌟');
+    await user.type(descInput, 'Group 2 description');
+
+    const submitBtn = screen.getByRole('button', { name: /Pin Challenge to Town Square/i });
+    await user.click(submitBtn);
+
+    expect(mockCreateGroupChallenge).toHaveBeenCalledWith(
+      'group-2',
+      'Group 2 Challenge 🌟',
+      'Group 2 description',
+      1.5
+    );
+  });
 });
+
