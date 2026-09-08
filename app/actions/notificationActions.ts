@@ -438,12 +438,12 @@ export async function processNotificationWaterfallAction(
       error?: string;
     } | null;
 
-    if (!genError && genResult && genResult.success !== false) {
+    if (!genError && (!genResult || genResult.success !== false)) {
       return {
-        success: genResult.success ?? true,
-        status: genResult.status,
-        message: genResult.message,
-        error: genResult.error,
+        success: genResult?.success ?? true,
+        status: genResult?.status,
+        message: genResult?.message,
+        error: genResult?.error,
       };
     }
 
