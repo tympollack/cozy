@@ -99,9 +99,13 @@ export function CommunityBulletinBoard({
     ? Math.min(100, Math.max(0, Math.round(((currentGroupPts - prevPoints) / (nextTheme.points - prevPoints)) * 100)))
     : 100;
 
+  const currentGroupIdRef = useRef(groupId);
+  currentGroupIdRef.current = groupId;
+
   async function handleComplete(chId: string, mult: number) {
     if (completedIds.has(chId)) return;
 
+    const targetGroupId = groupId;
     const bonusGroupPts = Math.round(25 * mult);
 
     // Optimistic UI update
@@ -111,34 +115,44 @@ export function CommunityBulletinBoard({
     addGroupPoints(bonusGroupPts);
 
     try {
-      const res = await completeGroupChallenge(groupId, chId);
+      const res = await completeGroupChallenge(targetGroupId, chId);
+      // User-wide personal points are always reconciled on success
+      if (res.success && res.newPersonalPoints !== undefined) {
+        setPointsInStore(res.newPersonalPoints);
+      }
+
+      const isStillCurrentGroup = currentGroupIdRef.current === targetGroupId;
+
       if (res.success) {
-        if (res.newPersonalPoints !== undefined) setPointsInStore(res.newPersonalPoints);
-        if (res.newGroupPoints !== undefined) {
+        if (isStillCurrentGroup && res.newGroupPoints !== undefined) {
           setLocalGroupPoints(res.newGroupPoints);
           setGroupPoints(res.newGroupPoints);
         }
       } else {
         // Rollback optimistic state on rejected action
+        addPoints(-15);
+        if (isStillCurrentGroup) {
+          setCompletedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(chId);
+            return next;
+          });
+          setLocalGroupPoints((prev) => Math.max(0, prev - bonusGroupPts));
+          addGroupPoints(-bonusGroupPts);
+        }
+      }
+    } catch {
+      // Rollback optimistic state on error
+      addPoints(-15);
+      if (currentGroupIdRef.current === targetGroupId) {
         setCompletedIds((prev) => {
           const next = new Set(prev);
           next.delete(chId);
           return next;
         });
         setLocalGroupPoints((prev) => Math.max(0, prev - bonusGroupPts));
-        addPoints(-15);
         addGroupPoints(-bonusGroupPts);
       }
-    } catch {
-      // Rollback optimistic state on error
-      setCompletedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(chId);
-        return next;
-      });
-      setLocalGroupPoints((prev) => Math.max(0, prev - bonusGroupPts));
-      addPoints(-15);
-      addGroupPoints(-bonusGroupPts);
     }
   }
 

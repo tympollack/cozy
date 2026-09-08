@@ -254,5 +254,60 @@ describe('CommunityBulletinBoard Component', () => {
       1.5
     );
   });
+
+  it('prevents inflight challenge completion response from overwriting or subtracting points after switching groups', async () => {
+    const user = userEvent.setup();
+    let resolveComplete: (val: any) => void = () => {};
+    const pendingPromise = new Promise((resolve) => {
+      resolveComplete = resolve;
+    });
+
+    mockCompleteGroupChallenge.mockReturnValue(pendingPromise);
+
+    const { rerender } = render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={300}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('300 / 500 pts')).toBeInTheDocument();
+
+    // Click complete in group-1
+    const completeBtns = screen.getAllByRole('button', { name: /Complete Challenge/i });
+    await user.click(completeBtns[0]);
+
+    // Optimistic update for group-1: 300 + 38 = 338
+    expect(screen.getByText('338 / 500 pts')).toBeInTheDocument();
+
+    // User navigates/switches to group-2 with 800 points before group-1 resolves
+    rerender(
+      <CommunityBulletinBoard
+        groupId="group-2"
+        groupPooledPoints={800}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByText('800 / 1,200 pts')).toBeInTheDocument();
+
+    // Now group-1 resolves with group-1's authoritative points
+    resolveComplete({
+      success: true,
+      newPersonalPoints: 65,
+      newGroupPoints: 345, // group-1's points
+    });
+
+    await pendingPromise;
+
+    // Personal points should update
+    expect(useCozyStore.getState().points).toBe(65);
+
+    // Group-2's displayed points MUST NOT be corrupted by group-1's 345 points
+    expect(screen.getByText('800 / 1,200 pts')).toBeInTheDocument();
+    expect(screen.queryByText(/345/)).not.toBeInTheDocument();
+  });
 });
+
 
