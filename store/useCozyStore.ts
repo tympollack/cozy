@@ -7,8 +7,20 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type PrivacyTier = 'random' | 'geofenced';
 
-/** Canonical vibe statuses — mirrors the DB CHECK constraint. */
-export type VibeStatus = 'sunshine' | 'neutral' | 'raincloud';
+/**
+ * Canonical vibe statuses — mirrors the DB CHECK constraint.
+ * Positive: sunshine (peak), breeze (light/breezy), starlight (calm night energy)
+ * Neutral:  neutral (steady cozy)
+ * Distress: foggy (low-level, quiet mode default), raincloud (moderate), storm (high-severity)
+ */
+export type VibeStatus =
+  | 'sunshine'
+  | 'breeze'
+  | 'starlight'
+  | 'neutral'
+  | 'foggy'
+  | 'raincloud'
+  | 'storm';
 
 /** A single sticker attached to a post, as returned by fetch_feed. */
 export interface PostSticker {

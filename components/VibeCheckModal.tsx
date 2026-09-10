@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sun, Coffee, CloudRain, Heart, Sparkles } from 'lucide-react';
+import { X, Sparkles, Heart, BellOff, Bell } from 'lucide-react';
 import { useCozyStore, type VibeStatus } from '@/store/useCozyStore';
 import { updateVibeStatus } from '@/app/actions/vibeActions';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -14,6 +14,12 @@ interface VibeCheckModalProps {
   onClose: () => void;
 }
 
+/** Statuses that default the Quiet Mode toggle to ON. */
+const QUIET_MODE_DEFAULTS = new Set<VibeStatus>(['foggy']);
+
+/** Whether a status triggers peer support notifications at all. */
+const TRIGGERS_WATERFALL = new Set<VibeStatus>(['foggy', 'raincloud', 'storm']);
+
 const VIBE_OPTIONS: {
   id: VibeStatus;
   emoji: string;
@@ -22,18 +28,40 @@ const VIBE_OPTIONS: {
   bgGradient: string;
   borderColor: string;
   textColor: string;
-  icon: React.ReactNode;
+  tier: 'positive' | 'neutral' | 'distress';
 }[] = [
+  // ── Positive ────────────────────────────────────────────────────────────
   {
     id: 'sunshine',
     emoji: '☀️',
     title: 'Sunshine',
     subtitle: 'Energized, clean, thriving space',
-    bgGradient: 'linear-gradient(135deg, rgba(254,240,138,0.30) 0%, rgba(250,204,21,0.15) 100%)',
+    bgGradient: 'linear-gradient(135deg, rgba(254,240,138,0.35) 0%, rgba(250,204,21,0.18) 100%)',
     borderColor: '#eab308',
     textColor: '#854d0e',
-    icon: <Sun className="w-6 h-6 text-amber-500" />,
+    tier: 'positive',
   },
+  {
+    id: 'breeze',
+    emoji: '🌬️',
+    title: 'Breezy',
+    subtitle: 'Light, refreshed, moving through the day',
+    bgGradient: 'linear-gradient(135deg, rgba(186,230,253,0.35) 0%, rgba(125,211,252,0.18) 100%)',
+    borderColor: '#38bdf8',
+    textColor: '#0c4a6e',
+    tier: 'positive',
+  },
+  {
+    id: 'starlight',
+    emoji: '✨',
+    title: 'Starlight',
+    subtitle: 'Calm, reflective night energy',
+    bgGradient: 'linear-gradient(135deg, rgba(196,181,253,0.35) 0%, rgba(139,92,246,0.18) 100%)',
+    borderColor: '#8b5cf6',
+    textColor: '#4c1d95',
+    tier: 'positive',
+  },
+  // ── Neutral ─────────────────────────────────────────────────────────────
   {
     id: 'neutral',
     emoji: '☕',
@@ -42,7 +70,18 @@ const VIBE_OPTIONS: {
     bgGradient: 'linear-gradient(135deg, rgba(245,237,224,0.60) 0%, rgba(232,168,124,0.25) 100%)',
     borderColor: '#c4704a',
     textColor: '#643c28',
-    icon: <Coffee className="w-6 h-6 text-amber-700" />,
+    tier: 'neutral',
+  },
+  // ── Distress ────────────────────────────────────────────────────────────
+  {
+    id: 'foggy',
+    emoji: '🌫️',
+    title: 'Foggy',
+    subtitle: 'A little unclear, low energy today',
+    bgGradient: 'linear-gradient(135deg, rgba(226,232,240,0.50) 0%, rgba(203,213,225,0.30) 100%)',
+    borderColor: '#94a3b8',
+    textColor: '#475569',
+    tier: 'distress',
   },
   {
     id: 'raincloud',
@@ -52,14 +91,35 @@ const VIBE_OPTIONS: {
     bgGradient: 'linear-gradient(135deg, rgba(203,213,225,0.45) 0%, rgba(148,163,184,0.25) 100%)',
     borderColor: '#64748b',
     textColor: '#334155',
-    icon: <CloudRain className="w-6 h-6 text-slate-600" />,
+    tier: 'distress',
+  },
+  {
+    id: 'storm',
+    emoji: '⛈️',
+    title: 'Storm',
+    subtitle: 'Going through something heavy right now',
+    bgGradient: 'linear-gradient(135deg, rgba(165,180,252,0.30) 0%, rgba(99,102,241,0.15) 100%)',
+    borderColor: '#4f46e5',
+    textColor: '#1e1b4b',
+    tier: 'distress',
   },
 ];
+
+const CONFIRMATION_MESSAGES: Partial<Record<VibeStatus, string>> = {
+  sunshine: '☀️ Sunshine logged! Your space is glowing.',
+  breeze: '🌬️ Breezy check-in logged! Keep riding that wave.',
+  starlight: '✨ Starlight mode on. Quiet, calm, and you.',
+  neutral: '☕ Cozy check-in saved. A steady day is a good day.',
+  foggy: '🌫️ Foggy noted. Your porch is open. Rest up. 🌿',
+  raincloud: '🌧️ Your plot is pulsing with a soft, comforting beacon. Your neighbors can send you warm brews & cheer! 💛',
+  storm: '⛈️ Storm check-in sent. Your Anchor Buddy has been quietly notified. You\'re not alone. 🕯️',
+};
 
 export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
   useModalBackButton({ isOpen, onClose });
   const { vibeStatus, setVibeStatus } = useCozyStore();
   const [selected, setSelected] = useState<VibeStatus>(vibeStatus);
+  const [quietMode, setQuietMode] = useState<boolean>(QUIET_MODE_DEFAULTS.has(vibeStatus));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmationMsg, setConfirmationMsg] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -72,22 +132,34 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
     if (isOpen) {
       setSelected(vibeStatus);
       setConfirmationMsg(null);
+      // Reset quiet mode to the default for the current status
+      setQuietMode(QUIET_MODE_DEFAULTS.has(vibeStatus));
     }
   }, [isOpen, vibeStatus]);
+
+  // When user picks a card, auto-set quiet mode default for that status
+  function handleCardSelect(id: VibeStatus) {
+    setSelected(id);
+    if (QUIET_MODE_DEFAULTS.has(id)) {
+      setQuietMode(true);
+    } else if (id !== selected) {
+      // Only reset to false when changing status (don't override manual toggles for same status)
+      setQuietMode(false);
+    }
+  }
 
   if (!mounted) return null;
 
   async function handleSelect(status: VibeStatus) {
     const prevStatus = useCozyStore.getState().vibeStatus;
     const prevDate = useCozyStore.getState().lastVibeCheckDate;
-    setSelected(status);
     setIsSubmitting(true);
     setVibeStatus(status, false); // Optimistic UI update without prematurely marking check-in complete
 
     try {
       const activeGroupId = useCozyStore.getState().groupId ?? undefined;
       const clientOffset = -new Date().getTimezoneOffset();
-      const res = await updateVibeStatus(status, activeGroupId, clientOffset);
+      const res = await updateVibeStatus(status, activeGroupId, clientOffset, quietMode);
       if (res.success) {
         // Stamp daily check-in completion only after server action succeeds
         useCozyStore.getState().markVibeCheckedToday();
@@ -139,15 +211,10 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
           // ignore broadcast errors
         }
 
-        if (status === 'raincloud') {
-          setConfirmationMsg(
-            'Your plot is pulsing with a soft, comforting beacon. Your neighbors can send you warm brews & cheer! 🌧️💛'
-          );
-        } else {
-          setConfirmationMsg(
-            `Weather updated to ${status === 'sunshine' ? '☀️ Sunshine' : '☕ Cozy'}! Enjoy your space.`
-          );
-        }
+        setConfirmationMsg(
+          CONFIRMATION_MESSAGES[status] ??
+            `Weather updated to ${status}! Your space reflects your day. 🌿`
+        );
       } else {
         // Roll back optimistic state on failure so daily prompt stays active
         setVibeStatus(prevStatus, false);
@@ -164,9 +231,11 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
       setTimeout(() => {
         setConfirmationMsg(null);
         onClose();
-      }, 1400);
+      }, 1800);
     }
   }
+
+  const showsWaterfall = TRIGGERS_WATERFALL.has(selected);
 
   return createPortal(
     <AnimatePresence>
@@ -227,44 +296,113 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                 </p>
               </div>
 
-              {/* Options grid */}
-              <div className="space-y-2.5 my-3">
-                {VIBE_OPTIONS.map((opt) => {
-                  const isSelected = selected === opt.id;
-                  return (
-                    <motion.button
-                      key={opt.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleSelect(opt.id)}
-                      disabled={isSubmitting}
-                      className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border-2 text-left transition-all relative overflow-hidden shadow-sm"
-                      style={{
-                        background: opt.bgGradient,
-                        borderColor: isSelected ? 'var(--cozy-gold)' : 'rgba(217, 119, 54, 0.25)',
-                        boxShadow: isSelected ? '0 0 16px rgba(202, 138, 4, 0.35)' : undefined,
-                      }}
-                    >
-                      <span className="text-2xl flex-shrink-0">{opt.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-xs sm:text-sm font-800" style={{ color: opt.textColor }}>
-                            {opt.title}
-                          </h3>
-                          {isSelected && (
-                            <span className="text-[9px] font-800 px-2 py-0.5 rounded-full bg-white/90 text-[--cozy-bark] border border-[--cozy-amber]/30">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-500 mt-0.5 opacity-90 leading-tight" style={{ color: opt.textColor }}>
-                          {opt.subtitle}
-                        </p>
-                      </div>
-                    </motion.button>
-                  );
-                })}
+              {/* Positive tier */}
+              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+                ✦ Feeling good
+              </p>
+              <div className="space-y-2 mb-3">
+                {VIBE_OPTIONS.filter((o) => o.tier === 'positive').map((opt) => (
+                  <WeatherCard
+                    key={opt.id}
+                    opt={opt}
+                    isSelected={selected === opt.id}
+                    isSubmitting={isSubmitting}
+                    onSelect={() => {
+                      handleCardSelect(opt.id);
+                      handleSelect(opt.id);
+                    }}
+                  />
+                ))}
               </div>
+
+              {/* Neutral tier */}
+              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+                ☁️ Steady cozy
+              </p>
+              <div className="space-y-2 mb-3">
+                {VIBE_OPTIONS.filter((o) => o.tier === 'neutral').map((opt) => (
+                  <WeatherCard
+                    key={opt.id}
+                    opt={opt}
+                    isSelected={selected === opt.id}
+                    isSubmitting={isSubmitting}
+                    onSelect={() => {
+                      handleCardSelect(opt.id);
+                      handleSelect(opt.id);
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Distress tier */}
+              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+                🌧️ Need some warmth
+              </p>
+              <div className="space-y-2 mb-3">
+                {VIBE_OPTIONS.filter((o) => o.tier === 'distress').map((opt) => (
+                  <WeatherCard
+                    key={opt.id}
+                    opt={opt}
+                    isSelected={selected === opt.id}
+                    isSubmitting={isSubmitting}
+                    onSelect={() => {
+                      handleCardSelect(opt.id);
+                      handleSelect(opt.id);
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Quiet Mode toggle — only shown for distress statuses */}
+              <AnimatePresence>
+                {showsWaterfall && (
+                  <motion.div
+                    key="quiet-mode-row"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <button
+                      onClick={() => setQuietMode((v) => !v)}
+                      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/70 border border-[--cozy-amber]/20 text-left transition-colors hover:bg-white/90 mt-1"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {quietMode ? (
+                          <BellOff size={16} className="text-slate-500 flex-shrink-0" />
+                        ) : (
+                          <Bell size={16} className="text-amber-600 flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className="text-xs font-700 text-[--cozy-bark]">
+                            {quietMode ? 'Quiet Mode ON' : 'Quiet Mode OFF'}
+                          </p>
+                          <p className="text-[10px] font-500 text-[--cozy-muted] leading-tight">
+                            {quietMode
+                              ? 'Porch digest only — no direct Anchor Buddy push'
+                              : 'Your Anchor Buddy will receive a quiet alert'}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className="w-10 h-5.5 rounded-full transition-colors flex items-center px-0.5"
+                        style={{
+                          background: quietMode ? '#94a3b8' : 'var(--cozy-amber)',
+                          minWidth: '2.5rem',
+                          height: '1.375rem',
+                        }}
+                      >
+                        <motion.div
+                          className="w-4 h-4 rounded-full bg-white shadow-sm"
+                          animate={{ x: quietMode ? 0 : '1.125rem' }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        />
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Toast / confirmation message */}
@@ -274,7 +412,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="mt-2 p-3 rounded-xl bg-[--cozy-amber]/15 border border-[--cozy-amber]/40 text-[--cozy-bark] text-xs font-700 text-center flex items-center justify-center gap-1.5 shadow-md"
+                  className="mt-3 p-3 rounded-xl bg-[--cozy-amber]/15 border border-[--cozy-amber]/40 text-[--cozy-bark] text-xs font-700 text-center flex items-center justify-center gap-1.5 shadow-md"
                 >
                   <Heart size={14} className="fill-[--cozy-amber] text-[--cozy-amber] flex-shrink-0" />
                   <span>{confirmationMsg}</span>
@@ -286,5 +424,50 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
       )}
     </AnimatePresence>,
     document.body
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WeatherCard sub-component
+// ---------------------------------------------------------------------------
+
+interface WeatherCardProps {
+  opt: (typeof VIBE_OPTIONS)[number];
+  isSelected: boolean;
+  isSubmitting: boolean;
+  onSelect: () => void;
+}
+
+function WeatherCard({ opt, isSelected, isSubmitting, onSelect }: WeatherCardProps) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onSelect}
+      disabled={isSubmitting}
+      className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border-2 text-left transition-all relative overflow-hidden shadow-sm"
+      style={{
+        background: opt.bgGradient,
+        borderColor: isSelected ? 'var(--cozy-gold)' : 'rgba(217, 119, 54, 0.25)',
+        boxShadow: isSelected ? '0 0 16px rgba(202, 138, 4, 0.35)' : undefined,
+      }}
+    >
+      <span className="text-2xl flex-shrink-0">{opt.emoji}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs sm:text-sm font-800" style={{ color: opt.textColor }}>
+            {opt.title}
+          </h3>
+          {isSelected && (
+            <span className="text-[9px] font-800 px-2 py-0.5 rounded-full bg-white/90 text-[--cozy-bark] border border-[--cozy-amber]/30">
+              Active
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] font-500 mt-0.5 opacity-90 leading-tight" style={{ color: opt.textColor }}>
+          {opt.subtitle}
+        </p>
+      </div>
+    </motion.button>
   );
 }

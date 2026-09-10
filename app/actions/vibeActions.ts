@@ -9,28 +9,75 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 
 /**
  * The canonical set of vibe statuses accepted by the DB CHECK constraint.
- * Expand this list in a coordinated migration + code change when the MVP enum grows.
+ * Matches the union in useCozyStore.ts — keep in sync.
+ * Positive: sunshine, breeze, starlight
+ * Neutral:  neutral
+ * Distress: foggy (severity 1), raincloud (severity 2), storm (severity 3)
  */
-export type VibeStatus = 'sunshine' | 'neutral' | 'raincloud' | string;
+export type VibeStatus =
+  | 'sunshine'
+  | 'breeze'
+  | 'starlight'
+  | 'neutral'
+  | 'foggy'
+  | 'raincloud'
+  | 'storm'
+  | string; // allow future extensions without hard failures
 
 export interface VibeTriggerConfig {
+  /** Whether this status triggers the Serene Cascade waterfall at all. */
   triggersWaterfall: boolean;
+  /**
+   * Severity tier:
+   *   1 = foggy   — soft porch-only digest, no Anchor Buddy push
+   *   2 = raincloud — Anchor Buddy push + porch digest
+   *   3 = storm   — immediate Anchor Buddy push + porch digest (no quiet-mode suppression)
+   */
+  severityLevel: 1 | 2 | 3;
+  /**
+   * If true, this status defaults the Quiet Mode toggle to ON in the modal
+   * (user can override). Severity 1 statuses default quiet.
+   */
+  quietModeDefault?: boolean;
+  /** DB event type string forwarded to the process_notification_waterfall RPC. */
   eventType?: string;
   title?: string;
   messageTemplate?: (name: string) => string;
 }
 
 /**
- * Extensible configuration mapping vibe statuses to waterfall and peer-support events.
- * Raincloud is configured by default, but any future statuses that signal needing
- * to be checked on can be seamlessly added here.
+ * Extensible configuration mapping distress vibe statuses to waterfall and peer-support events.
+ *
+ * Positive/neutral statuses (sunshine, breeze, starlight, neutral) are NOT in this map —
+ * they never trigger a waterfall.
  */
 const VIBE_TRIGGER_CONFIG: Record<string, VibeTriggerConfig> = {
+  foggy: {
+    triggersWaterfall: true,
+    severityLevel: 1,
+    quietModeDefault: true,
+    eventType: 'support_soft',
+    title: '🌫️ Foggy Check-In',
+    messageTemplate: (name: string) =>
+      `${name} is feeling a bit foggy today. A quiet porch note might help. 🌫️`,
+  },
   raincloud: {
     triggersWaterfall: true,
+    severityLevel: 2,
+    quietModeDefault: false,
     eventType: 'support_needed',
     title: '🌧️ Raincloud Check-In',
-    messageTemplate: (name: string) => `${name} is sitting under a raincloud and could use some warmth.`,
+    messageTemplate: (name: string) =>
+      `${name} is sitting under a raincloud and could use some warmth.`,
+  },
+  storm: {
+    triggersWaterfall: true,
+    severityLevel: 3,
+    quietModeDefault: false,
+    eventType: 'support_urgent',
+    title: '⛈️ Storm Check-In',
+    messageTemplate: (name: string) =>
+      `${name} is going through a storm right now. They may really appreciate a quiet check-in. ⛈️`,
   },
 };
 
@@ -63,16 +110,22 @@ export interface VibeResult {
 /**
  * Updates the authenticated user's vibe_status in cozy.users.
  *
- * When the status is configured to trigger peer support (e.g. 'raincloud') and the user
- * belongs to one or more groups, the action dispatches the waterfall engine
- * and returns group peers for client awareness.
+ * When the status is configured to trigger peer support and the user belongs to at
+ * least one group, the action dispatches the tiered Serene Cascade waterfall:
+ *   - Severity 1 (foggy):     Porch digest only (no Anchor Buddy push)
+ *   - Severity 2 (raincloud): Anchor Buddy push + Porch digest
+ *   - Severity 3 (storm):     Anchor Buddy push + Porch digest (ignores quietMode)
  *
- * @param status - VibeStatus value ('sunshine' | 'neutral' | 'raincloud' or future statuses).
+ * @param status - VibeStatus value.
+ * @param groupId - Optional active group UUID for verified membership check.
+ * @param clientOffsetMinutes - Client timezone offset for date-aware deduplication.
+ * @param quietMode - If true, suppresses Anchor Buddy push for severity ≤ 2 statuses.
  */
 export async function updateVibeStatus(
   status: VibeStatus,
   groupId?: string,
-  clientOffsetMinutes?: number
+  clientOffsetMinutes?: number,
+  quietMode?: boolean
 ): Promise<VibeResult> {
   const supabase = await createServerClient();
 
@@ -203,14 +256,24 @@ export async function updateVibeStatus(
       }
 
       if (activeGroupId) {
+        const severityLevel = triggerConfig.severityLevel;
+        // Storm (severity 3) always sends Anchor Buddy push regardless of quiet mode.
+        // Severity 1 (foggy) never sends Anchor Buddy push — porch digest only.
+        // Severity 2 (raincloud) sends Anchor Buddy push unless quietMode is true.
+        const shouldNotifyAnchor =
+          severityLevel === 3 || (severityLevel === 2 && !quietMode);
+
         // Generalized waterfall dispatch:
-        // 1. Attempt generalized process_notification_waterfall RPC
+        // 1. Attempt generalized process_notification_waterfall RPC (passes tier + quiet metadata)
         let dispatched = false;
         try {
           const { data: genData, error: genError } = await service.schema('cozy').rpc('process_notification_waterfall', {
             p_target_user_id: user.id,
             p_group_id: activeGroupId,
             p_status: status,
+            p_severity: severityLevel,
+            p_notify_anchor: shouldNotifyAnchor,
+            p_quiet_mode: Boolean(quietMode),
           });
           const genResult = genData as { success?: boolean; status?: string; error?: string } | null;
           if (!genError && (!genResult || genResult.success !== false)) {
@@ -225,8 +288,8 @@ export async function updateVibeStatus(
           dispatched = false;
         }
 
-        // 2. Fallback to process_raincloud_waterfall RPC
-        if (!dispatched) {
+        // 2. Fallback to process_raincloud_waterfall RPC (legacy — only for severity 2+)
+        if (!dispatched && severityLevel >= 2) {
           try {
             const { data: rfData, error: waterfallError } = await service.schema('cozy').rpc('process_raincloud_waterfall', {
               p_target_user_id: user.id,
@@ -246,35 +309,68 @@ export async function updateVibeStatus(
           }
         }
 
-        // 3. Fallback: Direct notification insertion for group peers if RPCs are unavailable
+        // 3. Fallback: Direct notification insertion for group peers if RPCs are unavailable.
+        //    Slot 1 (Anchor Buddy) gets notified if shouldNotifyAnchor.
+        //    All peers (including Anchor) get a Porch digest notification.
         if (!dispatched && groupPeers.length > 0) {
           try {
             const senderName = user.user_metadata?.display_name || 'A Neighbor';
             const title = triggerConfig?.title || '🌧️ Peer Check-In';
             const message = triggerConfig?.messageTemplate
               ? triggerConfig.messageTemplate(senderName)
-              : `${senderName} is under a raincloud and could use some warmth.`;
+              : `${senderName} could use some warm thoughts.`;
+            const eventType = triggerConfig?.eventType || 'support_needed';
 
-            const notifRecords = groupPeers.map((peer) => ({
-              user_id: peer.userId,
-              type: 'peer_checkin',
-              title,
-              message,
-              metadata: {
-                peer_id: user.id,
-                target_user_id: user.id,
-                group_id: activeGroupId,
-                event_type: 'support_needed',
-                action_url: '/profile',
-                source: 'waterfall_fallback',
-              },
-              is_read: false,
-              created_at: new Date().toISOString(),
-            }));
+            // Slot 1: Anchor Buddy immediate quiet alert (first peer in list)
+            const anchorPeer = groupPeers[0];
+            if (anchorPeer && shouldNotifyAnchor) {
+              const { error: anchorInsertError } = await service.schema('cozy').from('notifications').insert({
+                user_id: anchorPeer.userId,
+                type: 'peer_checkin',
+                title,
+                message,
+                metadata: {
+                  peer_id: user.id,
+                  target_user_id: user.id,
+                  group_id: activeGroupId,
+                  event_type: eventType,
+                  cascade_slot: 1,
+                  action_url: '/profile',
+                  source: 'waterfall_fallback',
+                },
+                is_read: false,
+                created_at: new Date().toISOString(),
+              });
+              if (anchorInsertError) {
+                console.error('[updateVibeStatus] Anchor Buddy notification insert failed:', anchorInsertError.message);
+              }
+            }
 
-            const { error: insertError } = await service.schema('cozy').from('notifications').insert(notifRecords);
-            if (insertError) {
-              console.error('[updateVibeStatus] Direct notification fallback insert failed:', insertError.message);
+            // Slot 2: Porch Pen soft-digest for all remaining peers
+            const porchPeers = shouldNotifyAnchor ? groupPeers.slice(1) : groupPeers;
+            if (porchPeers.length > 0) {
+              const porchNotifRecords = porchPeers.map((peer) => ({
+                user_id: peer.userId,
+                type: 'peer_checkin',
+                title: `🏡 Porch Soft Digest`,
+                message: `${senderName} left something on your porch. Open it when you feel up to it. 🌿`,
+                metadata: {
+                  peer_id: user.id,
+                  target_user_id: user.id,
+                  group_id: activeGroupId,
+                  event_type: eventType,
+                  cascade_slot: 2,
+                  action_url: '/profile',
+                  source: 'waterfall_fallback',
+                },
+                is_read: false,
+                created_at: new Date().toISOString(),
+              }));
+
+              const { error: porchInsertError } = await service.schema('cozy').from('notifications').insert(porchNotifRecords);
+              if (porchInsertError) {
+                console.error('[updateVibeStatus] Porch Pen notification insert failed:', porchInsertError.message);
+              }
             }
           } catch (directInsertErr) {
             console.warn('[updateVibeStatus] Direct notification insert note:', directInsertErr);

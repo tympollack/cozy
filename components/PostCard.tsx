@@ -342,18 +342,18 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
                   <span className="text-[10px] text-amber-200">Blanket</span>
                 </button>
                 <button
-                  onClick={() => handleSendWarmthItem('crystal')}
+                  onClick={() => handleSendWarmthItem('candle')}
                   className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/10 border border-white/20 hover:bg-white/20 text-xs"
                 >
-                  <span className="text-2xl">🔮</span>
-                  <span className="text-[10px] text-amber-200">Crystal</span>
+                  <span className="text-2xl">🕯️</span>
+                  <span className="text-[10px] text-amber-200">Candle</span>
                 </button>
                 <button
-                  onClick={() => handleSendWarmthItem('heart')}
+                  onClick={() => handleSendWarmthItem('flower')}
                   className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/10 border border-white/20 hover:bg-white/20 text-xs"
                 >
-                  <span className="text-2xl">💖</span>
-                  <span className="text-[10px] text-amber-200">Warmth</span>
+                  <span className="text-2xl">🌸</span>
+                  <span className="text-[10px] text-amber-200">Flower</span>
                 </button>
               </div>
             )}
