@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coffee, Heart, Sparkles, X, Gift, ShieldAlert } from 'lucide-react';
+import { Sparkles, X, ShieldAlert } from 'lucide-react';
 import type { PorchItem } from '@/app/actions/waterfallActions';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
 
@@ -12,11 +12,15 @@ interface PorchHoldingPenProps {
 }
 
 const ITEM_EMOJIS: Record<string, string> = {
-  tea: '☕',
-  blanket: '🧧',
+  tea: '🍵',
+  blanket: '🧣',
+  cocoa: '🍫',
+  candle: '🕯️',
+  flower: '🌸',
+  note: '💌',
+  // legacy aliases kept for graceful backward compat
   crystal: '🔮',
   heart: '💖',
-  note: '📝',
 };
 
 export function PorchHoldingPen({ items = [], isOpenDefault = false }: PorchHoldingPenProps) {

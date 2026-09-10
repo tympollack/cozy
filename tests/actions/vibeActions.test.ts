@@ -154,6 +154,9 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
+      p_severity: 2,
+      p_notify_anchor: true,
+      p_quiet_mode: false,
     });
   });
 
@@ -180,6 +183,9 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
+      p_severity: 2,
+      p_notify_anchor: true,
+      p_quiet_mode: false,
     });
   });
 
@@ -264,6 +270,9 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
+      p_severity: 2,
+      p_notify_anchor: true,
+      p_quiet_mode: false,
     });
   });
 
@@ -289,6 +298,9 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
+      p_severity: 2,
+      p_notify_anchor: true,
+      p_quiet_mode: false,
     });
 
     vi.useRealTimers();
@@ -320,6 +332,9 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
       p_target_user_id: 'user-vibe-1',
       p_group_id: 'group-123',
       p_status: 'raincloud',
+      p_severity: 2,
+      p_notify_anchor: true,
+      p_quiet_mode: false,
     });
 
     mockServiceRpc.mockClear();

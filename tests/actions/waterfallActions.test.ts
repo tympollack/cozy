@@ -116,7 +116,7 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       expect(res1.success).toBe(true);
 
       mockInsert.mockRejectedValueOnce(new Error('DB crashed'));
-      const res2 = await sendPorchWarmth('recipient-user', 'crystal');
+      const res2 = await sendPorchWarmth('recipient-user', 'candle');
       expect(res2.success).toBe(true);
     });
 
