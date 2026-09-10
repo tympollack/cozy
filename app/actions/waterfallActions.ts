@@ -156,6 +156,29 @@ export async function sendPorchWarmth(
 
   const service = createServiceClient();
 
+  // Verify sender and recipient share a group membership — prevents gifting arbitrary users
+  const { data: sharedGroup } = await service
+    .schema('cozy')
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', user.id)
+    .in(
+      'group_id',
+      (
+        await service
+          .schema('cozy')
+          .from('group_members')
+          .select('group_id')
+          .eq('user_id', recipientUserId)
+      ).data?.map((r) => r.group_id) ?? []
+    )
+    .limit(1)
+    .maybeSingle();
+
+  if (!sharedGroup) {
+    return { success: false, error: 'You can only send porch gifts to campmates in your group.' };
+  }
+
   // Get sender name and current points
   const { data: senderData } = await service
     .schema('cozy')
@@ -176,34 +199,11 @@ export async function sendPorchWarmth(
     createdAt: new Date().toISOString(),
   };
 
-  // Award warmth points to the sender — rate limited to once per calendar day per sender
-  // to prevent point farming via repeated gifts.
+  // Insert porch gift FIRST, then count — this makes the TOCTOU race safe:
+  // after our own insert, giftsToday is always >= 1. If two calls race, both
+  // insert, then both see count >= 2, so neither awards a second time. Only
+  // the single call whose insert brought the count to exactly 1 awards points.
   let newSenderPoints: number | undefined;
-  try {
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
-
-    const { count: giftsToday } = await service
-      .schema('cozy')
-      .from('porch_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_id', user.id)
-      .gte('created_at', todayStart.toISOString());
-
-    const alreadyAwardedToday = (giftsToday ?? 0) > 0;
-
-    if (!alreadyAwardedToday) {
-      const currentPoints = senderData?.points ?? 0;
-      newSenderPoints = currentPoints + PORCH_GIFT_SENDER_POINTS;
-      await service
-        .schema('cozy')
-        .from('users')
-        .update({ points: newSenderPoints })
-        .eq('id', user.id);
-    }
-  } catch {
-    // Non-fatal: points award failure should not block the gift delivery
-  }
 
   try {
     const { error: dbError } = await service
@@ -219,9 +219,31 @@ export async function sendPorchWarmth(
       });
 
     if (dbError) {
-      // Memory store fallback for recipient
+      // Memory store fallback — no points award in fallback path
       const existing = porchMemoryStore.get(recipientUserId) || [];
       porchMemoryStore.set(recipientUserId, [newItem, ...existing]);
+    } else {
+      // Count today's gifts by this sender (post-insert, so always >= 1)
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const { count: giftsToday } = await service
+        .schema('cozy')
+        .from('porch_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('sender_id', user.id)
+        .gte('created_at', todayStart.toISOString());
+
+      // Award points only on the FIRST gift of the day (count === 1 means this insert was it)
+      if (giftsToday === 1) {
+        const currentPoints = senderData?.points ?? 0;
+        newSenderPoints = currentPoints + PORCH_GIFT_SENDER_POINTS;
+        await service
+          .schema('cozy')
+          .from('users')
+          .update({ points: newSenderPoints })
+          .eq('id', user.id);
+      }
     }
   } catch {
     const existing = porchMemoryStore.get(recipientUserId) || [];
