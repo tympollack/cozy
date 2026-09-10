@@ -52,7 +52,9 @@ const porchMemoryStore = new Map<string, PorchItem[]>();
 export async function setSereneCascade(
   status: 'foggy' | 'raincloud' | 'storm' = 'raincloud',
   anchorBuddyId?: string,
-  quietMode?: boolean
+  quietMode?: boolean,
+  /** Client UTC offset in minutes (e.g. -240 for UTC-4). Required for correct local-day deduplication. */
+  clientOffsetMinutes?: number,
 ): Promise<WaterfallConfigResult> {
   const supabase = await createServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -61,7 +63,9 @@ export async function setSereneCascade(
     return { success: false, error: 'Authentication required.' };
   }
 
-  const clientOffset = -new Date().getTimezoneOffset();
+  // Use the caller-provided offset so deduplication is computed against the *user's* local day,
+  // not the server's. Fall back to 0 (UTC) if not provided — callers should always pass this.
+  const clientOffset = clientOffsetMinutes ?? 0;
   const vibeRes = await updateVibeStatus(status, undefined, clientOffset, quietMode);
   if (!vibeRes.success) {
     return { success: false, error: vibeRes.error };
@@ -99,13 +103,14 @@ export async function setSereneCascade(
 }
 
 /**
- * @deprecated Use setSereneCascade('raincloud', anchorBuddyId) instead.
+ * @deprecated Use setSereneCascade('raincloud', anchorBuddyId, quietMode, clientOffsetMinutes) instead.
  * Kept for backwards compatibility with AnchorBuddyModal.
  */
 export async function setRaincloudCascade(
-  anchorBuddyId?: string
+  anchorBuddyId?: string,
+  clientOffsetMinutes?: number,
 ): Promise<WaterfallConfigResult> {
-  return setSereneCascade('raincloud', anchorBuddyId);
+  return setSereneCascade('raincloud', anchorBuddyId, undefined, clientOffsetMinutes);
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +149,11 @@ export async function sendPorchWarmth(
     return { success: false, error: 'Authentication required.' };
   }
 
+  // Prevent self-gifting to close the unlimited self-point-farming vector
+  if (user.id === recipientUserId) {
+    return { success: false, error: 'You cannot send a porch gift to yourself.' };
+  }
+
   const service = createServiceClient();
 
   // Get sender name and current points
@@ -166,16 +176,31 @@ export async function sendPorchWarmth(
     createdAt: new Date().toISOString(),
   };
 
-  // Award warmth points to the sender for gifting
+  // Award warmth points to the sender — rate limited to once per calendar day per sender
+  // to prevent point farming via repeated gifts.
   let newSenderPoints: number | undefined;
   try {
-    const currentPoints = senderData?.points ?? 0;
-    newSenderPoints = currentPoints + PORCH_GIFT_SENDER_POINTS;
-    await service
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    const { count: giftsToday } = await service
       .schema('cozy')
-      .from('users')
-      .update({ points: newSenderPoints })
-      .eq('id', user.id);
+      .from('porch_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender_id', user.id)
+      .gte('created_at', todayStart.toISOString());
+
+    const alreadyAwardedToday = (giftsToday ?? 0) > 0;
+
+    if (!alreadyAwardedToday) {
+      const currentPoints = senderData?.points ?? 0;
+      newSenderPoints = currentPoints + PORCH_GIFT_SENDER_POINTS;
+      await service
+        .schema('cozy')
+        .from('users')
+        .update({ points: newSenderPoints })
+        .eq('id', user.id);
+    }
   } catch {
     // Non-fatal: points award failure should not block the gift delivery
   }
