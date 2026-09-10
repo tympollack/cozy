@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Check, ArrowRight, LayoutGrid,
-  Lock, Coins, Camera,
+  Lock, Coins, Camera, Plus,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
@@ -674,7 +674,7 @@ export function ProfileShell({
                           <button
                             key={post.id}
                             onClick={() => handleAssignPost(post.id)}
-                            className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-[--cozy-warm] border border-white/20 hover:scale-[1.03] active:scale-95 transition-all text-left shadow-md"
+                            className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-[--cozy-warm] border border-white/20 hover:scale-[1.03] active:scale-95 transition-all text-left shadow-md cursor-pointer"
                           >
                             {img && (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -696,9 +696,43 @@ export function ProfileShell({
                           </button>
                         );
                       })}
+
+                      {/* Intuitive "+ Create New Space" Card Tile */}
+                      <Link
+                        href="/camera"
+                        onClick={() => setSelectedSlotForAssignment(null)}
+                        className="group relative rounded-2xl overflow-hidden aspect-[3/4] border-2 border-dashed border-[--cozy-amber]/50 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/70 dark:hover:bg-amber-900/30 hover:border-[--cozy-rust] hover:scale-[1.03] active:scale-95 transition-all flex flex-col items-center justify-center text-center p-4 shadow-xs cursor-pointer"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[--cozy-rust] to-[--cozy-amber] text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform mb-2.5">
+                          <Plus size={22} className="stroke-[2.5]" />
+                        </div>
+                        <span className="text-xs font-800 text-[--cozy-bark] dark:text-amber-100 leading-snug">
+                          Create New Space
+                        </span>
+                        <span className="text-[10px] text-[--cozy-muted] font-500 mt-1 flex items-center gap-1">
+                          <Camera size={11} /> Snap & assign
+                        </span>
+                      </Link>
                     </div>
                   )}
                 </div>
+
+                {/* Modal Footer Quick Action Bar (when posts exist) */}
+                {unassignedPosts.length > 0 && (
+                  <div className="pt-3 border-t border-[--cozy-amber]/20 flex items-center justify-between">
+                    <span className="text-[11px] text-[--cozy-muted]">
+                      {unassignedPosts.length} unassigned {unassignedPosts.length === 1 ? 'space' : 'spaces'}
+                    </span>
+                    <Link
+                      href="/camera"
+                      onClick={() => setSelectedSlotForAssignment(null)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full font-800 text-xs bg-[--cozy-warm] border border-[--cozy-amber]/40 text-[--cozy-rust] dark:text-amber-300 hover:bg-[--cozy-amber]/20 hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Camera size={13} />
+                      <span>Snap New Space</span>
+                    </Link>
+                  </div>
+                )}
               </motion.div>
             </div>
           )}
