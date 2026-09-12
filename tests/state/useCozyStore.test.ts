@@ -7,6 +7,8 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
     useCozyStore.setState({
       points: 0,
       hasSeenOnboarding: false,
+      focusNook: 'desk',
+      hasCompletedSandbox: false,
       hasSeenStickerTutorial: false,
       feed: [],
       feedCursor: null,
@@ -36,10 +38,18 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
   });
 
   describe('Onboarding & Tutorial Flags', () => {
-    it('marks onboarding and sticker tutorials as completed', () => {
+    it('marks onboarding, sandbox and sticker tutorials as completed, sets focus nook', () => {
       const store = useCozyStore.getState();
       expect(store.hasSeenOnboarding).toBe(false);
+      expect(store.hasCompletedSandbox).toBe(false);
       expect(store.hasSeenStickerTutorial).toBe(false);
+      expect(store.focusNook).toBe('desk');
+
+      store.setFocusNook('reading_chair');
+      expect(useCozyStore.getState().focusNook).toBe('reading_chair');
+
+      store.completeSandbox();
+      expect(useCozyStore.getState().hasCompletedSandbox).toBe(true);
 
       store.completeOnboarding();
       expect(useCozyStore.getState().hasSeenOnboarding).toBe(true);

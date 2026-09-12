@@ -86,9 +86,13 @@ interface CozyState {
   addPoints: (n: number) => void;
   setPoints: (n: number) => void;
 
-  // --- Onboarding ---
+  // --- Onboarding & Single Corner ---
   hasSeenOnboarding: boolean;
   completeOnboarding: () => void;
+  focusNook: string | null;
+  setFocusNook: (nook: string | null) => void;
+  hasCompletedSandbox: boolean;
+  completeSandbox: () => void;
 
   // --- Tutorial flags ---
   /** True once the first-upload 100-token award tutorial callout has been dismissed. */
@@ -178,9 +182,13 @@ export const useCozyStore = create<CozyState>()(
       addPoints: (n) => set((s) => ({ points: s.points + n })),
       setPoints: (n) => set({ points: n }),
 
-      // --- Onboarding ---
+      // --- Onboarding & Single Corner ---
       hasSeenOnboarding: false,
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
+      focusNook: 'desk',
+      setFocusNook: (nook) => set({ focusNook: nook }),
+      hasCompletedSandbox: false,
+      completeSandbox: () => set({ hasCompletedSandbox: true }),
 
       // --- Tutorial flags ---
       hasSeenStickerTutorial: false,
@@ -293,6 +301,8 @@ export const useCozyStore = create<CozyState>()(
       partialize: (state) => ({
         points: state.points,
         hasSeenOnboarding: state.hasSeenOnboarding,
+        focusNook: state.focusNook,
+        hasCompletedSandbox: state.hasCompletedSandbox,
         hasSeenStickerTutorial: state.hasSeenStickerTutorial,
         expansionTier: state.expansionTier,
         milestoneTokens: state.milestoneTokens,
