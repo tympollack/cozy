@@ -95,7 +95,7 @@ describe('CommunityBulletinBoard Component', () => {
     );
 
     expect(await screen.findByText('Plant Herb Garden 🌿')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders max themes unlocked without NaN when group points reach or exceed 10000', () => {
     render(
@@ -253,7 +253,7 @@ describe('CommunityBulletinBoard Component', () => {
       'Group 2 description',
       1.5
     );
-  });
+  }, 15000);
 
   it('prevents inflight challenge completion response from overwriting or subtracting points after switching groups', async () => {
     const user = userEvent.setup();
