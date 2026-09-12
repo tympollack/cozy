@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useOptimistic, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Mail, MailCheck, Clock, Check, XCircle, MessageSquareHeart } from 'lucide-react';
+import { X, Heart, Mail, MailCheck, Clock, Check, XCircle, MessageSquareHeart, Sparkles } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import {
   sendCallingCard,
@@ -12,6 +12,7 @@ import {
   type PendingCard,
 } from '@/app/actions/peerActions';
 import { getPrivateNotes, type PrivateSupportNote } from '@/app/actions/vibeActions';
+import { playCozyChime } from '@/lib/audio/cheerSound';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -279,6 +280,131 @@ function formatTimeAgo(date: Date): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component: Tactile Private Note Unboxing Experience
+// ---------------------------------------------------------------------------
+
+function TactilePrivateNote({ note }: { note: PrivateSupportNote }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasUnsealed, setHasUnsealed] = useState(false);
+
+  function handleToggle() {
+    if (!hasUnsealed) {
+      setHasUnsealed(true);
+      playCozyChime();
+    }
+    setIsOpen((prev) => !prev);
+  }
+
+  return (
+    <div
+      data-testid={`private-note-${note.id}`}
+      className="rounded-2xl border border-[--cozy-amber]/30 overflow-hidden shadow-xs transition-shadow hover:shadow-md bg-[#fffdfa]"
+    >
+      {/* Top Envelope Flap & Wax Seal Header */}
+      <button
+        type="button"
+        onClick={handleToggle}
+        aria-expanded={isOpen}
+        className="w-full text-left cursor-pointer select-none p-3.5 border-b border-[--cozy-amber]/20 transition-colors hover:bg-amber-50/50"
+        style={{
+          background: 'linear-gradient(135deg, #fefcf7 0%, #f7ecd7 100%)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {/* Tactile Wax Seal Stamp */}
+            <motion.div
+              animate={hasUnsealed ? { rotate: [0, -8, 0] } : { scale: [1, 1.06, 1] }}
+              transition={{ repeat: hasUnsealed ? 0 : Infinity, duration: 2.5 }}
+              className="w-8 h-8 rounded-full flex items-center justify-center relative shadow-sm flex-shrink-0"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #cf4d3c, #991b1b)',
+                boxShadow: '0 2px 5px rgba(153, 27, 27, 0.4), inset 0 1px 1px rgba(255,255,255,0.35)',
+                border: '1px solid rgba(255,255,255,0.25)',
+              }}
+              title={isOpen ? 'Wax seal opened' : 'Intact wax seal'}
+            >
+              <Heart size={13} className="text-amber-100 fill-amber-100" />
+            </motion.div>
+
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-800 text-[--cozy-bark]">
+                  From {note.senderName}
+                </span>
+                <span className="text-[9px] font-700 px-1.5 py-0.2 rounded-full bg-[--cozy-amber]/15 text-[--cozy-rust]">
+                  Porch Support
+                </span>
+              </div>
+              <p className="text-[10px] text-[--cozy-muted]">
+                {isOpen ? 'Parchment unfolded' : 'Sealed envelope · Tap to unseal'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-[10px] text-[--cozy-muted] font-500">
+              {formatTimeAgo(new Date(note.sentAt))}
+            </span>
+            <span className="text-[11px] font-700 text-[--cozy-rust] px-2 py-0.5 rounded-lg bg-[--cozy-amber]/15">
+              {isOpen ? 'Fold' : 'Unseal'}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {/* Unfolding Parchment Letter */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, scaleY: 0.85 }}
+            animate={{ opacity: 1, height: 'auto', scaleY: 1 }}
+            exit={{ opacity: 0, height: 0, scaleY: 0.85 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+            style={{ transformOrigin: 'top center' }}
+            className="overflow-hidden"
+          >
+            <div
+              className="p-4 space-y-2.5 relative"
+              style={{
+                background: 'linear-gradient(180deg, #fffefb 0%, #faf4e8 100%)',
+                boxShadow: 'inset 0 2px 4px rgba(84, 50, 32, 0.04)',
+              }}
+            >
+              {/* Paper Fold Crease line */}
+              <div
+                className="w-full h-px opacity-25"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, rgba(122,79,58,0.4), transparent)',
+                }}
+              />
+
+              <div className="flex items-center gap-1.5 text-[11px] font-700 text-[--cozy-rust]/90">
+                <Sparkles size={12} className="text-[--cozy-gold]" />
+                <span>Quiet Warmth & Support</span>
+              </div>
+
+              <blockquote className="text-xs text-[--cozy-bark] font-500 leading-relaxed italic border-l-2 border-[--cozy-amber]/40 pl-3 py-0.5">
+                &quot;{note.message}&quot;
+              </blockquote>
+
+              <div className="flex items-center justify-between pt-1 text-[10px] text-[--cozy-muted]">
+                <span className="flex items-center gap-1">
+                  <span>💌</span> Delivered with zero push pressure
+                </span>
+                <span className="font-600 text-[--cozy-bark]/70">
+                  Tap header to fold back
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -587,26 +713,7 @@ export function DollhouseMailbox({
                       </div>
                     ) : (
                       privateNotes.map((note) => (
-                        <div
-                          key={note.id}
-                          className="p-3 rounded-2xl bg-white/80 border border-[--cozy-amber]/25 shadow-sm space-y-1"
-                        >
-                          <div className="flex items-center justify-between text-xs font-800 text-[--cozy-bark]">
-                            <span className="flex items-center gap-1.5">
-                              <Heart size={12} className="fill-[--cozy-gold] text-[--cozy-gold]" />
-                              <span>From {note.senderName}</span>
-                              <span className="text-[9px] font-700 px-1.5 py-0.5 rounded-full bg-[--cozy-amber]/15 text-[--cozy-rust]">
-                                Porch Support
-                              </span>
-                            </span>
-                            <span className="text-[10px] text-[--cozy-muted] font-500">
-                              {formatTimeAgo(new Date(note.sentAt))}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[--cozy-bark] font-500 leading-relaxed pt-0.5">
-                            &quot;{note.message}&quot;
-                          </p>
-                        </div>
+                        <TactilePrivateNote key={note.id} note={note} />
                       ))
                     )}
                   </div>

@@ -141,4 +141,47 @@ describe('DollhouseMailbox Component', () => {
     expect(mockSendCallingCard).toHaveBeenCalledWith('user-host', '/profile/maya');
     expect(await screen.findByText(/Insufficient points/i)).toBeInTheDocument();
   });
+
+  it('renders sealed envelope for private notes and unseals with tactile unfold animation on click', async () => {
+    const user = userEvent.setup();
+    mockGetPrivateNotes.mockResolvedValue([
+      {
+        id: 'note-unseal-1',
+        senderId: 'user-sender',
+        senderName: 'Sam',
+        recipientId: 'user-me',
+        message: 'Hope you have a peaceful morning! ☕',
+        sentAt: new Date().toISOString(),
+      },
+    ]);
+
+    render(
+      <DollhouseMailbox
+        isOwner={true}
+        peerStatus="none"
+        pendingCards={[]}
+        recipientId="user-me"
+        currentUserId="user-me"
+      />
+    );
+
+    const mailboxButton = screen.getByRole('button', { name: /Open Mailbox/i });
+    await user.click(mailboxButton);
+
+    const porchTab = screen.getByRole('button', { name: /Porch Support/i });
+    await user.click(porchTab);
+
+    // Sealed envelope shows sender and sealed prompt
+    expect(await screen.findByText('From Sam')).toBeInTheDocument();
+    expect(screen.getByText(/Sealed envelope · Tap to unseal/i)).toBeInTheDocument();
+    expect(screen.getByText('Unseal')).toBeInTheDocument();
+
+    // Click envelope to unseal and unfold parchment note
+    const unsealButton = screen.getByRole('button', { name: /From Sam/i });
+    await user.click(unsealButton);
+
+    expect(await screen.findByText(/"Hope you have a peaceful morning! ☕"/i)).toBeInTheDocument();
+    expect(screen.getByText(/Quiet Warmth & Support/i)).toBeInTheDocument();
+    expect(screen.getByText('Fold')).toBeInTheDocument();
+  });
 });

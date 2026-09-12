@@ -58,4 +58,24 @@ describe('PorchHoldingPen Component', () => {
       'tel:988'
     );
   });
+
+  it('renders 2.5D wooden porch deck and triggers cheer transfer and cheer back', async () => {
+    const user = userEvent.setup();
+    render(<PorchHoldingPen items={items} isOpenDefault={true} />);
+
+    expect(screen.getByTestId('porch-wooden-deck')).toBeInTheDocument();
+
+    const alexItem = screen.getByRole('button', { name: /Alex/i });
+    await user.click(alexItem);
+
+    // Particle cheer transfer badge appears
+    expect(screen.getByText('+10 Cheer Transferred')).toBeInTheDocument();
+    expect(screen.getByText(/"A cozy blanket left on the porch."/i)).toBeInTheDocument();
+
+    // Click Cheer Back
+    const cheerBackButton = screen.getByRole('button', { name: /Cheer Back/i });
+    await user.click(cheerBackButton);
+
+    expect(screen.getByText(/Cheered Back! 💛/i)).toBeInTheDocument();
+  });
 });
