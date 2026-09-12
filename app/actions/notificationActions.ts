@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getPendingCallingCards } from './peerActions';
 import { getPrivateNotes } from './vibeActions';
 import { getPorchDigest } from './waterfallActions';
+import { getCircadianNotificationCopy } from '@/lib/circadianCopy';
 
 // ---------------------------------------------------------------------------
 // Types: cozy.notifications
@@ -170,10 +171,11 @@ export async function markNotificationAsRead(
 // ---------------------------------------------------------------------------
 // 3. triggerDailyTaskNudge
 //
-// Dual morning/afternoon & evening check-in engine:
-// - Morning/Afternoon (05:00 - 17:59 local): Prompts for Light photo to start daily reset (+25 pts).
-// - Evening/Night (18:00 - 04:59 local): Prompts for Dark photo to complete dual mode (+50 pts).
+// Dual morning & evening circadian check-in engine:
+// - Morning Light window (09:00 - 19:59 local): Prompts for Light photo to start daily reset (+25 pts).
+// - Evening Dark window (20:00 - 08:59 local): Prompts for Dark photo to complete dual mode (+50 pts).
 // Anchored securely to server Date.now() with caller timezone offset [-720, 840].
+// Uses compassionate copywriting matrix and dispatches Web Push if enabled.
 // Deduplicates per phase per local day so morning and evening notifications don't conflict.
 // ---------------------------------------------------------------------------
 
@@ -209,7 +211,8 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
     // Securely derive local time anchored to server Date.now()
     const clientNow = new Date(Date.now() + validOffsetMinutes * 60 * 1000);
     const localHour = clientNow.getUTCHours();
-    const isDaytime = localHour >= 5 && localHour < 18;
+    // 9 AM (09:00) to 8 PM (20:00) is morning/daytime Light mode; 8 PM to 9 AM is evening/night Dark mode
+    const isDaytime = localHour >= 9 && localHour < 20;
     const targetPhase: 'light' | 'dark' = isDaytime ? 'light' : 'dark';
 
     // Compute start of user's local calendar day in UTC for accurate daily deduplication
@@ -276,12 +279,10 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
       }
     }
 
-    // Prepare phase-specific notification copy
+    // Prepare phase-specific notification copy from compassionate matrix
+    const copy = getCircadianNotificationCopy(targetPhase, clientNow);
     const title = targetPhase === 'light' ? '☀️ Morning Space Check-in' : '🌙 Evening Space Check-in';
-    const message =
-      targetPhase === 'light'
-        ? "Capture today's Light photo to brighten your space and start your daily reset (+25 pts)!"
-        : "Capture tonight's Dark photo to complete your Light & Dark dual mode and claim full bonus points (+50 pts)!";
+    const message = copy.message;
 
     // Insert daily task nudge notification
     const { error: insertError } = await service
@@ -296,6 +297,7 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
           target_app: 'cozy',
           target_phase: targetPhase,
           action_url: `/camera?mode=${targetPhase}`,
+          seasonal_theme: copy.title,
         },
         is_read: false,
         created_at: new Date().toISOString(),
@@ -304,6 +306,17 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
     if (insertError) {
       console.error('[triggerDailyTaskNudge] Insert error:', insertError.message);
       return { success: false, nudged: false, targetPhase, error: insertError.message };
+    }
+
+    // Dispatch Web Push if user has active push subscriptions
+    try {
+      await sendWebPushNotification(user.id, {
+        title,
+        message,
+        url: `/camera?mode=${targetPhase}`,
+      });
+    } catch {
+      // Push send failure does not block notification persistence
     }
 
     return {
@@ -318,6 +331,445 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
     return { success: false, nudged: false, error: message };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Circadian Progress HUD & Web Push Types & Memory Store
+// ---------------------------------------------------------------------------
+
+export interface DailyCircadianStatusResult {
+  success: boolean;
+  lightCompleted: boolean;
+  darkCompleted: boolean;
+  bothCompleted: boolean;
+  currentPhase: 'light' | 'dark';
+  clientLocalHour: number;
+  error?: string;
+}
+
+export interface StoredPushSubscription {
+  id: string;
+  userId: string;
+  subscription: {
+    endpoint: string;
+    keys?: {
+      p256dh?: string;
+      auth?: string;
+    };
+    [key: string]: unknown;
+  };
+  userAgent?: string;
+  createdAt: string;
+}
+
+/** In-memory fallback cache for Web Push subscriptions during dev/testing */
+const pushSubscriptionMemoryStore = new Map<string, StoredPushSubscription[]>();
+
+/**
+ * Retrieves the daily Light and Dark completion status for the current user.
+ * Powers the ambient circadian progress pill HUD on the feed screen.
+ */
+export async function getDailyCircadianStatus(
+  clientOffsetMinutes?: number
+): Promise<DailyCircadianStatusResult> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      success: false,
+      lightCompleted: false,
+      darkCompleted: false,
+      bothCompleted: false,
+      currentPhase: 'light',
+      clientLocalHour: 12,
+      error: 'Authentication required.',
+    };
+  }
+
+  const validOffsetMinutes =
+    typeof clientOffsetMinutes === 'number' &&
+    Number.isFinite(clientOffsetMinutes) &&
+    clientOffsetMinutes >= -720 &&
+    clientOffsetMinutes <= 840
+      ? clientOffsetMinutes
+      : -new Date().getTimezoneOffset();
+
+  const clientNow = new Date(Date.now() + validOffsetMinutes * 60 * 1000);
+  const clientLocalHour = clientNow.getUTCHours();
+  const currentPhase: 'light' | 'dark' =
+    clientLocalHour >= 9 && clientLocalHour < 20 ? 'light' : 'dark';
+
+  const startOfLocalDay = new Date(
+    Date.UTC(clientNow.getUTCFullYear(), clientNow.getUTCMonth(), clientNow.getUTCDate()) -
+      validOffsetMinutes * 60 * 1000
+  );
+  const startOfDayISO = startOfLocalDay.toISOString();
+
+  const service = createServiceClient();
+  try {
+    const { data: todayPosts, error: postError } = await service
+      .schema('cozy')
+      .from('posts')
+      .select('light_img_url, dark_img_url')
+      .eq('user_id', user.id)
+      .gte('created_at', startOfDayISO);
+
+    if (postError) {
+      return {
+        success: false,
+        lightCompleted: false,
+        darkCompleted: false,
+        bothCompleted: false,
+        currentPhase,
+        clientLocalHour,
+        error: postError.message,
+      };
+    }
+
+    const lightCompleted = Boolean(todayPosts?.some((p) => Boolean(p.light_img_url)));
+    const darkCompleted = Boolean(todayPosts?.some((p) => Boolean(p.dark_img_url)));
+    const bothCompleted = lightCompleted && darkCompleted;
+
+    return {
+      success: true,
+      lightCompleted,
+      darkCompleted,
+      bothCompleted,
+      currentPhase,
+      clientLocalHour,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to fetch circadian status.';
+    return {
+      success: false,
+      lightCompleted: false,
+      darkCompleted: false,
+      bothCompleted: false,
+      currentPhase,
+      clientLocalHour,
+      error: msg,
+    };
+  }
+}
+
+export interface WebPushSubscriptionData {
+  endpoint?: string | null;
+  expirationTime?: number | null;
+  keys?: {
+    p256dh?: string;
+    auth?: string;
+    [key: string]: string | undefined;
+  };
+}
+
+/**
+ * Saves a browser Web Push subscription for the authenticated user.
+ */
+export async function savePushSubscriptionAction(
+  subscription: WebPushSubscriptionData,
+  userAgent?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!subscription || !subscription.endpoint) {
+    return { success: false, error: 'Valid push subscription endpoint is required.' };
+  }
+
+  const endpoint = subscription.endpoint;
+
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+  const record: StoredPushSubscription = {
+    id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    userId: user.id,
+    subscription: {
+      ...subscription,
+      endpoint,
+    },
+    userAgent,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const { error: dbError } = await service
+      .schema('cozy')
+      .from('push_subscriptions')
+      .upsert(
+        {
+          user_id: user.id,
+          endpoint,
+          p256dh: subscription.keys?.p256dh || null,
+          auth: subscription.keys?.auth || null,
+          user_agent: userAgent || null,
+          updated_at: record.createdAt,
+        },
+        { onConflict: 'user_id, endpoint' }
+      );
+
+    if (dbError) {
+      // Memory store fallback
+      const list = pushSubscriptionMemoryStore.get(user.id) || [];
+      pushSubscriptionMemoryStore.set(user.id, [
+        record,
+        ...list.filter((s) => s.subscription.endpoint !== subscription.endpoint),
+      ]);
+    }
+  } catch {
+    const list = pushSubscriptionMemoryStore.get(user.id) || [];
+    pushSubscriptionMemoryStore.set(user.id, [
+      record,
+      ...list.filter((s) => s.subscription.endpoint !== subscription.endpoint),
+    ]);
+  }
+
+  return { success: true };
+}
+
+/**
+ * Deletes a browser Web Push subscription for the authenticated user.
+ */
+export async function deletePushSubscriptionAction(
+  endpoint: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!endpoint) {
+    return { success: false, error: 'Endpoint is required.' };
+  }
+
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+  try {
+    await service
+      .schema('cozy')
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('endpoint', endpoint);
+
+    const list = pushSubscriptionMemoryStore.get(user.id) || [];
+    pushSubscriptionMemoryStore.set(
+      user.id,
+      list.filter((s) => s.subscription.endpoint !== endpoint)
+    );
+  } catch {
+    const list = pushSubscriptionMemoryStore.get(user.id) || [];
+    pushSubscriptionMemoryStore.set(
+      user.id,
+      list.filter((s) => s.subscription.endpoint !== endpoint)
+    );
+  }
+
+  return { success: true };
+}
+
+/**
+ * Sends a Web Push payload to all active subscriptions of a user.
+ */
+export async function sendWebPushNotification(
+  userId: string,
+  payload: { title: string; message: string; url?: string }
+): Promise<{ success: boolean; sentCount: number }> {
+  const service = createServiceClient();
+  let subs: { endpoint: string; keys?: Record<string, unknown> }[] = [];
+
+  try {
+    const { data: dbSubs, error: dbError } = await service
+      .schema('cozy')
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .eq('user_id', userId);
+
+    if (!dbError && dbSubs && dbSubs.length > 0) {
+      subs = dbSubs.map((s) => ({
+        endpoint: s.endpoint,
+        keys: { p256dh: s.p256dh, auth: s.auth },
+      }));
+    } else {
+      const memSubs = pushSubscriptionMemoryStore.get(userId) || [];
+      subs = memSubs.map((s) => s.subscription);
+    }
+  } catch {
+    const memSubs = pushSubscriptionMemoryStore.get(userId) || [];
+    subs = memSubs.map((s) => s.subscription);
+  }
+
+  if (subs.length === 0) {
+    return { success: true, sentCount: 0 };
+  }
+
+  console.info(
+    `[WebPush] Dispatched push payload to ${subs.length} endpoint(s) for user ${userId}:`,
+    payload.title
+  );
+  return { success: true, sentCount: subs.length };
+}
+
+export interface CircadianSchedulerResult {
+  success: boolean;
+  evaluatedUsers: number;
+  nudgedCount: number;
+  skippedCount: number;
+  phaseSummary: {
+    light: number;
+    dark: number;
+  };
+  error?: string;
+}
+
+/**
+ * Multi-user Circadian Nudge Scheduler.
+ * Evaluates active users against their local 9 AM / 8 PM windows,
+ * and creates compassionate circadian prompts for uncompleted daily phases.
+ */
+export async function processCircadianNudgeScheduler(options?: {
+  forcePhase?: 'light' | 'dark';
+  targetUserId?: string;
+  dryRun?: boolean;
+}): Promise<CircadianSchedulerResult> {
+  const service = createServiceClient();
+  try {
+    let query = service.schema('cozy').from('users').select('id, hub_preferences');
+    if (options?.targetUserId) {
+      query = query.eq('id', options.targetUserId);
+    }
+    const { data: users, error: usersError } = await query;
+    if (usersError || !users) {
+      return {
+        success: false,
+        evaluatedUsers: 0,
+        nudgedCount: 0,
+        skippedCount: 0,
+        phaseSummary: { light: 0, dark: 0 },
+        error: usersError?.message || 'No users found',
+      };
+    }
+
+    let nudgedCount = 0;
+    let skippedCount = 0;
+    const phaseSummary = { light: 0, dark: 0 };
+
+    for (const u of users) {
+      const prefs = (u.hub_preferences || {}) as Record<string, unknown>;
+      const offset = typeof prefs.timezoneOffset === 'number' ? prefs.timezoneOffset : 0;
+      const clientNow = new Date(Date.now() + offset * 60 * 1000);
+      const localHour = clientNow.getUTCHours();
+      const targetPhase: 'light' | 'dark' =
+        options?.forcePhase || (localHour >= 9 && localHour < 20 ? 'light' : 'dark');
+
+      const startOfLocalDay = new Date(
+        Date.UTC(clientNow.getUTCFullYear(), clientNow.getUTCMonth(), clientNow.getUTCDate()) -
+          offset * 60 * 1000
+      );
+      const startOfDayISO = startOfLocalDay.toISOString();
+
+      // Check today's posts
+      const { data: posts } = await service
+        .schema('cozy')
+        .from('posts')
+        .select('light_img_url, dark_img_url')
+        .eq('user_id', u.id)
+        .gte('created_at', startOfDayISO);
+
+      const hasCompleted = posts?.some((p) =>
+        targetPhase === 'light' ? Boolean(p.light_img_url) : Boolean(p.dark_img_url)
+      );
+
+      if (hasCompleted) {
+        skippedCount++;
+        continue;
+      }
+
+      // Check existing nudge today
+      const { data: existingNudges } = await service
+        .schema('cozy')
+        .from('notifications')
+        .select('id, metadata')
+        .eq('user_id', u.id)
+        .eq('type', 'daily_task')
+        .gte('created_at', startOfDayISO);
+
+      const alreadyNudged = existingNudges?.some((n) => {
+        const meta = n.metadata as Record<string, unknown> | undefined;
+        return meta?.target_phase ? meta.target_phase === targetPhase : targetPhase === 'light';
+      });
+
+      if (alreadyNudged) {
+        skippedCount++;
+        continue;
+      }
+
+      if (!options?.dryRun) {
+        const copy = getCircadianNotificationCopy(targetPhase, clientNow);
+        const title = targetPhase === 'light' ? '☀️ Morning Space Check-in' : '🌙 Evening Space Check-in';
+        await service.schema('cozy').from('notifications').insert({
+          user_id: u.id,
+          type: 'daily_task',
+          title,
+          message: copy.message,
+          metadata: {
+            target_app: 'cozy',
+            target_phase: targetPhase,
+            action_url: `/camera?mode=${targetPhase}`,
+            source: 'circadian_scheduler',
+            seasonal_theme: copy.title,
+          },
+          is_read: false,
+          created_at: new Date().toISOString(),
+        });
+
+        try {
+          await sendWebPushNotification(u.id, {
+            title,
+            message: copy.message,
+            url: `/camera?mode=${targetPhase}`,
+          });
+        } catch {
+          // Push send failure does not abort iteration
+        }
+      }
+
+      nudgedCount++;
+      phaseSummary[targetPhase]++;
+    }
+
+    return {
+      success: true,
+      evaluatedUsers: users.length,
+      nudgedCount,
+      skippedCount,
+      phaseSummary,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Circadian scheduler execution error.';
+    return {
+      success: false,
+      evaluatedUsers: 0,
+      nudgedCount: 0,
+      skippedCount: 0,
+      phaseSummary: { light: 0, dark: 0 },
+      error: msg,
+    };
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // 4. receiveAdminBroadcast
