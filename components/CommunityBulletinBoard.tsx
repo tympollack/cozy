@@ -28,6 +28,64 @@ const THEME_UNLOCK_THRESHOLDS = [
   { points: 10000, name: 'Cosmic Station Theme', emoji: '🌌' },
 ];
 
+export interface VillageMilestone {
+  id: string;
+  points: number;
+  name: string;
+  emoji: string;
+  category: 'lighting' | 'nature' | 'civic';
+  transformationLabel: string;
+  description: string;
+}
+
+export const VILLAGE_COMMUNAL_MILESTONES: VillageMilestone[] = [
+  {
+    id: 'milestone-fairy-lights',
+    points: 150,
+    name: 'Fairy Lights Strung Across Commons',
+    emoji: '✨',
+    category: 'lighting',
+    transformationLabel: 'Fairy Lights Glowing',
+    description: 'Delicate warm string lights illuminated across the town square.',
+  },
+  {
+    id: 'milestone-streetlamps',
+    points: 350,
+    name: 'Streetlamps Lit Along Village Paths',
+    emoji: '🏮',
+    category: 'lighting',
+    transformationLabel: 'Cobblestone Streetlamps Lit',
+    description: 'Antique brass lanterns casting a warm amber glow on evening strolls.',
+  },
+  {
+    id: 'milestone-garden',
+    points: 750,
+    name: 'Communal Herb & Flower Garden Blooming',
+    emoji: '🌷',
+    category: 'nature',
+    transformationLabel: 'Communal Garden Blooming',
+    description: 'Shared raised beds of chamomile, lavender, and sweet mint in full bloom.',
+  },
+  {
+    id: 'milestone-tea-hearth',
+    points: 1500,
+    name: 'Village Tea Pavilion & Hearth Restored',
+    emoji: '☕',
+    category: 'civic',
+    transformationLabel: 'Village Tea Hearth Warm',
+    description: 'A stone hearth where anyone can brew a hot pot of herbal tea together.',
+  },
+  {
+    id: 'milestone-fountain',
+    points: 3000,
+    name: 'Town Square Fountain & Conservatory',
+    emoji: '⛲',
+    category: 'civic',
+    transformationLabel: 'Fountain Bubbling',
+    description: 'Crystal-clear bubbling water fountain surrounded by peaceful reading benches.',
+  },
+];
+
 export function CommunityBulletinBoard({
   groupId,
   groupPooledPoints,
@@ -197,6 +255,29 @@ export function CommunityBulletinBoard({
         boxShadow: '0 8px 30px rgba(84, 50, 32, 0.12)',
       }}
     >
+      <style>{`
+        @keyframes fairyLightGlow {
+          0% { opacity: 0.75; transform: translateY(0); filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.4)); }
+          100% { opacity: 1; transform: translateY(-1px); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.95)); }
+        }
+      `}</style>
+
+      {/* Fairy Lights Garland (unlocked at 150 pooled points) */}
+      {currentGroupPts >= 150 && (
+        <div
+          data-testid="fairy-lights-garland"
+          className="w-full flex items-center justify-around py-1 px-3 -mt-2 -mb-2 select-none pointer-events-none"
+          style={{ animation: 'fairyLightGlow 2.2s ease-in-out infinite alternate' }}
+          title="Fairy lights strung across the town square"
+        >
+          {['✨', '💡', '🏮', '✨', '💡', '🏮', '✨', '💡', '🏮', '✨'].map((light, i) => (
+            <span key={i} className="text-xs">
+              {light}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Board Header */}
       <div className="flex items-center justify-between pb-3 border-b border-[--cozy-amber]/20">
         <div className="flex items-center gap-3">
@@ -278,6 +359,114 @@ export function CommunityBulletinBoard({
             animate={{ width: `${themeProgress}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           />
+        </div>
+      </div>
+
+      {/* Visual Communal Milestones (Lighting lamps, Garden, Fairy Lights) */}
+      <div
+        data-testid="communal-village-milestones"
+        className="p-4 rounded-2xl border space-y-3"
+        style={{
+          background: isFuturistic ? 'rgba(0,220,255,0.04)' : 'rgba(255,255,255,0.75)',
+          borderColor: isFuturistic ? 'rgba(0,220,255,0.22)' : 'rgba(217,119,54,0.20)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🏡</span>
+            <div>
+              <h4
+                className="text-xs font-800 leading-tight"
+                style={{ color: isFuturistic ? '#00dcff' : 'var(--cozy-bark)' }}
+              >
+                Village Communal Transformations
+              </h4>
+              <p
+                className="text-[10px] font-500 mt-0.5"
+                style={{ color: isFuturistic ? '#80c8e0' : 'var(--cozy-muted)' }}
+              >
+                Pooled community milestones transforming shared village spaces
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300">
+            {VILLAGE_COMMUNAL_MILESTONES.filter((m) => currentGroupPts >= m.points).length} / {VILLAGE_COMMUNAL_MILESTONES.length} Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          {VILLAGE_COMMUNAL_MILESTONES.map((milestone) => {
+            const isUnlocked = currentGroupPts >= milestone.points;
+            const progressPct = isUnlocked
+              ? 100
+              : Math.min(100, Math.round((currentGroupPts / milestone.points) * 100));
+
+            return (
+              <div
+                key={milestone.id}
+                data-testid={`village-milestone-${milestone.id}`}
+                className="p-3 rounded-xl border flex flex-col justify-between transition-all"
+                style={{
+                  background: isUnlocked
+                    ? isFuturistic
+                      ? 'rgba(0,220,255,0.12)'
+                      : 'linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, rgba(253, 230, 138, 0.45) 100%)'
+                    : isFuturistic
+                    ? 'rgba(15,29,54,0.40)'
+                    : 'rgba(255,255,255,0.55)',
+                  borderColor: isUnlocked
+                    ? '#f59e0b'
+                    : isFuturistic
+                    ? 'rgba(0,220,255,0.15)'
+                    : 'rgba(217,119,54,0.15)',
+                }}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-base">{milestone.emoji}</span>
+                    <span
+                      className={`text-[9px] font-800 px-1.5 py-0.5 rounded-md ${
+                        isUnlocked
+                          ? 'bg-amber-400 text-stone-950 shadow-xs'
+                          : 'bg-stone-200/80 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                      }`}
+                    >
+                      {isUnlocked ? '✨ Transformed' : `${milestone.points.toLocaleString()} pts`}
+                    </span>
+                  </div>
+
+                  <h5 className="text-[11px] font-800 text-[--cozy-bark] mt-1.5 leading-snug">
+                    {milestone.name}
+                  </h5>
+                  <p className="text-[10px] text-[--cozy-muted] font-500 leading-tight mt-0.5 line-clamp-2">
+                    {milestone.description}
+                  </p>
+                </div>
+
+                <div className="mt-2 pt-1.5 border-t border-[--cozy-amber]/15">
+                  <div className="flex items-center justify-between text-[9px] font-700 mb-1">
+                    <span className="text-[--cozy-muted]">
+                      {isUnlocked ? milestone.transformationLabel : `${currentGroupPts} / ${milestone.points} pts`}
+                    </span>
+                    <span className={isUnlocked ? 'text-amber-700 dark:text-amber-300 font-800' : 'text-[--cozy-muted]'}>
+                      {isUnlocked ? 'Active' : `${milestone.points - currentGroupPts} pts left`}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${progressPct}%`,
+                        background: isUnlocked
+                          ? 'linear-gradient(90deg, #f59e0b, #10b981)'
+                          : 'linear-gradient(90deg, #f59e0b, #d97706)',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -364,6 +553,18 @@ export function CommunityBulletinBoard({
           );
         })}
       </div>
+
+      {/* Communal Garden Blooming Vine Ribbon (unlocked at 750 points) */}
+      {currentGroupPts >= 750 && (
+        <div
+          data-testid="communal-garden-blooming"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-700 text-emerald-800 dark:text-emerald-300 select-none shadow-xs"
+        >
+          <span>🌷</span>
+          <span>🌿 Communal Garden in Full Bloom: Chamomile & Lavender Blossoming 🌿</span>
+          <span>🌸</span>
+        </div>
+      )}
 
       {/* Admin Pin Modal */}
       <AnimatePresence>
