@@ -15,6 +15,7 @@ export type PrivacyTier = 'random' | 'geofenced';
  */
 export type VibeStatus =
   | 'sunshine'
+  | 'breezy'
   | 'breeze'
   | 'starlight'
   | 'neutral'

@@ -7,11 +7,12 @@ import { sendPeerSupport } from '@/app/actions/supportActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
+import type { VibeStatus } from '@/store/useCozyStore';
 
 interface PeerSupportSheetProps {
   recipientId: string;
   recipientName: string;
-  vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
+  vibeStatus?: VibeStatus;
   isOpen: boolean;
   onClose: () => void;
   onBrewSent?: (recipientId: string) => void;
@@ -26,10 +27,18 @@ const COMFORT_STICKERS = [
   { emoji: '💛', name: 'Golden Spark' },
 ];
 
-const VIBE_META = {
+const VIBE_META: Record<
+  VibeStatus,
+  { emoji: string; label: string; badge: string }
+> = {
   sunshine: { emoji: '☀️', label: 'Sunshine', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  breezy: { emoji: '🍃', label: 'Breezy', badge: 'bg-teal-500/20 text-teal-300 border-teal-500/30' },
+  breeze: { emoji: '🍃', label: 'Breezy', badge: 'bg-teal-500/20 text-teal-300 border-teal-500/30' },
+  starlight: { emoji: '✨', label: 'Starlight', badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' },
   neutral: { emoji: '☕', label: 'Cozy', badge: 'bg-stone-800/80 text-amber-200 border-amber-500/20' },
+  foggy: { emoji: '🌫️', label: 'Foggy', badge: 'bg-stone-700/80 text-stone-300 border-stone-500/30' },
   raincloud: { emoji: '🌧️', label: 'Raincloud', badge: 'bg-slate-800/80 text-sky-300 border-sky-500/30' },
+  storm: { emoji: '⛈️', label: 'Storm', badge: 'bg-purple-900/80 text-purple-300 border-purple-500/30' },
 };
 
 export function PeerSupportSheet({
