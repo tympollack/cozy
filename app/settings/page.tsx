@@ -7,7 +7,8 @@ import {
   ArrowLeft, Moon, Sun, Monitor, Settings as SettingsIcon,
   Shield, Bell, Sparkles, LogOut, Trash2, CheckCircle,
   ExternalLink, Key, Check, Compass, User, RefreshCw, Hexagon,
-  ShoppingBag, History, Sliders, MapPin, Mail, Radio, Copy
+  ShoppingBag, History, Sliders, MapPin, Mail, Radio, Copy,
+  Volume2, VolumeX
 } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -15,6 +16,13 @@ import { getHubBaseUrl } from '@/lib/env';
 import { StickerStoreDrawer } from '@/components/StickerStoreDrawer';
 import { TransactionHistoryModal } from '@/components/TransactionHistoryModal';
 import { CircadianPushOptIn } from '@/components/CircadianPushOptIn';
+import {
+  playCozyChime,
+  playWoodenClick,
+  playPaperRustle,
+  playTeaPour,
+  playCameraShutter,
+} from '@/lib/audio/soundscape';
 
 interface HubPreferences {
   mapPresenceVisibility: boolean;
@@ -36,6 +44,8 @@ export default function SettingsPage() {
   const setThemesUnlocked = useCozyStore((s) => s.setThemesUnlocked);
   const groupNotifications = useCozyStore((s) => s.groupNotifications);
   const toggleGroupNotifications = useCozyStore((s) => s.toggleGroupNotifications);
+  const soundMuted = useCozyStore((s) => s.soundMuted);
+  const toggleSoundMuted = useCozyStore((s) => s.toggleSoundMuted);
 
   const [privacyTier, setPrivacyTier] = useState<'geofenced' | 'random'>('geofenced');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -572,8 +582,99 @@ export default function SettingsPage() {
           <CircadianPushOptIn variant="settings" />
         </section>
 
+        {/* ── 6. Atmospheric Soundscape & Acoustics ─────────────────────── */}
+        <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-[var(--cozy-border-subtle)] pb-3">
+            <div className="flex items-center gap-2">
+              {soundMuted ? (
+                <VolumeX className="w-5 h-5 text-[var(--cozy-rust)]" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-[var(--cozy-rust)]" />
+              )}
+              <h2 className="text-xs font-900 text-[var(--cozy-text-primary)] uppercase tracking-wider">
+                Atmospheric Soundscape
+              </h2>
+            </div>
+            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+              soundMuted
+                ? 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300'
+                : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-600/40'
+            }`}>
+              {soundMuted ? 'Muted' : 'Acoustics Active 🎶'}
+            </span>
+          </div>
 
-        {/* ── 6. Privacy & Location Obfuscation ─────────────────────────── */}
+          <p className="text-xs font-500 text-[var(--cozy-text-muted)] leading-relaxed">
+            Lightweight, soothing audio cues synthesized procedurally in-browser with zero external downloads.
+          </p>
+
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-100/90 dark:bg-[#201813] border border-stone-200 dark:border-stone-800">
+            <div>
+              <p className="text-xs font-700 text-[var(--cozy-text-primary)]">Soothing Sound Effects</p>
+              <p className="text-[10px] text-[var(--cozy-text-muted)]">Acoustic chimes, wooden clicks, paper rustling, and tea pours</p>
+            </div>
+
+            <button
+              onClick={toggleSoundMuted}
+              className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer ${
+                !soundMuted ? 'bg-emerald-600' : 'bg-stone-300 dark:bg-stone-700'
+              }`}
+              aria-label="Toggle soothing sound effects"
+            >
+              <div
+                className={`w-4 h-4 rounded-full bg-white shadow-md transition-transform ${
+                  !soundMuted ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Audio Preview Chips */}
+          <div className="pt-2">
+            <span className="text-[10px] font-800 uppercase tracking-wider text-[var(--cozy-text-muted)] block mb-2">
+              Preview Acoustic Tones:
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => playCozyChime()}
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-amber-50 dark:bg-[#231a15] hover:bg-amber-100 dark:hover:bg-[#2e221b] border border-amber-200 dark:border-amber-600/30 text-xs font-700 text-amber-950 dark:text-amber-200 transition-all cursor-pointer active:scale-95 shadow-xs"
+              >
+                <span>🔔</span> Cozy Chime
+              </button>
+              <button
+                type="button"
+                onClick={() => playWoodenClick()}
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-amber-50 dark:bg-[#231a15] hover:bg-amber-100 dark:hover:bg-[#2e221b] border border-amber-200 dark:border-amber-600/30 text-xs font-700 text-amber-950 dark:text-amber-200 transition-all cursor-pointer active:scale-95 shadow-xs"
+              >
+                <span>🪵</span> Wooden Click
+              </button>
+              <button
+                type="button"
+                onClick={() => playPaperRustle()}
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-amber-50 dark:bg-[#231a15] hover:bg-amber-100 dark:hover:bg-[#2e221b] border border-amber-200 dark:border-amber-600/30 text-xs font-700 text-amber-950 dark:text-amber-200 transition-all cursor-pointer active:scale-95 shadow-xs"
+              >
+                <span>📜</span> Paper Rustle
+              </button>
+              <button
+                type="button"
+                onClick={() => playTeaPour()}
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-amber-50 dark:bg-[#231a15] hover:bg-amber-100 dark:hover:bg-[#2e221b] border border-amber-200 dark:border-amber-600/30 text-xs font-700 text-amber-950 dark:text-amber-200 transition-all cursor-pointer active:scale-95 shadow-xs"
+              >
+                <span>🫖</span> Tea Pour
+              </button>
+              <button
+                type="button"
+                onClick={() => playCameraShutter()}
+                className="flex items-center justify-center gap-1.5 p-2 rounded-xl bg-amber-50 dark:bg-[#231a15] hover:bg-amber-100 dark:hover:bg-[#2e221b] border border-amber-200 dark:border-amber-600/30 text-xs font-700 text-amber-950 dark:text-amber-200 transition-all cursor-pointer active:scale-95 shadow-xs col-span-2 sm:col-span-1"
+              >
+                <span>📷</span> Shutter Click
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 7. Privacy & Location Obfuscation ─────────────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center gap-2 border-b border-[var(--cozy-border-subtle)] pb-3">
             <Shield className="w-5 h-5 text-[var(--cozy-rust)]" />

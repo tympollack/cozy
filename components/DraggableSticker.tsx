@@ -5,6 +5,7 @@ import { motion, useMotionValue, useAnimation, PanInfo } from 'framer-motion';
 import { Check, RotateCw } from 'lucide-react';
 import { placeSticker } from '@/app/actions/stickerActions';
 import { useCozyStore } from '@/store/useCozyStore';
+import { playWoodenClick, playCozyChime } from '@/lib/audio/soundscape';
 import type { StickerCatalogItem } from './StickerDrawer';
 
 interface DraggableStickerProps {
@@ -33,16 +34,39 @@ export function DraggableSticker({
   const stickerRef = useRef<HTMLDivElement>(null);
   const [rotation, setRotation] = useState(0);
   const [isPending, setIsPending] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const controls = useAnimation();
 
-  // ----- Rotation handle via onPan -----
+  // ----- Rotation handle via onPan with subtle cardinal snapping -----
   const handleRotatePan = useCallback((_e: PointerEvent, info: PanInfo) => {
-    // Rotate proportional to horizontal pan on the handle
-    setRotation((r) => r + info.delta.x * 1.5);
+    setRotation((prevRotation) => {
+      const delta = info.delta.x * 1.5;
+      const rawAngle = prevRotation + delta;
+      const normalized = ((rawAngle % 360) + 360) % 360;
+
+      // Snap within 6 degrees of cardinal 0°, 90°, 180°, 270°
+      const cardinals = [0, 90, 180, 270, 360];
+      for (const card of cardinals) {
+        if (Math.abs(normalized - card) <= 5) {
+          return rawAngle + (card - normalized);
+        }
+      }
+      return rawAngle;
+    });
+  }, []);
+
+  // ----- Drag Start / End handlers with audio and tactile feedback -----
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    playWoodenClick();
   }, []);
 
   // ----- Confirm placement -----
@@ -51,11 +75,13 @@ export function DraggableSticker({
     setIsPending(true);
     setError(null);
 
-    // Plop animation before saving
+    // Tactile plop bounce animation with audio cues
+    playWoodenClick();
     await controls.start({
-      scale: [1, 1.25, 1],
-      transition: { duration: 0.28, times: [0, 0.5, 1], ease: 'easeInOut' }
+      scale: [1, 1.28, 0.94, 1.06, 1],
+      transition: { duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }
     });
+    playCozyChime();
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const stickerRect = stickerRef.current.getBoundingClientRect();
@@ -66,7 +92,7 @@ export function DraggableSticker({
 
     const xPercent = Math.min(100, Math.max(0, (stickerCenterX / containerRect.width) * 100));
     const yPercent = Math.min(100, Math.max(0, (stickerCenterY / containerRect.height) * 100));
-    const rotDeg = Math.round(rotation) % 360;
+    const rotDeg = ((Math.round(rotation) % 360) + 360) % 360;
 
     const result = await placeSticker(
       postId,
@@ -95,22 +121,47 @@ export function DraggableSticker({
       cost: sticker.cost,
       decay_rate_per_day: sticker.decayRate,
     });
-  }, [containerRef, isPending, rotation, postId, sticker, setPoints, onConfirm]);
+  }, [containerRef, isPending, rotation, postId, sticker, setPoints, onConfirm, controls]);
 
   return (
     <>
       {/* Dimmed overlay to signal placement mode */}
       <div className="absolute inset-0 bg-black/20 z-40 pointer-events-none rounded-inherit" />
 
-      {/* Draggable sticker */}
+      {/* Draggable sticker with tactile spring physics & elevation */}
       <motion.div
         ref={stickerRef}
+        data-testid="draggable-sticker"
         animate={controls}
         drag
         dragConstraints={containerRef}
-        dragElastic={0.08}
-        dragMomentum={false}
-        style={{ x, y, rotate: rotation, touchAction: 'none' }}
+        dragElastic={0.12}
+        dragMomentum={true}
+        dragTransition={{
+          power: 0.12,
+          timeConstant: 180,
+          modifyTarget: (target) => Math.round(target),
+        }}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        whileDrag={{
+          scale: 1.14,
+          filter: 'drop-shadow(0 22px 28px rgba(45, 25, 15, 0.42))',
+          cursor: 'grabbing',
+        }}
+        whileHover={{
+          scale: isDragging ? 1.14 : 1.04,
+        }}
+        style={{
+          x,
+          y,
+          rotate: rotation,
+          touchAction: 'none',
+          filter: isDragging
+            ? 'drop-shadow(0 22px 28px rgba(45, 25, 15, 0.42))'
+            : 'drop-shadow(0 6px 10px rgba(0, 0, 0, 0.2))',
+        }}
+        transition={{ type: 'spring', stiffness: 380, damping: 26 }}
         className="absolute inset-0 m-auto w-fit h-fit z-50 cursor-grab active:cursor-grabbing select-none"
       >
         {/* Sticker image */}
@@ -119,17 +170,21 @@ export function DraggableSticker({
           src={sticker.imageUrl}
           alt={sticker.name}
           draggable={false}
-          className="w-20 h-20 object-contain drop-shadow-xl pointer-events-none"
+          className="w-20 h-20 object-contain pointer-events-none select-none transition-transform"
         />
 
         {/* Rotation handle — bottom-right corner */}
         <motion.button
+          data-testid="rotate-sticker-btn"
           onPan={handleRotatePan}
+          onPanEnd={() => playWoodenClick()}
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
           aria-label="Rotate sticker"
           className="absolute -bottom-3 -right-3 w-7 h-7 rounded-full
-            bg-white/90 border border-white/60 shadow-lg
+            bg-white/95 border border-white/70 shadow-lg
             flex items-center justify-center cursor-ew-resize
-            hover:bg-white active:scale-90 transition-transform"
+            hover:bg-white transition-all"
           style={{ touchAction: 'none' }}
         >
           <RotateCw size={13} className="text-[--cozy-bark]" />
@@ -142,24 +197,25 @@ export function DraggableSticker({
           onClick={onCancel}
           disabled={isPending}
           className="px-4 py-2 rounded-full text-sm font-600 text-white/90
-            bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
+            bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors cursor-pointer"
         >
           Cancel
         </button>
         <button
           id="sticker-confirm-btn"
+          data-testid="confirm-sticker-btn"
           onClick={handleConfirm}
           disabled={isPending}
           className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-700
             bg-white text-[--cozy-bark] shadow-lg hover:scale-105 active:scale-95
-            transition-transform disabled:opacity-60"
+            transition-transform disabled:opacity-60 cursor-pointer"
         >
           {isPending ? (
             <span className="animate-spin text-base">⟳</span>
           ) : (
             <Check size={15} />
           )}
-          {isPending ? 'Saving…' : 'Place it!'}
+          {isPending ? 'Placing…' : 'Place it!'}
         </button>
       </div>
 

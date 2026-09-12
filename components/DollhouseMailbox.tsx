@@ -12,7 +12,7 @@ import {
   type PendingCard,
 } from '@/app/actions/peerActions';
 import { getPrivateNotes, type PrivateSupportNote } from '@/app/actions/vibeActions';
-import { playCozyChime } from '@/lib/audio/cheerSound';
+import { playCozyChime, playPaperRustle, playWoodenClick } from '@/lib/audio/soundscape';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -291,6 +291,7 @@ function TactilePrivateNote({ note }: { note: PrivateSupportNote }) {
   const [hasUnsealed, setHasUnsealed] = useState(false);
 
   function handleToggle() {
+    playPaperRustle();
     if (!hasUnsealed) {
       setHasUnsealed(true);
       playCozyChime();
@@ -454,6 +455,7 @@ export function DollhouseMailbox({
   }, [isModalOpen]);
 
   function handleAccept(peerId: string) {
+    playCozyChime();
     startTransition(async () => {
       removeCard(peerId);
       const result = await acceptCallingCard(peerId, pathname);
@@ -464,6 +466,7 @@ export function DollhouseMailbox({
   }
 
   function handleDecline(peerId: string) {
+    playWoodenClick();
     startTransition(async () => {
       removeCard(peerId);
       const result = await declineCallingCard(peerId, pathname);
@@ -475,6 +478,7 @@ export function DollhouseMailbox({
 
   function handleSendCard() {
     if (!currentUserId || hasSent) return;
+    playPaperRustle();
     setSendError(null);
     setHasSent(true);
 
@@ -558,7 +562,10 @@ export function DollhouseMailbox({
           whileTap={!isOwner && peerStatus === 'none' && !hasSent ? { scale: 0.95 } : {}}
           onClick={
             isOwner
-              ? () => setIsModalOpen(true)
+              ? () => {
+                  playPaperRustle();
+                  setIsModalOpen(true);
+                }
               : peerStatus === 'none' && !hasSent
               ? handleSendCard
               : undefined

@@ -8,6 +8,7 @@ import { useCozyStore } from '@/store/useCozyStore';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
 import type { VibeStatus } from '@/store/useCozyStore';
+import { playTeaPour, playWoodenClick, playPaperRustle, playCozyChime } from '@/lib/audio/soundscape';
 
 interface PeerSupportDrawerProps {
   recipientId: string;
@@ -108,6 +109,7 @@ export function PeerSupportDrawer({
     try {
       const res = await sendPeerSupport(recipientId, 'brew');
       if (res.success) {
+        playTeaPour();
         addPoints(5);
         setShowParticles(true);
         setFeedback(`Sent Warm Brew to ${recipientName}! +5 pts awarded to both of you ☕💛`);
@@ -132,6 +134,8 @@ export function PeerSupportDrawer({
     try {
       const res = await sendPeerSupport(recipientId, 'sticker', { stickerEmoji: selectedSticker });
       if (res.success) {
+        playWoodenClick();
+        playCozyChime();
         setShowParticles(true);
         setFeedback(`Comfort Sticker ${selectedSticker} sent to ${recipientName}! 🧸`);
         setTimeout(() => {
@@ -156,6 +160,8 @@ export function PeerSupportDrawer({
     try {
       const res = await sendPeerSupport(recipientId, 'note', { noteText });
       if (res.success) {
+        playPaperRustle();
+        playCozyChime();
         setShowParticles(true);
         setFeedback(`Supportive Note delivered directly to ${recipientName}'s Mailbox! 💌`);
         setNoteText('');

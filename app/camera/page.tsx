@@ -12,8 +12,8 @@ import { CameraToggle } from './CameraToggle';
 import { uploadPost } from '@/app/actions/postActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { processImageFile, getPreviewUrlFromFile } from '@/lib/imageUtils';
+import { playCameraShutter } from '@/lib/audio/soundscape';
 import { saveOfflinePost, useOfflineSync } from '@/lib/offlinePhotoStore';
-
 import { CAMERA_WARMTH_FILTERS, type CameraFilter, type FilterOption } from '@/lib/cameraFilters';
 
 type Mode = 'light' | 'dark';
@@ -64,6 +64,7 @@ export default function CameraPage() {
   const handleFileChange = useCallback(
     async (mode: Mode, file: File | null) => {
       if (!file) return;
+      playCameraShutter();
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
       const filterToApply = mode === 'light' ? lightFilter : darkFilter;
       const filterCss = CAMERA_WARMTH_FILTERS.find((f) => f.id === filterToApply)?.css;

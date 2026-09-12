@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useTransition, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers, Check } from 'lucide-react';
+import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers, Check, Gift, Heart } from 'lucide-react';
 import { useCozyStore } from '@/store/useCozyStore';
 import { getStickerCatalog, purchaseSticker, type StoreSticker } from '@/app/actions/storeActions';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
+import { playWoodenClick, playCozyChime } from '@/lib/audio/soundscape';
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -27,17 +28,17 @@ interface StickerStoreDrawerProps {
 
 const TIER_LABELS: Record<number, { label: string; badgeClass: string; icon: string }> = {
   1: {
-    label: 'Common',
+    label: 'Handcrafted',
     badgeClass: 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600/40',
     icon: '🌱',
   },
   2: {
-    label: 'Rare',
+    label: 'Enchanted',
     badgeClass: 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-600/40',
     icon: '✨',
   },
   3: {
-    label: 'Legendary',
+    label: 'Heirloom',
     badgeClass: 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border-amber-400 dark:border-amber-500/50',
     icon: '👑',
   },
@@ -95,6 +96,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
   }, [isOpen]);
 
   const handleOpenConfirm = (sticker: StoreSticker) => {
+    playWoodenClick();
     setConfirmingSticker(sticker);
     setFeedback(null);
   };
@@ -112,24 +114,25 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
       try {
         const result = await purchaseSticker(sticker.id);
         if (result.success && result.newPoints !== undefined) {
+          playCozyChime();
           setPoints(result.newPoints);
           setConfirmingSticker(null);
           setFeedback({
             type: 'success',
-            message: `Acquired "${sticker.name}"! Ready to place on your cozy spaces. ✨`,
+            message: `Acquired "${sticker.name}"! Ready to gift to neighbors or decorate your room. ✨`,
             sticker,
           });
           onPurchased?.(sticker, result.newPoints);
         } else {
           setFeedback({
             type: 'error',
-            message: result.error || 'Failed to purchase sticker.',
+            message: result.error || 'Failed to acquire sticker gift.',
           });
         }
       } catch {
         setFeedback({
           type: 'error',
-          message: 'An unexpected error occurred during purchase.',
+          message: 'An unexpected error occurred during gift exchange.',
         });
       } finally {
         setPurchasingId(null);
@@ -190,17 +193,17 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
             <div className="flex items-center justify-between px-6 pt-3 pb-3 border-b border-amber-900/10 dark:border-amber-500/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
-                  <ShoppingBag size={20} />
+                  <Gift size={20} />
                 </div>
                 <div>
                   <h2 className="text-lg font-900 text-stone-900 dark:text-amber-50 flex items-center gap-1.5">
-                    Sticker Store
+                    Village Gift Shop
                     <span className="text-[10px] font-800 uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-500/30">
-                      Catalog
+                      Artisan Corner 🎁
                     </span>
                   </h2>
                   <p className="text-xs font-500 text-stone-600 dark:text-amber-200/70">
-                    Collect artisan stickers to decorate cozy rooms & spaces
+                    Curated decorative treasures & warmth gifts to brighten friends&apos; spaces
                   </p>
                 </div>
               </div>
@@ -215,7 +218,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                 </div>
 
                 <button
-                  onClick={onClose}
+                  onClick={() => { playWoodenClick(); onClose(); }}
                   aria-label="Close Sticker Store"
                   className="p-2 rounded-full text-stone-600 dark:text-amber-200 hover:bg-stone-200/60 dark:hover:bg-[#342821] transition-all cursor-pointer"
                 >
@@ -227,47 +230,47 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
             {/* Filter Tabs */}
             <div className="flex items-center gap-1.5 px-6 py-3 border-b border-amber-900/10 dark:border-amber-500/20 overflow-x-auto no-scrollbar">
               <button
-                onClick={() => setSelectedTier('all')}
+                onClick={() => { playWoodenClick(); setSelectedTier('all'); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer shrink-0 ${
                   selectedTier === 'all'
                     ? 'bg-stone-900 dark:bg-amber-400 text-white dark:text-stone-950 shadow-xs scale-105'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-amber-50 dark:hover:bg-[#342821]'
                 }`}
               >
-                All Stickers ({catalog.length})
+                All Gifts ({catalog.length})
               </button>
 
               <button
-                onClick={() => setSelectedTier(1)}
+                onClick={() => { playWoodenClick(); setSelectedTier(1); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
                   selectedTier === 1
                     ? 'bg-emerald-600 text-white shadow-xs scale-105'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
                 }`}
               >
-                <span>🌱</span> Common
+                <span>🌱</span> Handcrafted
               </button>
 
               <button
-                onClick={() => setSelectedTier(2)}
+                onClick={() => { playWoodenClick(); setSelectedTier(2); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
                   selectedTier === 2
                     ? 'bg-indigo-600 text-white shadow-xs scale-105'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
                 }`}
               >
-                <span>✨</span> Rare
+                <span>✨</span> Enchanted
               </button>
 
               <button
-                onClick={() => setSelectedTier(3)}
+                onClick={() => { playWoodenClick(); setSelectedTier(3); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
                   selectedTier === 3
                     ? 'bg-amber-500 text-stone-950 shadow-xs scale-105'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                 }`}
               >
-                <span>👑</span> Legendary
+                <span>👑</span> Heirloom
               </button>
             </div>
 
@@ -391,7 +394,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                           </div>
                         </div>
 
-                        {/* Bottom: Purchase / Trade Button */}
+                        {/* Bottom: Gift / Collect Button */}
                         <button
                           onClick={() => handleOpenConfirm(item)}
                           disabled={isPending}
@@ -401,8 +404,8 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                               : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-300 dark:hover:bg-stone-700'
                           }`}
                         >
-                          <Sparkles size={13} />
-                          <span>Trade Sticker</span>
+                          <Gift size={13} />
+                          <span>Gift or Decorate ✨</span>
                         </button>
                       </motion.div>
                     );
@@ -457,12 +460,12 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                   <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-700 dark:text-amber-400">
-                        <ShoppingBag size={16} />
+                        <Gift size={16} />
                       </div>
-                      <h3 className="text-sm font-900 text-stone-900 dark:text-amber-50">Confirm Trade</h3>
+                      <h3 className="text-sm font-900 text-stone-900 dark:text-amber-50">Wrap Warmth Gift 🎁</h3>
                     </div>
                     <button
-                      onClick={() => setConfirmingSticker(null)}
+                      onClick={() => { playWoodenClick(); setConfirmingSticker(null); }}
                       disabled={purchasingId !== null}
                       className="p-1 rounded-full text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-amber-100 transition-colors cursor-pointer"
                     >
@@ -502,7 +505,7 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                     </div>
 
                     <div className="flex items-center justify-between font-600 text-amber-700 dark:text-amber-400">
-                      <span>Sticker Trade Cost:</span>
+                      <span>Warmth Gift Exchange:</span>
                       <span className="font-mono font-bold">
                         - {confirmingSticker.cost.toLocaleString()} pts
                       </span>
@@ -528,14 +531,14 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                   {points < confirmingSticker.cost && (
                     <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300 text-xs font-700 text-center flex items-center justify-center gap-1.5">
                       <AlertCircle size={14} className="shrink-0" />
-                      <span>Need {(confirmingSticker.cost - points).toLocaleString()} more points to complete trade.</span>
+                      <span>Need {(confirmingSticker.cost - points).toLocaleString()} more cheer points to exchange this gift.</span>
                     </div>
                   )}
 
                   {/* Modal Action Buttons */}
                   <div className="flex items-center gap-2.5 pt-1">
                     <button
-                      onClick={() => setConfirmingSticker(null)}
+                      onClick={() => { playWoodenClick(); setConfirmingSticker(null); }}
                       disabled={purchasingId !== null}
                       className="flex-1 py-3 px-4 rounded-2xl text-xs font-800 bg-stone-100 dark:bg-[#281e19] text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-[#342821] border border-amber-900/10 dark:border-amber-500/20 transition-all cursor-pointer"
                     >
@@ -550,12 +553,12 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
                       {purchasingId === confirmingSticker.id ? (
                         <>
                           <RefreshCw size={14} className="animate-spin" />
-                          <span>Trading...</span>
+                          <span>Wrapping...</span>
                         </>
                       ) : (
                         <>
-                          <Check size={15} />
-                          <span>Confirm & Trade</span>
+                          <Gift size={15} />
+                          <span>Acquire & Wrap Gift 🎁</span>
                         </>
                       )}
                     </button>
