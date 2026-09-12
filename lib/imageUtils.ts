@@ -10,6 +10,8 @@
  *    - Fallback to server-side SIMD C++ Sharp processing if client conversion fails.
  */
 
+import { scrubAndCompressImage, stripExifFromJpegBytes } from './exifScrubber';
+
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.82;
 
@@ -223,38 +225,38 @@ async function fileToCanvasBlob(
  * Optimizes an image file for uploading.
  * 
  * 1. Fast Native Path (JPEGs, PNG, WebP, Safari HEIC):
- *    Resizes to max 1600px and compresses to 82% quality JPEG on canvas (<100ms).
+ *    Resizes to max 1600px, scrubs all EXIF/GPS metadata, and compresses to 82% quality.
  * 
  * 2. Non-Native HEIC (Android Chrome / Firefox):
- *    Converts via modern WebAssembly `heic-to` (<1-2s) and scales to 1600px JPEG (~250KB),
- *    preventing Vercel serverless 4.5MB request body size limit rejections.
+ *    Converts via modern WebAssembly `heic-to` (<1-2s) and scrubs EXIF.
  * 
  * 3. Fallback:
- *    If client conversion fails, passes original file to server Sharp processing.
+ *    If client conversion fails, strips EXIF binary segments before passing to server.
  */
-export async function processImageFile(file: File): Promise<File> {
+export async function processImageFile(
+  file: File,
+  options?: { filterCss?: string }
+): Promise<File> {
   const isHeic =
     file.name.toLowerCase().endsWith('.heic') ||
     file.name.toLowerCase().endsWith('.heif') ||
     file.type === 'image/heic' ||
     file.type === 'image/heif';
 
-  const isPng =
-    !isHeic &&
-    (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png'));
-
-  const outputMime = isPng ? 'image/png' : 'image/jpeg';
-  const outputExt = isPng ? '.png' : '.jpg';
-
-  // 1. Try fast native client-side decoding & compression
-  try {
-    const resizedBlob = await fileToCanvasBlob(file, MAX_DIMENSION, outputMime);
-    if (resizedBlob) {
-      const outputName = file.name.replace(/\.[^/.]+$/, '') + outputExt;
-      return new File([resizedBlob], outputName, { type: outputMime });
+  // 1. For standard non-HEIC formats, try scrub and compress (with canvas decoding and optional warmth filter)
+  if (!isHeic) {
+    try {
+      const scrubbedFile = await scrubAndCompressImage(file, {
+        maxDimension: MAX_DIMENSION,
+        quality: JPEG_QUALITY,
+        filterCss: options?.filterCss,
+      });
+      if (scrubbedFile && scrubbedFile.size > 0) {
+        return scrubbedFile;
+      }
+    } catch (err) {
+      console.warn('[processImageFile] scrubAndCompressImage failed:', err);
     }
-  } catch (err) {
-    console.warn('[processImageFile] Native client canvas resize failed:', err);
   }
 
   // 2. If HEIC on non-Safari browser (Android Chrome), convert via fast WASM heic-to
@@ -268,16 +270,32 @@ export async function processImageFile(file: File): Promise<File> {
       });
 
       if (jpegBlob) {
-        const resizedBlob = await fileToCanvasBlob(jpegBlob, MAX_DIMENSION, 'image/jpeg');
-        const finalBlob = resizedBlob || jpegBlob;
-        const outputName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
-        return new File([finalBlob], outputName, { type: 'image/jpeg' });
+        const jpegFile = new File([jpegBlob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', {
+          type: 'image/jpeg',
+        });
+        return scrubAndCompressImage(jpegFile, {
+          maxDimension: MAX_DIMENSION,
+          quality: JPEG_QUALITY,
+          filterCss: options?.filterCss,
+        });
       }
     } catch (err) {
-      console.warn('[processImageFile] heic-to conversion failed, falling back to server processing:', err);
+      console.warn('[processImageFile] heic-to conversion failed, falling back to original file:', err);
     }
   }
 
-  // 3. Passthrough to server-side Sharp processing
-  return file;
+  // If HEIC could not be converted on client, pass through original file directly to server-side sharp
+  if (isHeic) {
+    return file;
+  }
+
+  // 3. Binary EXIF scrub fallback: ensure zero GPS / camera serial data leaves browser
+  try {
+    const buffer = await file.arrayBuffer();
+    const cleanBytes = stripExifFromJpegBytes(new Uint8Array(buffer));
+    const outputName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
+    return new File([cleanBytes as unknown as BlobPart], outputName, { type: file.type || 'image/jpeg' });
+  } catch {
+    return file;
+  }
 }
