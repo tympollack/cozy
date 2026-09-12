@@ -42,7 +42,7 @@ const VIBE_OPTIONS: {
     tier: 'positive',
   },
   {
-    id: 'breeze',
+    id: 'breezy',
     emoji: '🌬️',
     title: 'Breezy',
     subtitle: 'Light, refreshed, moving through the day',
@@ -107,6 +107,7 @@ const VIBE_OPTIONS: {
 
 const CONFIRMATION_MESSAGES: Partial<Record<VibeStatus, string>> = {
   sunshine: '☀️ Sunshine logged! Your space is glowing.',
+  breezy: '🌬️ Breezy check-in logged! Keep riding that wave.',
   breeze: '🌬️ Breezy check-in logged! Keep riding that wave.',
   starlight: '✨ Starlight mode on. Quiet, calm, and you.',
   neutral: '☕ Cozy check-in saved. A steady day is a good day.',
@@ -264,40 +265,41 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
           >
             <div>
               {/* Header */}
-              <div className="flex items-start justify-between pb-3 border-b border-[--cozy-amber]/20">
+              <div className="flex items-start justify-between pb-3 border-b border-stone-200 dark:border-stone-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-[--cozy-amber]/15 flex items-center justify-center text-[--cozy-bark] shadow-sm border border-[--cozy-amber]/30">
-                    <Sparkles size={20} className="text-[--cozy-amber]" />
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/15 dark:bg-amber-500/20 flex items-center justify-center text-amber-900 dark:text-amber-200 shadow-sm border border-amber-500/30">
+                    <Sparkles size={20} className="text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-800 text-[--cozy-bark] leading-tight">
+                    <h2 className="text-lg font-900 text-stone-900 dark:text-stone-100 leading-tight">
                       Daily Vibe Check
                     </h2>
-                    <p className="text-xs font-600 text-[--cozy-muted]">
+                    <p className="text-xs font-600 text-stone-600 dark:text-stone-300">
                       Atmospheric Layer · How is your space today?
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[--cozy-muted] hover:bg-[--cozy-amber]/10 transition-colors"
+                  aria-label="Close Vibe Check modal"
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-stone-700 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100 hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Main prompt */}
-              <div className="my-3.5 p-3.5 rounded-2xl bg-white/80 border border-[--cozy-amber]/20 text-center shadow-inner">
-                <p className="text-sm font-700 text-[--cozy-bark]">
+              <div className="my-3.5 p-3.5 rounded-2xl bg-stone-100/90 dark:bg-stone-900/90 border border-stone-300/80 dark:border-stone-700 text-center shadow-xs">
+                <p className="text-sm font-800 text-stone-900 dark:text-stone-100">
                   &quot;How&apos;s the weather in your space today?&quot;
                 </p>
-                <p className="text-[11px] font-500 text-[--cozy-muted] mt-1">
+                <p className="text-[11px] font-600 text-stone-600 dark:text-stone-300 mt-1">
                   Your status floating aura lets peers visually support you on the Village map.
                 </p>
               </div>
 
               {/* Positive tier */}
-              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
                 ✦ Feeling good
               </p>
               <div className="space-y-2 mb-3">
@@ -316,7 +318,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
               </div>
 
               {/* Neutral tier */}
-              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
                 ☁️ Steady cozy
               </p>
               <div className="space-y-2 mb-3">
@@ -335,7 +337,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
               </div>
 
               {/* Distress tier */}
-              <p className="text-[10px] font-800 text-[--cozy-muted] uppercase tracking-widest mb-1.5 px-0.5">
+              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
                 🌧️ Need some warmth
               </p>
               <div className="space-y-2 mb-3">

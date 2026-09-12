@@ -116,7 +116,7 @@ export function OnboardingCarousel() {
       />
 
       {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-10 pb-4 min-h-0">
+      <div className="flex-1 flex flex-col items-center justify-start sm:justify-center px-4 sm:px-6 pt-8 pb-4 min-h-min w-full">
         <AnimatePresence mode="wait">
           <motion.div
             key={step.id}
@@ -209,9 +209,9 @@ export function OnboardingCarousel() {
       </div>
 
       {/* Bottom controls */}
-      <div className="px-6 pb-8 pt-2 flex flex-col items-center gap-4 w-full max-w-sm mx-auto shrink-0">
+      <div className="flex flex-col items-center gap-3 w-full max-w-sm mx-auto mt-6 mb-8 px-6 shrink-0">
         {/* Progress dots */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-1" role="tablist" aria-label="Onboarding progress">
           {ONBOARDING_STEPS.map((s, i) => (
             <button
               key={s.id}
@@ -247,8 +247,9 @@ export function OnboardingCarousel() {
         {/* Skip link */}
         {!isLastStep && (
           <button
+            type="button"
             onClick={completeOnboarding}
-            className="text-xs font-700 text-stone-600 dark:text-amber-300/80 hover:text-stone-900 dark:hover:text-amber-100 transition-colors cursor-pointer"
+            className="mt-4 mb-2 text-stone-400 text-sm hover:text-stone-200 transition-colors cursor-pointer"
           >
             Skip intro
           </button>

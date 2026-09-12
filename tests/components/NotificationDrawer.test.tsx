@@ -1,9 +1,16 @@
-﻿import React from 'react';
+import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotificationDrawer } from '@/components/NotificationDrawer';
 import type { CozyNotificationItem } from '@/app/actions/notificationActions';
+
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
 
 const mockNotifications: CozyNotificationItem[] = [
   {
@@ -89,7 +96,7 @@ describe('NotificationDrawer Component', () => {
     expect(screen.getByText('🍂 Ecosystem Maintenance')).toBeInTheDocument();
   });
 
-  it('renders one-tap action links for Daily Tasks and Peer Care', () => {
+  it('renders one-tap actions for Daily Tasks and Peer Care', () => {
     render(
       <NotificationDrawer
         isOpen={true}
@@ -99,11 +106,34 @@ describe('NotificationDrawer Component', () => {
       />
     );
 
-    const uploadLink = screen.getByRole('link', { name: /Upload Room/i });
-    expect(uploadLink).toHaveAttribute('href', '/camera');
+    const uploadBtn = screen.getByRole('button', { name: /Upload Room/i });
+    expect(uploadBtn).toBeInTheDocument();
 
     const groupLink = screen.getByRole('link', { name: /Jump to Group Map/i });
     expect(groupLink).toHaveAttribute('href', '/groups/grp-1');
+  });
+
+  it('navigates to /camera, marks item as read, and closes drawer when Upload Room is clicked', async () => {
+    const user = userEvent.setup();
+    const mockOnClose = vi.fn();
+    const mockMarkRead = vi.fn();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+        unreadCount={2}
+        onMarkRead={mockMarkRead}
+      />
+    );
+
+    const uploadButton = screen.getByRole('button', { name: /Upload Room/i });
+    await user.click(uploadButton);
+
+    expect(mockMarkRead).toHaveBeenCalledWith('n1');
+    expect(mockOnClose).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/camera');
   });
 
   it('calls onMarkRead when Mark read is clicked', async () => {

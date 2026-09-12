@@ -365,31 +365,33 @@ export function CommunityBulletinBoard({
       {/* Visual Communal Milestones (Lighting lamps, Garden, Fairy Lights) */}
       <div
         data-testid="communal-village-milestones"
-        className="p-4 rounded-2xl border space-y-3"
-        style={{
-          background: isFuturistic ? 'rgba(0,220,255,0.04)' : 'rgba(255,255,255,0.75)',
-          borderColor: isFuturistic ? 'rgba(0,220,255,0.22)' : 'rgba(217,119,54,0.20)',
-        }}
+        className={`p-4 rounded-2xl border space-y-3 ${
+          isFuturistic
+            ? 'bg-cyan-950/20 border-cyan-400/20'
+            : 'bg-white/80 dark:bg-stone-900/80 border-amber-600/20 dark:border-stone-800'
+        }`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🏡</span>
             <div>
               <h4
-                className="text-xs font-800 leading-tight"
-                style={{ color: isFuturistic ? '#00dcff' : 'var(--cozy-bark)' }}
+                className={`text-xs font-800 leading-tight ${
+                  isFuturistic ? 'text-cyan-400' : 'text-stone-900 dark:text-stone-100'
+                }`}
               >
                 Village Communal Transformations
               </h4>
               <p
-                className="text-[10px] font-500 mt-0.5"
-                style={{ color: isFuturistic ? '#80c8e0' : 'var(--cozy-muted)' }}
+                className={`text-[10px] font-500 mt-0.5 ${
+                  isFuturistic ? 'text-cyan-200' : 'text-stone-600 dark:text-stone-400'
+                }`}
               >
                 Pooled community milestones transforming shared village spaces
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300">
+          <span className="text-[10px] font-700 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/30">
             {VILLAGE_COMMUNAL_MILESTONES.filter((m) => currentGroupPts >= m.points).length} / {VILLAGE_COMMUNAL_MILESTONES.length} Active
           </span>
         </div>
@@ -405,61 +407,82 @@ export function CommunityBulletinBoard({
               <div
                 key={milestone.id}
                 data-testid={`village-milestone-${milestone.id}`}
-                className="p-3 rounded-xl border flex flex-col justify-between transition-all"
-                style={{
-                  background: isUnlocked
+                className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                  isUnlocked
                     ? isFuturistic
-                      ? 'rgba(0,220,255,0.12)'
-                      : 'linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, rgba(253, 230, 138, 0.45) 100%)'
+                      ? 'bg-cyan-500/10 border-cyan-400/30'
+                      : 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/50'
                     : isFuturistic
-                    ? 'rgba(15,29,54,0.40)'
-                    : 'rgba(255,255,255,0.55)',
-                  borderColor: isUnlocked
-                    ? '#f59e0b'
-                    : isFuturistic
-                    ? 'rgba(0,220,255,0.15)'
-                    : 'rgba(217,119,54,0.15)',
-                }}
+                    ? 'bg-[#0f1d36]/40 border-cyan-400/15'
+                    : 'bg-stone-50 dark:bg-stone-900 border-stone-200 dark:border-stone-800'
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-1">
                     <span className="text-base">{milestone.emoji}</span>
                     <span
-                      className={`text-[9px] font-800 px-1.5 py-0.5 rounded-md ${
+                      className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md ${
                         isUnlocked
-                          ? 'bg-amber-400 text-stone-950 shadow-xs'
-                          : 'bg-stone-200/80 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                          ? 'bg-amber-300 dark:bg-amber-800 text-amber-950 dark:text-amber-100 shadow-xs'
+                          : 'bg-stone-200/90 dark:bg-stone-800 text-stone-700 dark:text-stone-300'
                       }`}
                     >
                       {isUnlocked ? '✨ Transformed' : `${milestone.points.toLocaleString()} pts`}
                     </span>
                   </div>
 
-                  <h5 className="text-[11px] font-800 text-[--cozy-bark] mt-1.5 leading-snug">
+                  <h5
+                    className={`text-[11px] font-semibold mt-1.5 leading-snug ${
+                      isUnlocked
+                        ? 'text-amber-950 dark:text-amber-100'
+                        : 'text-stone-800 dark:text-stone-100'
+                    }`}
+                  >
                     {milestone.name}
                   </h5>
-                  <p className="text-[10px] text-[--cozy-muted] font-500 leading-tight mt-0.5 line-clamp-2">
+                  <p
+                    className={`text-[10px] font-medium leading-tight mt-0.5 line-clamp-2 ${
+                      isUnlocked
+                        ? 'text-amber-900 dark:text-amber-200/90'
+                        : 'text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
                     {milestone.description}
                   </p>
                 </div>
 
-                <div className="mt-2 pt-1.5 border-t border-[--cozy-amber]/15">
-                  <div className="flex items-center justify-between text-[9px] font-700 mb-1">
-                    <span className="text-[--cozy-muted]">
+                <div
+                  className={`mt-2 pt-1.5 border-t ${
+                    isUnlocked
+                      ? 'border-amber-300/40 dark:border-amber-700/40'
+                      : 'border-stone-200 dark:border-stone-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[9px] font-medium mb-1">
+                    <span
+                      className={
+                        isUnlocked
+                          ? 'text-amber-950 dark:text-amber-200'
+                          : 'text-stone-600 dark:text-stone-400'
+                      }
+                    >
                       {isUnlocked ? milestone.transformationLabel : `${currentGroupPts} / ${milestone.points} pts`}
                     </span>
-                    <span className={isUnlocked ? 'text-amber-700 dark:text-amber-300 font-800' : 'text-[--cozy-muted]'}>
+                    <span
+                      className={
+                        isUnlocked
+                          ? 'text-amber-950 dark:text-amber-200 font-semibold'
+                          : 'text-stone-700 dark:text-stone-300 font-medium'
+                      }
+                    >
                       {isUnlocked ? 'Active' : `${milestone.points - currentGroupPts} pts left`}
                     </span>
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
+                  <div className="w-full h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
+                      className="h-full rounded-full transition-all duration-500 bg-amber-500"
                       style={{
                         width: `${progressPct}%`,
-                        background: isUnlocked
-                          ? 'linear-gradient(90deg, #f59e0b, #10b981)'
-                          : 'linear-gradient(90deg, #f59e0b, #d97706)',
                       }}
                     />
                   </div>
@@ -478,11 +501,12 @@ export function CommunityBulletinBoard({
             <motion.div
               key={ch.id}
               whileHover={{ y: -2 }}
-              className="p-4 rounded-2xl border-2 flex flex-col justify-between relative shadow-sm"
+              className={`p-4 rounded-2xl border-2 flex flex-col justify-between relative shadow-sm ${
+                isFuturistic
+                  ? 'bg-[#0f1d36]/70'
+                  : 'bg-stone-50 dark:bg-stone-900'
+              }`}
               style={{
-                background: isFuturistic
-                  ? 'rgba(15,29,54,0.70)'
-                  : 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(254,249,235,0.90) 100%)',
                 borderColor: isDone
                   ? '#22c55e'
                   : isFuturistic
@@ -509,14 +533,16 @@ export function CommunityBulletinBoard({
                   </span>
                 </div>
                 <h4
-                  className="text-sm font-800 mt-2 leading-snug"
-                  style={{ color: isFuturistic ? '#e0f4ff' : 'var(--cozy-bark)' }}
+                  className={`text-sm font-800 mt-2 leading-snug ${
+                    isFuturistic ? 'text-cyan-100' : 'text-stone-800 dark:text-stone-100'
+                  }`}
                 >
                   {ch.title}
                 </h4>
                 <p
-                  className="text-xs font-500 mt-1 leading-relaxed opacity-90"
-                  style={{ color: isFuturistic ? '#90c0d8' : 'var(--cozy-muted)' }}
+                  className={`text-xs font-500 mt-1 leading-relaxed ${
+                    isFuturistic ? 'text-cyan-200/90' : 'text-stone-600 dark:text-stone-400'
+                  }`}
                 >
                   {ch.description}
                 </p>
@@ -524,7 +550,7 @@ export function CommunityBulletinBoard({
 
               {/* Action / Completion Button */}
               <div className="pt-3 mt-3 border-t border-[--cozy-amber]/20 flex items-center justify-between">
-                <div className="flex items-center gap-1 text-[11px] font-700 text-[--cozy-bark]">
+                <div className="flex items-center gap-1 text-[11px] font-700 text-stone-800 dark:text-stone-200">
                   <Trophy size={13} className="text-[--cozy-gold]" />
                   <span>+15 pts & Group Boost</span>
                 </div>

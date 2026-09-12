@@ -7,12 +7,13 @@ import { sendPeerSupport } from '@/app/actions/vibeActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { ParticleBurst } from '@/components/ParticleBurst';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
+import type { VibeStatus } from '@/store/useCozyStore';
 import { playTeaPour, playWoodenClick, playPaperRustle, playCozyChime } from '@/lib/audio/soundscape';
 
 interface PeerSupportDrawerProps {
   recipientId: string;
   recipientName: string;
-  vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
+  vibeStatus?: VibeStatus;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -27,7 +28,7 @@ const COMFORT_STICKERS = [
 ];
 
 const VIBE_BADGE_CONFIG: Record<
-  'sunshine' | 'neutral' | 'raincloud',
+  VibeStatus,
   { emoji: string; label: string; badgeClass: string; subtitle: string }
 > = {
   sunshine: {
@@ -36,17 +37,47 @@ const VIBE_BADGE_CONFIG: Record<
     badgeClass: 'bg-amber-100/90 text-amber-900 border-amber-300',
     subtitle: 'Share positive energy & celebrate together',
   },
+  breezy: {
+    emoji: '🍃',
+    label: 'Breezy',
+    badgeClass: 'bg-teal-100/90 text-teal-900 border-teal-300',
+    subtitle: 'Send breezy encouragement and light thoughts',
+  },
+  breeze: {
+    emoji: '🍃',
+    label: 'Breezy',
+    badgeClass: 'bg-teal-100/90 text-teal-900 border-teal-300',
+    subtitle: 'Send breezy encouragement and light thoughts',
+  },
+  starlight: {
+    emoji: '✨',
+    label: 'Starlight',
+    badgeClass: 'bg-indigo-100/90 text-indigo-900 border-indigo-300',
+    subtitle: 'Share tranquil, peaceful starlight warmth',
+  },
   neutral: {
     emoji: '☕',
     label: 'Cozy',
     badgeClass: 'bg-amber-50 text-amber-900 border-amber-200',
     subtitle: 'Send warmth & peer cheer to stay connected',
   },
+  foggy: {
+    emoji: '🌫️',
+    label: 'Foggy',
+    badgeClass: 'bg-stone-200/90 text-stone-800 border-stone-300',
+    subtitle: 'Send a warm beacon to clear the fog',
+  },
   raincloud: {
     emoji: '🌧️',
     label: 'Raincloud',
     badgeClass: 'bg-slate-200/80 text-slate-700 border-slate-300',
     subtitle: 'Send warmth & peer cheer to brighten their day',
+  },
+  storm: {
+    emoji: '⛈️',
+    label: 'Storm',
+    badgeClass: 'bg-purple-200/90 text-purple-900 border-purple-300',
+    subtitle: 'Send shelter and gentle comfort through the storm',
   },
 };
 
