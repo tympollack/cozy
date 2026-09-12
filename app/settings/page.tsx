@@ -14,6 +14,7 @@ import { createBrowserClient } from '@/lib/supabase-browser';
 import { getHubBaseUrl } from '@/lib/env';
 import { StickerStoreDrawer } from '@/components/StickerStoreDrawer';
 import { TransactionHistoryModal } from '@/components/TransactionHistoryModal';
+import { CircadianPushOptIn } from '@/components/CircadianPushOptIn';
 
 interface HubPreferences {
   mapPresenceVisibility: boolean;
@@ -566,7 +567,11 @@ export default function SettingsPage() {
               />
             </button>
           </div>
+
+          {/* Web Push Circadian Nudges */}
+          <CircadianPushOptIn variant="settings" />
         </section>
+
 
         {/* ── 6. Privacy & Location Obfuscation ─────────────────────────── */}
         <section className="cozy-glass rounded-3xl p-6 shadow-md space-y-4">
