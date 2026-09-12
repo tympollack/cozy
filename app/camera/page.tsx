@@ -11,6 +11,7 @@ import { CameraToggle } from './CameraToggle';
 import { uploadPost } from '@/app/actions/postActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { processImageFile, getPreviewUrlFromFile } from '@/lib/imageUtils';
+import { playCameraShutter } from '@/lib/audio/soundscape';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -50,6 +51,7 @@ export default function CameraPage() {
   const handleFileChange = useCallback(
     async (mode: Mode, file: File | null) => {
       if (!file) return;
+      playCameraShutter();
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
 
       setActivePickerModalMode(null);
