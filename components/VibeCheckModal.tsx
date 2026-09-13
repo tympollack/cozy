@@ -274,7 +274,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                     <h2 className="text-lg font-900 text-stone-900 dark:text-stone-100 leading-tight">
                       Daily Vibe Check
                     </h2>
-                    <p className="text-xs font-600 text-stone-600 dark:text-stone-300">
+                    <p className="text-xs font-medium text-stone-600 dark:text-stone-400">
                       Atmospheric Layer · How is your space today?
                     </p>
                   </div>
@@ -288,20 +288,21 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                 </button>
               </div>
 
-              {/* Main prompt */}
-              <div className="my-3.5 p-3.5 rounded-2xl bg-stone-100/90 dark:bg-stone-900/90 border border-stone-300/80 dark:border-stone-700 text-center shadow-xs">
-                <p className="text-sm font-800 text-stone-900 dark:text-stone-100">
+              {/* Main prompt / Explainer banner */}
+              <div className="my-3.5 p-4 rounded-2xl bg-amber-500/10 border border-amber-300/40 text-stone-800 dark:bg-stone-900/60 dark:border-stone-800 dark:text-stone-200 text-center shadow-sm">
+                <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
                   &quot;How&apos;s the weather in your space today?&quot;
                 </p>
-                <p className="text-[11px] font-600 text-stone-600 dark:text-stone-300 mt-1">
+                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
                   Your status floating aura lets peers visually support you on the Village map.
                 </p>
               </div>
 
               {/* Positive tier */}
-              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
-                ✦ Feeling good
-              </p>
+              <div className="text-stone-600 dark:text-stone-400 text-[11px] font-semibold tracking-wider uppercase flex items-center gap-1.5 px-1 py-1 mb-1.5">
+                <span className="opacity-90">✦</span>
+                <span>FEELING GOOD</span>
+              </div>
               <div className="space-y-2 mb-3">
                 {VIBE_OPTIONS.filter((o) => o.tier === 'positive').map((opt) => (
                   <WeatherCard
@@ -318,9 +319,10 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
               </div>
 
               {/* Neutral tier */}
-              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
-                ☁️ Steady cozy
-              </p>
+              <div className="text-stone-600 dark:text-stone-400 text-[11px] font-semibold tracking-wider uppercase flex items-center gap-1.5 px-1 py-1 mb-1.5">
+                <span className="opacity-90">☕</span>
+                <span>STEADY COZY</span>
+              </div>
               <div className="space-y-2 mb-3">
                 {VIBE_OPTIONS.filter((o) => o.tier === 'neutral').map((opt) => (
                   <WeatherCard
@@ -337,9 +339,10 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
               </div>
 
               {/* Distress tier */}
-              <p className="text-[11px] font-900 text-stone-700 dark:text-stone-300 uppercase tracking-widest mb-1.5 px-0.5">
-                🌧️ Need some warmth
-              </p>
+              <div className="text-stone-600 dark:text-stone-400 text-[11px] font-semibold tracking-wider uppercase flex items-center gap-1.5 px-1 py-1 mb-1.5">
+                <span className="opacity-90">🌧</span>
+                <span>NEED SOME WARMTH</span>
+              </div>
               <div className="space-y-2 mb-3">
                 {VIBE_OPTIONS.filter((o) => o.tier === 'distress').map((opt) => (
                   <WeatherCard
