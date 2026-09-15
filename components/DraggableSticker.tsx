@@ -194,28 +194,30 @@ export function DraggableSticker({
       {/* Action bar — confirm / cancel */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
         <button
+          type="button"
           onClick={onCancel}
           disabled={isPending}
-          className="px-4 py-2 rounded-full text-sm font-600 text-white/90
-            bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors cursor-pointer"
+          className="px-4 py-2 rounded-full text-sm font-semibold text-stone-200
+            bg-stone-800/80 hover:bg-stone-900 border border-stone-700/50 backdrop-blur-sm transition-colors cursor-pointer disabled:opacity-50"
         >
           Cancel
         </button>
         <button
+          type="button"
           id="sticker-confirm-btn"
           data-testid="confirm-sticker-btn"
           onClick={handleConfirm}
           disabled={isPending}
-          className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-700
-            bg-white text-[--cozy-bark] shadow-lg hover:scale-105 active:scale-95
-            transition-transform disabled:opacity-60 cursor-pointer"
+          className="px-4 py-2 rounded-full text-sm font-semibold inline-flex items-center gap-1.5
+            bg-amber-500 hover:bg-amber-600 text-stone-950 shadow-md hover:scale-105 active:scale-95
+            transition-all disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed cursor-pointer"
         >
           {isPending ? (
             <span className="animate-spin text-base">⟳</span>
           ) : (
-            <Check size={15} />
+            <Check size={15} className="text-stone-950 stroke-[2.5]" />
           )}
-          {isPending ? 'Placing…' : 'Place it!'}
+          <span>{isPending ? 'Placing…' : 'Place it!'}</span>
         </button>
       </div>
 
