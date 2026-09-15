@@ -257,9 +257,8 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 16 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="w-full max-w-md rounded-3xl border-2 border-[--cozy-amber]/30 shadow-2xl p-6 relative overflow-hidden my-auto max-h-[90vh] flex flex-col justify-between"
+            className="w-full max-w-md rounded-3xl border-2 border-[--cozy-amber]/30 dark:border-amber-600/30 shadow-2xl p-6 relative overflow-hidden my-auto max-h-[90vh] flex flex-col justify-between bg-gradient-to-br from-[#fffcf8] to-[#f7ebd9] dark:from-[#1c1613] dark:to-[#120d0a] text-stone-900 dark:text-stone-100"
             style={{
-              background: 'linear-gradient(160deg, #fffcf8 0%, #f7ebd9 100%)',
               boxShadow: '0 20px 60px rgba(84, 50, 32, 0.25)',
             }}
           >
@@ -371,19 +370,19 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                   >
                     <button
                       onClick={() => setQuietMode((v) => !v)}
-                      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/70 border border-[--cozy-amber]/20 text-left transition-colors hover:bg-white/90 mt-1"
+                      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/70 dark:bg-stone-800/70 border border-[--cozy-amber]/20 dark:border-stone-700 text-left transition-colors hover:bg-white/90 dark:hover:bg-stone-800 mt-1"
                     >
                       <div className="flex items-center gap-2.5">
                         {quietMode ? (
-                          <BellOff size={16} className="text-slate-500 flex-shrink-0" />
+                          <BellOff size={16} className="text-slate-500 dark:text-stone-400 flex-shrink-0" />
                         ) : (
-                          <Bell size={16} className="text-amber-600 flex-shrink-0" />
+                          <Bell size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
                         )}
                         <div>
-                          <p className="text-xs font-700 text-[--cozy-bark]">
+                          <p className="text-xs font-700 text-[--cozy-bark] dark:text-stone-100">
                             {quietMode ? 'Quiet Mode ON' : 'Quiet Mode OFF'}
                           </p>
-                          <p className="text-[10px] font-500 text-[--cozy-muted] leading-tight">
+                          <p className="text-[10px] font-500 text-[--cozy-muted] dark:text-stone-400 leading-tight">
                             {quietMode
                               ? 'Porch digest only — no direct Anchor Buddy push'
                               : 'Your Anchor Buddy will receive a quiet alert'}
@@ -417,7 +416,7 @@ export function VibeCheckModal({ isOpen, onClose }: VibeCheckModalProps) {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="mt-3 p-3 rounded-xl bg-[--cozy-amber]/15 border border-[--cozy-amber]/40 text-[--cozy-bark] text-xs font-700 text-center flex items-center justify-center gap-1.5 shadow-md"
+                  className="mt-3 p-3 rounded-xl bg-[--cozy-amber]/15 dark:bg-amber-500/20 border border-[--cozy-amber]/40 dark:border-amber-500/40 text-[--cozy-bark] dark:text-amber-100 text-xs font-700 text-center flex items-center justify-center gap-1.5 shadow-md"
                 >
                   <Heart size={14} className="fill-[--cozy-amber] text-[--cozy-amber] flex-shrink-0" />
                   <span>{confirmationMsg}</span>
