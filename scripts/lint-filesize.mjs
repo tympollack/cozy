@@ -5,12 +5,15 @@ import path from 'node:path';
 const ROOT_DIR = process.cwd();
 const SCAN_DIRS = ['app', 'components', 'lib', 'hooks', 'store', 'worker'];
 
-const LEGACY_EXEMPTIONS = new Set([
-  'app/actions/groupActions.ts',
-  'app/actions/notificationActions.ts',
-  'app/camera/page.tsx',
-  'app/settings/page.tsx',
-  'components/ProfileShell.tsx',
+// Grandfathered file size limits (ratchet mechanism).
+// Files here are strictly capped at their legacy size and must NOT grow larger.
+// When refactored down below standard thresholds, files are removed from this list.
+const LEGACY_EXEMPTIONS = new Map([
+  ['app/actions/notificationActions.ts', 1160],
+  ['components/ProfileShell.tsx', 860],
+  ['app/actions/groupActions.ts', 790],
+  ['app/settings/page.tsx', 780],
+  ['app/camera/page.tsx', 740],
 ]);
 
 const RULES = {
@@ -79,6 +82,7 @@ function checkFiles() {
     const relativePath = path.relative(ROOT_DIR, file).replace(/\\/g, '/');
     const lines = countLines(file);
     const isExempt = LEGACY_EXEMPTIONS.has(relativePath);
+    const ratchetCeiling = LEGACY_EXEMPTIONS.get(relativePath);
 
     let rule = RULES.default;
     if (RULES.page.pattern.test(file)) {
@@ -87,31 +91,41 @@ function checkFiles() {
       rule = RULES.modal;
     }
 
-    if (lines > rule.maxLines) {
-      if (isExempt) {
+    if (isExempt) {
+      if (lines > ratchetCeiling) {
+        hasErrors = true;
+        errorCount++;
+        results.push({
+          status: '❌ RATCHET ERROR',
+          file: relativePath,
+          lines,
+          limit: ratchetCeiling,
+          type: `${rule.label} (exceeded grandfathered ceiling of ${ratchetCeiling})`,
+        });
+      } else {
         exemptCount++;
         results.push({
           status: 'ℹ️  EXEMPT',
           file: relativePath,
           lines,
-          limit: rule.maxLines,
-          type: rule.label,
-        });
-      } else {
-        hasErrors = true;
-        errorCount++;
-        results.push({
-          status: '❌ ERROR',
-          file: relativePath,
-          lines,
-          limit: rule.maxLines,
-          type: rule.label,
+          limit: ratchetCeiling,
+          type: `${rule.label} (ratchet cap: ${ratchetCeiling})`,
         });
       }
+    } else if (lines > rule.maxLines) {
+      hasErrors = true;
+      errorCount++;
+      results.push({
+        status: '❌ ERROR',
+        file: relativePath,
+        lines,
+        limit: rule.maxLines,
+        type: rule.label,
+      });
     } else if (lines > rule.warnLines) {
       warnCount++;
       results.push({
-        status: isExempt ? 'ℹ️  EXEMPT' : '⚠️  WARN',
+        status: '⚠️  WARN',
         file: relativePath,
         lines,
         limit: rule.warnLines,
@@ -125,13 +139,15 @@ function checkFiles() {
     .map((f) => ({
       file: path.relative(ROOT_DIR, f).replace(/\\/g, '/'),
       lines: countLines(f),
+      exempt: LEGACY_EXEMPTIONS.has(path.relative(ROOT_DIR, f).replace(/\\/g, '/')),
     }))
     .sort((a, b) => b.lines - a.lines)
     .slice(0, 10);
 
   console.log('\nTop 10 Largest Source Files:');
   allRanked.forEach((item, i) => {
-    console.log(`  ${(i + 1).toString().padStart(2)}. ${item.lines.toString().padStart(5)} lines  ${item.file}`);
+    const tag = item.exempt ? ' (legacy exemption)' : '';
+    console.log(`  ${(i + 1).toString().padStart(2)}. ${item.lines.toString().padStart(5)} lines  ${item.file}${tag}`);
   });
 
   if (results.length > 0) {
@@ -145,7 +161,7 @@ function checkFiles() {
   console.log(`Scanned ${files.length} files. Errors: ${errorCount}, Warnings: ${warnCount}, Exemptions: ${exemptCount}`);
 
   if (hasErrors) {
-    console.error('\n❌ File size check failed: files exceeded maximum modular architecture limits.\n');
+    console.error('\n❌ File size check failed: files exceeded maximum modular architecture limits or ratchet ceilings.\n');
     process.exit(1);
   } else {
     console.log('\n✅ File size check passed: all files meet modular architecture standards.\n');
