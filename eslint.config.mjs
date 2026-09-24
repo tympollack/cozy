@@ -59,7 +59,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    "scripts/**",
+    "scripts/lint-filesize.mjs",
+    "scripts/generate-icons.js",
   ]),
 ]);
 
