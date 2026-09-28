@@ -11,7 +11,7 @@ export default defineConfig({
       '@digitalcanonpy/ui': path.resolve(__dirname, './node_modules/@digitalcanopy/ui/src/index.ts'),
       'react': path.resolve(__dirname, './node_modules/react'),
       'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-      'react-native': path.resolve(__dirname, './node_modules/react-native/index.js'),
+      'react-native': 'react-native-web',
     },
   },
   test: {
