@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@digitalcanopy/ui": ["./node_modules/@digitalcanopy/ui/src/index.ts"],
+      "@digitalcanopy/ui/*": ["./node_modules/@digitalcanopy/ui/src/*"],
+      "@digitalcanonpy/ui": ["./node_modules/@digitalcanonpy/ui/src/index.ts"],
+      "@digitalcanonpy/ui/*": ["./node_modules/@digitalcanonpy/ui/src/*"]
     }
   },
   "include": [
