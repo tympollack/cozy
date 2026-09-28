@@ -47,7 +47,7 @@ describe('VibeCheckModal Contrast & Accessibility', () => {
     // Subheader text with accessible classes
     const subheader = screen.getByText('Atmospheric Layer · How is your space today?');
     expect(subheader).toBeInTheDocument();
-    expect(subheader.className).toContain('text-stone-600');
+    expect(subheader.className).toContain('text-stone-400');
 
     // 44x44px touch target dismiss button
     const closeBtn = screen.getByRole('button', { name: /Close Vibe Check modal/i });
