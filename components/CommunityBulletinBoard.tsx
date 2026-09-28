@@ -246,13 +246,15 @@ export function CommunityBulletinBoard({
 
   return (
     <div
-      className="w-full rounded-3xl p-5 border-2 shadow-xl relative overflow-hidden space-y-4"
+      className={`w-full rounded-3xl p-5 border-2 shadow-xl relative overflow-hidden space-y-4 ${
+        isFuturistic
+          ? 'bg-gradient-to-br from-[#091428] to-[#060d1a] border-cyan-400/30'
+          : 'bg-gradient-to-br from-[#fffcf5] to-[#f7ebd9] dark:from-stone-900 dark:to-stone-950 border-[--cozy-amber]/35 dark:border-stone-800'
+      }`}
       style={{
-        background: isFuturistic
-          ? 'linear-gradient(160deg, #091428 0%, #060d1a 100%)'
-          : 'linear-gradient(160deg, #fffcf5 0%, #f7ebd9 100%)',
-        borderColor: isFuturistic ? 'rgba(0,220,255,0.30)' : 'rgba(217,119,54,0.35)',
-        boxShadow: '0 8px 30px rgba(84, 50, 32, 0.12)',
+        boxShadow: isFuturistic
+          ? '0 8px 30px rgba(0, 220, 255, 0.08)'
+          : '0 8px 30px rgba(84, 50, 32, 0.12)',
       }}
     >
       <style>{`
@@ -279,7 +281,7 @@ export function CommunityBulletinBoard({
       )}
 
       {/* Board Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-[--cozy-amber]/20">
+      <div className="flex items-center justify-between pb-3 border-b border-[--cozy-amber]/20 dark:border-stone-800">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-md border"
@@ -288,21 +290,23 @@ export function CommunityBulletinBoard({
                 ? 'linear-gradient(135deg, #1e1060, #0d3060)'
                 : 'linear-gradient(135deg, var(--cozy-gold), var(--cozy-amber))',
               borderColor: isFuturistic ? '#00dcff' : 'var(--cozy-rust)',
-              color: isFuturistic ? '#00dcff' : 'var(--cozy-bark)',
+              color: isFuturistic ? '#00dcff' : '#2c1810',
             }}
           >
             <Pin className="w-5 h-5 -rotate-45" />
           </div>
           <div>
             <h3
-              className="text-base font-800 leading-tight"
-              style={{ color: isFuturistic ? '#00dcff' : 'var(--cozy-bark)' }}
+              className={`text-base font-800 leading-tight ${
+                isFuturistic ? 'text-cyan-400' : 'text-stone-900 dark:text-stone-100'
+              }`}
             >
               Town Square Bulletin Board
             </h3>
             <p
-              className="text-xs font-500 mt-0.5"
-              style={{ color: isFuturistic ? '#80c8e0' : 'var(--cozy-muted)' }}
+              className={`text-xs font-500 mt-0.5 ${
+                isFuturistic ? 'text-cyan-200' : 'text-stone-600 dark:text-stone-400'
+              }`}
             >
               Admin Pinned Weekly Positive Challenges · Group Point Multiplier
             </p>
@@ -312,12 +316,11 @@ export function CommunityBulletinBoard({
         {isAdmin && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-800 transition-all hover:scale-105 active:scale-95 shadow-md border"
-            style={{
-              background: isFuturistic ? 'rgba(0,220,255,0.18)' : 'rgba(240,192,96,0.30)',
-              color: isFuturistic ? '#00dcff' : 'var(--cozy-bark)',
-              borderColor: isFuturistic ? '#00dcff' : 'var(--cozy-amber)',
-            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-800 transition-all hover:scale-105 active:scale-95 shadow-md border ${
+              isFuturistic
+                ? 'bg-cyan-400/20 text-cyan-300 border-cyan-400 hover:bg-cyan-400/30'
+                : 'bg-amber-100/70 hover:bg-amber-100 text-stone-800 border-amber-500/50 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 dark:text-amber-200 dark:border-amber-600/50'
+            }`}
           >
             <Plus size={14} /> Pin Challenge
           </button>
@@ -326,28 +329,36 @@ export function CommunityBulletinBoard({
 
       {/* Group Theme Unlock Progress Tracker */}
       <div
-        className="p-3.5 rounded-2xl border"
-        style={{
-          background: isFuturistic ? 'rgba(0,220,255,0.06)' : 'rgba(255,255,255,0.70)',
-          borderColor: isFuturistic ? 'rgba(0,220,255,0.20)' : 'rgba(217,119,54,0.20)',
-        }}
+        className={`p-3.5 rounded-2xl border shadow-xs ${
+          isFuturistic
+            ? 'bg-cyan-950/20 border-cyan-400/20'
+            : 'bg-white/80 dark:bg-stone-900/80 border-amber-600/20 dark:border-stone-800'
+        }`}
       >
         <div className="flex items-center justify-between text-xs font-700">
-          <span className="flex items-center gap-1.5" style={{ color: isFuturistic ? '#80c8e0' : 'var(--cozy-bark)' }}>
+          <span
+            className={`flex items-center gap-1.5 ${
+              isFuturistic ? 'text-cyan-300' : 'text-stone-800 dark:text-stone-200'
+            }`}
+          >
             <span>🎨 Theme Unlock Progress:</span>
             {isAllThemesUnlocked ? (
-              <span className="font-800 text-[--cozy-amber]">✨ All Themes Unlocked!</span>
+              <span className="font-800 text-amber-600 dark:text-amber-400">✨ All Themes Unlocked!</span>
             ) : (
-              <span className="font-800 text-[--cozy-amber]">{nextTheme?.emoji} {nextTheme?.name}</span>
+              <span className="font-800 text-amber-600 dark:text-amber-400">{nextTheme?.emoji} {nextTheme?.name}</span>
             )}
           </span>
-          <span className="font-800 text-[--cozy-gold]">
+          <span
+            className={`font-800 ${
+              isFuturistic ? 'text-cyan-400' : 'text-amber-700 dark:text-amber-300'
+            }`}
+          >
             {isAllThemesUnlocked
               ? `${currentGroupPts.toLocaleString()} pts (Max Tier)`
               : `${currentGroupPts.toLocaleString()} / ${nextTheme?.points.toLocaleString()} pts`}
           </span>
         </div>
-        <div className="w-full h-2 rounded-full bg-black/10 mt-2 overflow-hidden">
+        <div className="w-full h-2 rounded-full bg-stone-200 dark:bg-stone-800 mt-2 overflow-hidden">
           <motion.div
             className="h-full rounded-full"
             style={{
@@ -522,12 +533,11 @@ export function CommunityBulletinBoard({
               <div>
                 <div className="flex items-center gap-2">
                   <span
-                    className="text-xs font-800 px-2 py-0.5 rounded-full border"
-                    style={{
-                      background: isFuturistic ? 'rgba(0,220,255,0.12)' : 'rgba(240,192,96,0.25)',
-                      color: isFuturistic ? '#00dcff' : 'var(--cozy-rust)',
-                      borderColor: isFuturistic ? '#00dcff' : 'var(--cozy-amber)',
-                    }}
+                    className={`text-xs font-800 px-2 py-0.5 rounded-full border ${
+                      isFuturistic
+                        ? 'bg-cyan-500/10 text-cyan-300 border-cyan-400/30'
+                        : 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/50'
+                    }`}
                   >
                     {ch.multiplier}x Multiplier
                   </span>
@@ -549,7 +559,7 @@ export function CommunityBulletinBoard({
               </div>
 
               {/* Action / Completion Button */}
-              <div className="pt-3 mt-3 border-t border-[--cozy-amber]/20 flex items-center justify-between">
+              <div className="pt-3 mt-3 border-t border-[--cozy-amber]/20 dark:border-stone-800 flex items-center justify-between">
                 <div className="flex items-center gap-1 text-[11px] font-700 text-stone-800 dark:text-stone-200">
                   <Trophy size={13} className="text-[--cozy-gold]" />
                   <span>+15 pts & Group Boost</span>
@@ -560,13 +570,13 @@ export function CommunityBulletinBoard({
                   disabled={isDone}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-800 transition-all ${
                     isDone
-                      ? 'bg-green-100 text-green-800 border border-green-300 opacity-90 cursor-default'
+                      ? 'bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300 border border-green-300 dark:border-green-800 opacity-90 cursor-default'
                       : 'bg-[--cozy-amber] hover:brightness-105 active:scale-95 text-white shadow-sm'
                   }`}
                 >
                   {isDone ? (
                     <>
-                      <CheckCircle2 size={14} className="text-green-700" /> Completed
+                      <CheckCircle2 size={14} className="text-green-700 dark:text-green-400" /> Completed
                     </>
                   ) : (
                     <>
@@ -600,56 +610,56 @@ export function CommunityBulletinBoard({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-md bg-amber-50 rounded-3xl p-5 border-2 border-[--cozy-amber]/40 shadow-2xl space-y-3"
+              className="w-full max-w-md bg-amber-50 dark:bg-stone-900 rounded-3xl p-5 border-2 border-[--cozy-amber]/40 dark:border-stone-800 shadow-2xl space-y-3"
             >
-              <div className="flex items-center justify-between pb-2 border-b border-[--cozy-amber]/20">
-                <h4 className="text-base font-800 text-[--cozy-bark]">Pin Weekly Challenge</h4>
+              <div className="flex items-center justify-between pb-2 border-b border-[--cozy-amber]/20 dark:border-stone-800">
+                <h4 className="text-base font-800 text-stone-900 dark:text-stone-100">Pin Weekly Challenge</h4>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="text-[--cozy-muted] hover:text-[--cozy-bark] font-800"
+                  className="text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 font-800 p-1"
                 >
                   ✕
                 </button>
               </div>
 
               <div>
-                <label className="text-xs font-700 text-[--cozy-bark]">Challenge Title</label>
+                <label className="text-xs font-700 text-stone-800 dark:text-stone-200">Challenge Title</label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Clean & organize kitchen shelf 🍲"
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white border border-[--cozy-amber]/30 text-xs font-500 text-[--cozy-bark] focus:outline-none"
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-stone-800 border border-[--cozy-amber]/30 dark:border-stone-700 text-xs font-500 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-700 text-[--cozy-bark]">Description</label>
+                <label className="text-xs font-700 text-stone-800 dark:text-stone-200">Description</label>
                 <textarea
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Describe the therapeutic cleaning or wellness task..."
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white border border-[--cozy-amber]/30 text-xs font-500 text-[--cozy-bark] focus:outline-none h-20 resize-none"
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-stone-800 border border-[--cozy-amber]/30 dark:border-stone-700 text-xs font-500 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500 h-20 resize-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-700 text-[--cozy-bark]">Multiplier (1.25x to 2.0x)</label>
+                <label className="text-xs font-700 text-stone-800 dark:text-stone-200">Multiplier (1.25x to 2.0x)</label>
                 <select
                   value={newMult}
                   onChange={(e) => setNewMult(parseFloat(e.target.value))}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white border border-[--cozy-amber]/30 text-xs font-700 text-[--cozy-bark] focus:outline-none"
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-stone-800 border border-[--cozy-amber]/30 dark:border-stone-700 text-xs font-700 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value={1.25}>1.25x Standard Boost</option>
-                  <option value={1.5}>1.50x Cozy Clean Boost</option>
-                  <option value={2.0}>2.00x Mega Community Boost</option>
+                  <option value={1.25} className="dark:bg-stone-800">1.25x Standard Boost</option>
+                  <option value={1.5} className="dark:bg-stone-800">1.50x Cozy Clean Boost</option>
+                  <option value={2.0} className="dark:bg-stone-800">2.00x Mega Community Boost</option>
                 </select>
               </div>
 
               <button
                 onClick={handleCreateChallenge}
                 disabled={!newTitle.trim() || !newDesc.trim()}
-                className="w-full py-3 rounded-2xl bg-[--cozy-amber] hover:brightness-105 active:scale-95 text-white font-800 text-xs shadow-md transition-all mt-2"
+                className="w-full py-3 rounded-2xl bg-[--cozy-amber] hover:brightness-105 active:scale-95 text-white font-800 text-xs shadow-md transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Pin Challenge to Town Square
               </button>
