@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1087.0",
+    "@digitalcanopy/ui": "^0.1.1",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.5",
     "framer-motion": "^12.42.2",
@@ -38,12 +39,14 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-native": "^0.72.8",
     "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "jsdom": "^30.0.1",
     "msw": "^2.15.0",
+    "react-native-web": "~0.19.10",
     "tailwindcss": "^4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"

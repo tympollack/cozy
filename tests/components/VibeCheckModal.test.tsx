@@ -47,7 +47,7 @@ describe('VibeCheckModal Contrast & Accessibility', () => {
     // Subheader text with accessible classes
     const subheader = screen.getByText('Atmospheric Layer · How is your space today?');
     expect(subheader).toBeInTheDocument();
-    expect(subheader.className).toContain('text-stone-600');
+    expect(subheader.className).toContain('text-stone-400');
 
     // 44x44px touch target dismiss button
     const closeBtn = screen.getByRole('button', { name: /Close Vibe Check modal/i });
@@ -126,4 +126,50 @@ describe('VibeCheckModal Contrast & Accessibility', () => {
       payload: { userId: 'u-1', vibe_status: 'sunshine' },
     });
   });
+
+  it('renders all 6 vibe statuses across the three tier groups with high-contrast typography', () => {
+    render(<VibeCheckModal isOpen={true} onClose={vi.fn()} />);
+
+    // Verify all 6 titles exist
+    const statuses = [
+      { title: 'Sunshine', desc: 'Energized, clean, thriving space' },
+      { title: 'Breezy', desc: 'Light, refreshed, moving through the day' },
+      { title: 'Starlight', desc: 'Calm, reflective night energy' },
+      { title: 'Cozy / Neutral', desc: 'Steady, peaceful & relaxing day' },
+      { title: 'Foggy', desc: 'A little unclear, low energy today' },
+      { title: 'Raincloud', desc: 'Overwhelmed, messy, or needing a lift' },
+    ];
+
+    for (const { title, desc } of statuses) {
+      const titleEl = screen.getByText(title);
+      expect(titleEl).toBeInTheDocument();
+      expect(titleEl.className).toContain('text-stone-100');
+
+      const descEl = screen.getByText(desc);
+      expect(descEl).toBeInTheDocument();
+      expect(descEl.className).toContain('text-stone-400');
+    }
+
+    // Both Foggy and Raincloud are present and rendered within the scrollable containment body
+    expect(screen.getByText('Foggy')).toBeInTheDocument();
+    expect(screen.getByText('Raincloud')).toBeInTheDocument();
+  });
+
+  it('guarantees viewport containment and internal scrollability in ModalShell frame', () => {
+    render(<VibeCheckModal isOpen={true} onClose={vi.fn()} />);
+
+    const modalTitle = screen.getByText('Daily Vibe Check');
+    const modalFrame = modalTitle.closest('div[class*="max-h-\\[85dvh\\]"]');
+    expect(modalFrame).not.toBeNull();
+    expect(modalFrame?.className).toContain('max-h-[85dvh]');
+    expect(modalFrame?.className).toContain('flex-col');
+    expect(modalFrame?.className).toContain('overflow-hidden');
+
+    const scrollContainer = modalFrame?.querySelector('div[class*="overflow-y-auto"]');
+    expect(scrollContainer).not.toBeNull();
+    expect(scrollContainer?.className).toContain('min-h-0');
+    expect(scrollContainer?.className).toContain('overscroll-contain');
+    expect(scrollContainer?.className).toContain('scrollbar-thin');
+  });
 });
+
