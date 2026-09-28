@@ -13,14 +13,25 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@digitalcanopy/ui', '@digitalcanonpy/ui', '@digitalcanopy/supabase'],
   experimental: {
     serverActions: {
       bodySizeLimit: '25mb',
     },
   },
-  // Opt into webpack bundler so next-pwa's webpack plugin works correctly.
-  // Remove this line if/when you migrate to a Turbopack-compatible PWA plugin.
-  turbopack: {},
+  webpack: (config: any) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      'react-native$': 'react-native-web',
+    };
+    return config;
+  },
+  turbopack: {
+    resolveAlias: {
+      'react-native': 'react-native-web',
+    },
+  },
   images: {
     remotePatterns: [
       {

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getFeed } from '@/app/actions/postActions';
 import { FeedSwiper } from './FeedSwiper';
+import { CircadianProgressPill } from '@/components/CircadianProgressPill';
 
 export const metadata: Metadata = {
   title: 'Feed — Cozy',
@@ -21,14 +22,24 @@ export default async function FeedPage() {
   return (
     <div className="cozy-page-bg flex-1 relative overflow-hidden w-full flex flex-col items-center px-4 pt-6 pb-6">
       {/* Heading */}
-      <div className="w-full max-w-lg mb-6 text-center">
-        <h1 className="text-2xl font-800 text-[--cozy-bark]">Your Feed</h1>
-        <p className="text-sm text-[--cozy-muted] mt-1">
-          Swipe through cozy spaces near and far ✨
-        </p>
+      <div className="w-full max-w-lg mb-4 text-center space-y-3">
+        <div>
+          <h1 className="text-2xl font-800 text-[--cozy-bark]">Your Feed</h1>
+          <p className="text-sm text-[--cozy-muted] mt-1">
+            Swipe through cozy spaces near and far ✨
+          </p>
+        </div>
+
+        {/* Ambient Circadian Progress HUD */}
+        {user && (
+          <div className="flex justify-center">
+            <CircadianProgressPill />
+          </div>
+        )}
       </div>
 
       <FeedSwiper initialPosts={posts} initialCursor={nextCursor} isAuthenticated={!!user} />
     </div>
   );
 }
+

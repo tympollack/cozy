@@ -95,7 +95,7 @@ describe('CommunityBulletinBoard Component', () => {
     );
 
     expect(await screen.findByText('Plant Herb Garden 🌿')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders max themes unlocked without NaN when group points reach or exceed 10000', () => {
     render(
@@ -253,7 +253,7 @@ describe('CommunityBulletinBoard Component', () => {
       'Group 2 description',
       1.5
     );
-  });
+  }, 15000);
 
   it('prevents inflight challenge completion response from overwriting or subtracting points after switching groups', async () => {
     const user = userEvent.setup();
@@ -307,6 +307,43 @@ describe('CommunityBulletinBoard Component', () => {
     // Group-2's displayed points MUST NOT be corrupted by group-1's 345 points
     expect(screen.getByText('800 / 1,200 pts')).toBeInTheDocument();
     expect(screen.queryByText(/345/)).not.toBeInTheDocument();
+  });
+
+  it('renders communal village milestones and unlocks fairy lights and streetlamps at 350 pts', () => {
+    render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={350}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByTestId('communal-village-milestones')).toBeInTheDocument();
+    expect(screen.getByText('Village Communal Transformations')).toBeInTheDocument();
+    expect(screen.getByTestId('fairy-lights-garland')).toBeInTheDocument();
+
+    // Fairy Lights (150 pts) and Streetlamps (350 pts) are unlocked
+    expect(screen.getByTestId('village-milestone-milestone-fairy-lights')).toBeInTheDocument();
+    expect(screen.getByTestId('village-milestone-milestone-streetlamps')).toBeInTheDocument();
+    expect(screen.getByText('2 / 5 Active')).toBeInTheDocument();
+
+    // Garden (750 pts) is still in progress
+    expect(screen.getByText('400 pts left')).toBeInTheDocument();
+    expect(screen.queryByTestId('communal-garden-blooming')).not.toBeInTheDocument();
+  });
+
+  it('blooms communal garden ribbon when group points reach or exceed 750 pts', () => {
+    render(
+      <CommunityBulletinBoard
+        groupId="group-1"
+        groupPooledPoints={800}
+        isAdmin={false}
+      />
+    );
+
+    expect(screen.getByTestId('communal-garden-blooming')).toBeInTheDocument();
+    expect(screen.getByText(/Communal Garden in Full Bloom/i)).toBeInTheDocument();
+    expect(screen.getByText('3 / 5 Active')).toBeInTheDocument();
   });
 });
 

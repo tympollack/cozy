@@ -90,6 +90,7 @@ export default async function ProfilePage() {
                 themesUnlocked={themesUnlocked}
                 posts={posts}
                 isOwner={isOwner}
+                porchItems={porchDigest.items}
               />
             </div>
 

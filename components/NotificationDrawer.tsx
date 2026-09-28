@@ -20,6 +20,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { CozyNotificationItem, NotificationType } from '@/app/actions/notificationActions';
 import { markNotificationAsRead } from '@/app/actions/notificationActions';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
@@ -60,6 +61,7 @@ export function NotificationDrawer({
   isLoading = false,
 }: NotificationDrawerProps) {
   useModalBackButton({ isOpen, onClose });
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [isPending, startTransition] = useTransition();
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
@@ -331,18 +333,20 @@ export function NotificationDrawer({
                             <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-stone-800/60">
                               <div>
                                 {item.type === 'daily_task' && (
-                                  <Link
-                                    href="/camera"
-                                    onClick={() => {
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleMarkItemRead(item.id);
                                       onClose();
+                                      router.push('/camera');
                                     }}
-                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors"
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
                                   >
                                     <Camera size={13} />
                                     <span>Upload Room</span>
                                     <ChevronRight size={12} />
-                                  </Link>
+                                  </button>
                                 )}
 
                                 {item.type === 'peer_checkin' && (
@@ -352,7 +356,8 @@ export function NotificationDrawer({
                                         ? `/groups/${item.metadata.group_id}`
                                         : '/groups'
                                     }
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleMarkItemRead(item.id);
                                       onClose();
                                     }}
@@ -367,7 +372,8 @@ export function NotificationDrawer({
                                 {item.type === 'admin_broadcast' && item.metadata?.action_url && (
                                   <Link
                                     href={String(item.metadata.action_url)}
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleMarkItemRead(item.id);
                                       onClose();
                                     }}
@@ -381,7 +387,11 @@ export function NotificationDrawer({
 
                               {isUnread && (
                                 <button
-                                  onClick={() => handleMarkItemRead(item.id)}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkItemRead(item.id);
+                                  }}
                                   disabled={isPending}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-400 hover:text-amber-300 px-2 py-1 rounded-lg hover:bg-stone-800/80 transition-colors"
                                   title="Mark as read"

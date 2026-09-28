@@ -16,6 +16,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
  */
 export type VibeStatus =
   | 'sunshine'
+  | 'breezy'
   | 'breeze'
   | 'starlight'
   | 'neutral'
@@ -193,11 +194,12 @@ export async function updateVibeStatus(
   }
 
   // 2. Call the RPC to enforce constraints, update status & get group peers
+  const normalizedStatus = status === 'breeze' ? 'breezy' : status;
   let groupPeers: GroupPeer[] = [];
   try {
     const { data: peers, error: rpcError } = await supabase.schema('cozy').rpc('update_vibe_status', {
       p_user_id: user.id,
-      p_status: status,
+      p_status: normalizedStatus,
     });
 
     if (rpcError) {
@@ -205,7 +207,7 @@ export async function updateVibeStatus(
       const { error: directUpdateError } = await service
         .schema('cozy')
         .from('users')
-        .update({ vibe_status: status })
+        .update({ vibe_status: normalizedStatus })
         .eq('id', user.id);
 
       if (directUpdateError) {

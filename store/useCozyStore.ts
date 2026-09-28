@@ -15,6 +15,7 @@ export type PrivacyTier = 'random' | 'geofenced';
  */
 export type VibeStatus =
   | 'sunshine'
+  | 'breezy'
   | 'breeze'
   | 'starlight'
   | 'neutral'
@@ -86,9 +87,13 @@ interface CozyState {
   addPoints: (n: number) => void;
   setPoints: (n: number) => void;
 
-  // --- Onboarding ---
+  // --- Onboarding & Single Corner ---
   hasSeenOnboarding: boolean;
   completeOnboarding: () => void;
+  focusNook: string | null;
+  setFocusNook: (nook: string | null) => void;
+  hasCompletedSandbox: boolean;
+  completeSandbox: () => void;
 
   // --- Tutorial flags ---
   /** True once the first-upload 100-token award tutorial callout has been dismissed. */
@@ -162,6 +167,12 @@ interface CozyState {
   isGroupNotificationsEnabled: (groupId: string) => boolean;
   /** Remove a group's notification preference (e.g. after leaving the group). */
   clearGroupNotificationPref: (groupId: string) => void;
+
+  // --- Atmospheric Soundscape & Acoustics ---
+  /** Whether tactile & atmospheric audio sound effects are globally muted. */
+  soundMuted: boolean;
+  setSoundMuted: (muted: boolean) => void;
+  toggleSoundMuted: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,9 +189,13 @@ export const useCozyStore = create<CozyState>()(
       addPoints: (n) => set((s) => ({ points: s.points + n })),
       setPoints: (n) => set({ points: n }),
 
-      // --- Onboarding ---
+      // --- Onboarding & Single Corner ---
       hasSeenOnboarding: false,
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
+      focusNook: 'desk',
+      setFocusNook: (nook) => set({ focusNook: nook }),
+      hasCompletedSandbox: false,
+      completeSandbox: () => set({ hasCompletedSandbox: true }),
 
       // --- Tutorial flags ---
       hasSeenStickerTutorial: false,
@@ -284,15 +299,22 @@ export const useCozyStore = create<CozyState>()(
           delete next[groupId];
           return { groupNotifications: next };
         }),
+
+      // --- Atmospheric Soundscape & Acoustics ---
+      soundMuted: false,
+      setSoundMuted: (muted) => set({ soundMuted: muted }),
+      toggleSoundMuted: () => set((s) => ({ soundMuted: !s.soundMuted })),
     }),
     {
       name: 'cozy-store',
       storage: createJSONStorage(() => localStorage),
-      // Persist economy, onboarding, expansion, group, and notification prefs.
+      // Persist economy, onboarding, expansion, group, sound, and notification prefs.
       // Feed is intentionally excluded — it must re-fetch fresh on mount.
       partialize: (state) => ({
         points: state.points,
         hasSeenOnboarding: state.hasSeenOnboarding,
+        focusNook: state.focusNook,
+        hasCompletedSandbox: state.hasCompletedSandbox,
         hasSeenStickerTutorial: state.hasSeenStickerTutorial,
         expansionTier: state.expansionTier,
         milestoneTokens: state.milestoneTokens,
@@ -302,6 +324,7 @@ export const useCozyStore = create<CozyState>()(
         lastVibeCheckDate: state.lastVibeCheckDate,
         groupPoints: state.groupPoints,
         groupNotifications: state.groupNotifications,
+        soundMuted: state.soundMuted,
       }),
     }
   )

@@ -7,6 +7,11 @@ import {
   processRaincloudWaterfallAction,
   processNotificationWaterfallAction,
   getNotices,
+  getDailyCircadianStatus,
+  savePushSubscriptionAction,
+  deletePushSubscriptionAction,
+  sendWebPushNotification,
+  processCircadianNudgeScheduler,
 } from '@/app/actions/notificationActions';
 
 const mockGetUser = vi.fn();
@@ -552,4 +557,112 @@ describe('Notification Actions (notificationActions.ts)', () => {
       expect(cheerNotice?.title).toContain('cheered your space');
     });
   });
+
+  describe('getDailyCircadianStatus', () => {
+    it('evaluates daily Light and Dark completion accurately', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-28T14:00:00Z'));
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+
+      // No posts initially
+      mockPostsDb = [];
+      const resEmpty = await getDailyCircadianStatus(0);
+      expect(resEmpty.success).toBe(true);
+      expect(resEmpty.lightCompleted).toBe(false);
+      expect(resEmpty.darkCompleted).toBe(false);
+      expect(resEmpty.bothCompleted).toBe(false);
+      expect(resEmpty.currentPhase).toBe('light');
+
+      // User posts light photo
+      mockPostsDb = [
+        {
+          id: 'p-1',
+          user_id: 'user-me',
+          light_img_url: 'light.jpg',
+          dark_img_url: '',
+          cheer_count: 0,
+          created_at: '2026-08-28T10:00:00Z',
+        },
+      ];
+      const resLight = await getDailyCircadianStatus(0);
+      expect(resLight.lightCompleted).toBe(true);
+      expect(resLight.darkCompleted).toBe(false);
+      expect(resLight.bothCompleted).toBe(false);
+
+      // User posts dark photo too
+      mockPostsDb.push({
+        id: 'p-2',
+        user_id: 'user-me',
+        light_img_url: '',
+        dark_img_url: 'dark.jpg',
+        cheer_count: 0,
+        created_at: '2026-08-28T21:00:00Z',
+      });
+      const resBoth = await getDailyCircadianStatus(0);
+      expect(resBoth.lightCompleted).toBe(true);
+      expect(resBoth.darkCompleted).toBe(true);
+      expect(resBoth.bothCompleted).toBe(true);
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe('Web Push subscriptions', () => {
+    it('saves and deletes push subscriptions in fallback memory store', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+
+      const sub = {
+        endpoint: 'https://push.browser.com/sub/12345',
+        keys: { p256dh: 'key-p256', auth: 'key-auth' },
+      };
+
+      const saveRes = await savePushSubscriptionAction(sub, 'Mozilla/5.0');
+      expect(saveRes.success).toBe(true);
+
+      const sendRes = await sendWebPushNotification('user-me', {
+        title: '☀️ Morning Check-in',
+        message: "Time for today's Light photo!",
+      });
+      expect(sendRes.success).toBe(true);
+      expect(sendRes.sentCount).toBe(1);
+
+      const delRes = await deletePushSubscriptionAction(sub.endpoint);
+      expect(delRes.success).toBe(true);
+
+      const sendAfterDel = await sendWebPushNotification('user-me', {
+        title: '☀️ Morning Check-in',
+        message: 'No endpoints should receive this',
+      });
+      expect(sendAfterDel.sentCount).toBe(0);
+    });
+  });
+
+  describe('processCircadianNudgeScheduler', () => {
+    it('runs circadian checks across users and dispatches nudges', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-28T10:00:00Z'));
+
+      mockUsersDb = [
+        { id: 'user-1', display_name: 'Alice' },
+        { id: 'user-2', display_name: 'Bob' },
+      ];
+      mockPostsDb = [];
+      mockNotificationsDb = [];
+
+      const res = await processCircadianNudgeScheduler();
+      expect(res.success).toBe(true);
+      expect(res.evaluatedUsers).toBe(2);
+      expect(res.nudgedCount).toBe(2);
+      expect(res.phaseSummary.light).toBe(2);
+
+      // Re-running on same day deduplicates and skips
+      const res2 = await processCircadianNudgeScheduler();
+      expect(res2.success).toBe(true);
+      expect(res2.nudgedCount).toBe(0);
+      expect(res2.skippedCount).toBe(2);
+
+      vi.useRealTimers();
+    });
+  });
 });
+

@@ -9,6 +9,7 @@ import { GROUP_TYPE_META } from '@/config/groupDefinitions';
 export type { GroupTypeMeta } from '@/config/groupDefinitions';
 import type { VillageMapTheme } from '@/config/villageMapThemes';
 import { getVillageMapTheme } from '@/app/actions/mapActions';
+import type { VibeStatus } from '@/store/useCozyStore';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,10 +41,10 @@ export interface GroupMemberRow {
    */
   shell_type?: string;
   /**
-   * The member's current emotional vibe status: 'sunshine' | 'neutral' | 'raincloud'.
+   * The member's current emotional vibe status.
    * Sourced from cozy.users.vibe_status.
    */
-  vibe_status?: 'sunshine' | 'neutral' | 'raincloud';
+  vibe_status?: VibeStatus;
 }
 
 export interface GroupWithMembers {
@@ -569,14 +570,14 @@ const getCachedGroupData = unstable_cache(
       vibe_status: string | null;
     }
 
-    const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number; shell_type?: string; vibe_status?: 'sunshine' | 'neutral' | 'raincloud' }>();
+    const userMap = new Map<string, { display_name: string; avatar_url: string | null; points: number; shell_type?: string; vibe_status?: VibeStatus }>();
     ((usersData ?? []) as unknown as MemberUserRecord[]).forEach((u) => {
       userMap.set(u.id, {
         display_name: u.display_name || 'Cozy Neighbor',
         avatar_url: u.avatar_url || null,
         points: u.points ?? 0,
         shell_type: u.shell_type ?? undefined,
-        vibe_status: (u.vibe_status as 'sunshine' | 'neutral' | 'raincloud') || 'neutral',
+        vibe_status: (u.vibe_status as VibeStatus) || 'neutral',
       });
     });
 

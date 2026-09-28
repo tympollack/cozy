@@ -33,6 +33,9 @@ import type { UserPost } from '@/store/useCozyStore';
 import { useCozyStore } from '@/store/useCozyStore';
 import { DollhouseMailbox } from './DollhouseMailbox';
 import type { PeerStatus, PendingCard } from '@/app/actions/peerActions';
+import type { PorchItem } from '@/app/actions/waterfallActions';
+import { ITEM_EMOJIS } from './PorchHoldingPen';
+import { playCozyChime } from '@/lib/audio/cheerSound';
 
 interface ProfileShellProps {
   initialShellType: string;
@@ -50,6 +53,8 @@ interface ProfileShellProps {
   recipientId?: string;
   /** Authenticated user's ID — null when logged out. */
   currentUserId?: string | null;
+  /** Received porch items resting on the wooden porch deck. */
+  porchItems?: PorchItem[];
 }
 
 export function ProfileShell({
@@ -64,6 +69,7 @@ export function ProfileShell({
   pendingCards = [],
   recipientId = '',
   currentUserId = null,
+  porchItems = [],
 }: ProfileShellProps) {
   const pathname = usePathname();
   const { setExpansionTier, setMilestoneTokens, setThemesUnlocked } = useCozyStore();
@@ -76,13 +82,29 @@ export function ProfileShell({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
+  const [porchCheerParticles, setPorchCheerParticles] = useState<Array<{ id: number; x: number; y: number; char: string }>>([]);
+  const [selectedPorchGift, setSelectedPorchGift] = useState<PorchItem | null>(null);
+
+  function handlePorchGiftClick(gift: PorchItem) {
+    playCozyChime();
+    setSelectedPorchGift(gift);
+    const particles = Array.from({ length: 6 }, (_, i) => ({
+      id: Date.now() + i,
+      x: (Math.random() - 0.5) * 60,
+      y: -(20 + Math.random() * 40),
+      char: ['✨', '💛', '🌸', '✨', '+10 Cheer', '☕'][i % 6],
+    }));
+    setPorchCheerParticles(particles);
+    setTimeout(() => setPorchCheerParticles([]), 1200);
+  }
 
   useModalBackButton({
-    isOpen: Boolean(selectedSlotForAssignment || expandedPost || isThemeMenuOpen),
+    isOpen: Boolean(selectedSlotForAssignment || expandedPost || isThemeMenuOpen || selectedPorchGift),
     onClose: () => {
       if (selectedSlotForAssignment) setSelectedSlotForAssignment(null);
       else if (expandedPost) setExpandedPost(null);
       else if (isThemeMenuOpen) setIsThemeMenuOpen(false);
+      else if (selectedPorchGift) setSelectedPorchGift(null);
     },
   });
 
@@ -423,20 +445,74 @@ export function ProfileShell({
 
 
 
-          {/* ── Dollhouse Mailbox (bottom-left) ── */}
+          {/* ── Dollhouse Mailbox & Porch Deck (bottom) ── */}
           <div
-            className="absolute bottom-3 left-3 z-20"
-            style={{ filter: 'drop-shadow(0 4px 8px rgba(122,79,58,0.25))' }}
+            className="absolute bottom-2 left-3 right-3 z-20 flex items-end justify-between pointer-events-none"
           >
-            {recipientId ? (
-              <DollhouseMailbox
-                isOwner={isOwner}
-                peerStatus={peerStatus}
-                pendingCards={pendingCards}
-                recipientId={recipientId}
-                currentUserId={currentUserId}
-              />
-            ) : null}
+            <div
+              className="pointer-events-auto"
+              style={{ filter: 'drop-shadow(0 4px 8px rgba(122,79,58,0.25))' }}
+            >
+              {recipientId ? (
+                <DollhouseMailbox
+                  isOwner={isOwner}
+                  peerStatus={peerStatus}
+                  pendingCards={pendingCards}
+                  recipientId={recipientId}
+                  currentUserId={currentUserId}
+                />
+              ) : null}
+            </div>
+
+            {/* Resting Porch Gifts on Wooden Porch Deck */}
+            {porchItems && porchItems.length > 0 && (
+              <div
+                data-testid="dollhouse-porch-deck"
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-amber-500/30 backdrop-blur-md relative shadow-lg"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(84, 50, 32, 0.82) 0%, rgba(54, 30, 18, 0.96) 100%)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
+                }}
+              >
+                {/* Floating Cheer Particles */}
+                <AnimatePresence>
+                  {porchCheerParticles.map((p) => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 1, scale: 0.5, x: 0, y: 0 }}
+                      animate={{ opacity: 0, scale: 1.25, x: p.x, y: p.y }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.9, ease: 'easeOut' }}
+                      className="absolute pointer-events-none text-xs font-900 text-amber-300 drop-shadow-md select-none z-30"
+                      style={{ left: '50%', top: '20%' }}
+                    >
+                      {p.char}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+
+                <span className="text-[10px] font-800 text-amber-200 flex items-center gap-1 mr-0.5 select-none">
+                  <span>🏡</span>
+                  <span className="hidden sm:inline">Porch:</span>
+                </span>
+
+                <div className="flex items-center gap-1">
+                  {porchItems.slice(0, 4).map((gift) => (
+                    <motion.button
+                      key={gift.id}
+                      whileHover={{ scale: 1.18, y: -2 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => handlePorchGiftClick(gift)}
+                      className="w-7 h-7 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 flex items-center justify-center text-sm shadow-xs cursor-pointer transition-colors"
+                      title={`Resting gift from ${gift.senderName}: "${gift.message}"`}
+                    >
+                      {ITEM_EMOJIS[gift.itemType] || '☕'}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Render Active Shell Nooks */}
@@ -733,6 +809,43 @@ export function ProfileShell({
                     </Link>
                   </div>
                 )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Resting Porch Gift Warm Note Modal */}
+        <AnimatePresence>
+          {selectedPorchGift && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full max-w-xs rounded-3xl p-4 cozy-glass border border-amber-500/30 shadow-2xl space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                  <span className="text-xs font-800 text-amber-200 flex items-center gap-1.5">
+                    <span>{ITEM_EMOJIS[selectedPorchGift.itemType] || '☕'}</span>
+                    <span>Gift on Porch Deck</span>
+                  </span>
+                  <button
+                    onClick={() => setSelectedPorchGift(null)}
+                    className="text-stone-400 hover:text-stone-100 text-xs font-800 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-xs text-stone-200 italic leading-relaxed">
+                  &quot;{selectedPorchGift.message}&quot;
+                </p>
+                <div className="flex items-center justify-between text-[10px] text-amber-300 font-700 pt-1">
+                  <span>From {selectedPorchGift.senderName}</span>
+                  <span className="flex items-center gap-1">
+                    <Sparkles size={11} className="text-amber-400" />
+                    <span>+10 Cheer Burst</span>
+                  </span>
+                </div>
               </motion.div>
             </div>
           )}

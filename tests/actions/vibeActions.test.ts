@@ -147,6 +147,22 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(mockServiceRpc).not.toHaveBeenCalled();
   });
 
+  it('updates vibe status to breezy and normalizes legacy breeze', async () => {
+    const res = await updateVibeStatus('breezy');
+    expect(res.success).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith('update_vibe_status', {
+      p_user_id: 'user-vibe-1',
+      p_status: 'breezy',
+    });
+
+    const resBreeze = await updateVibeStatus('breeze' as any);
+    expect(resBreeze.success).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith('update_vibe_status', {
+      p_user_id: 'user-vibe-1',
+      p_status: 'breezy',
+    });
+  });
+
   it('updates vibe status to raincloud and triggers process_notification_waterfall RPC for verified group', async () => {
     const res = await updateVibeStatus('raincloud', 'group-123');
     expect(res.success).toBe(true);

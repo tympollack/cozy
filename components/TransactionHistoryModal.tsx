@@ -12,6 +12,7 @@ import { useCozyStore } from '@/store/useCozyStore';
 import { getTransactionHistory, type PointTransaction } from '@/app/actions/ledgerActions';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
+import { playPaperRustle, playWoodenClick } from '@/lib/audio/soundscape';
 
 const emptySubscribe = () => () => {};
 function useIsClient() {
@@ -35,8 +36,8 @@ const TYPE_CONFIG: Record<
   { label: string; icon: React.ReactNode; badgeClass: string; isCredit: boolean }
 > = {
   sticker_purchase: {
-    label: 'Sticker Store',
-    icon: <ShoppingBag size={14} className="text-amber-700 dark:text-amber-300" />,
+    label: 'Artisan Gift & Decor',
+    icon: <Gift size={14} className="text-amber-700 dark:text-amber-300" />,
     badgeClass: 'bg-amber-100 dark:bg-amber-950/70 border-amber-300 dark:border-amber-600/40 text-amber-900 dark:text-amber-300',
     isCredit: false,
   },
@@ -162,6 +163,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
 
   useEffect(() => {
     if (!isOpen) return;
+    playPaperRustle();
 
     let ignore = false;
     const fetchInitial = async () => {
@@ -251,10 +253,10 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
                 </div>
                 <div>
                   <h2 className="text-lg font-900 text-stone-900 dark:text-amber-50 flex items-center gap-1.5 leading-tight">
-                    Transaction Ledger
+                    Cozy Chronicle & Cheer Ledger
                   </h2>
                   <p className="text-xs font-500 text-stone-600 dark:text-amber-200/70">
-                    Immutable record of your Cozy points & economy activity
+                    A living chronicle of kindness shared, warm gifts received, and spaces adorned
                   </p>
                 </div>
               </div>
@@ -270,7 +272,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
                 </button>
 
                 <button
-                  onClick={onClose}
+                  onClick={() => { playWoodenClick(); onClose(); }}
                   aria-label="Close transaction ledger"
                   className="p-2 rounded-full text-stone-600 dark:text-amber-200 hover:bg-stone-200/60 dark:hover:bg-[#342821] transition-all cursor-pointer"
                 >
@@ -299,11 +301,11 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
                   <div className="flex flex-col items-end gap-1 text-right">
                     <div className="flex items-center gap-1 text-xs font-800 text-emerald-700 dark:text-emerald-400">
                       <ArrowDownLeft size={13} />
-                      <span>+{totalEarned.toLocaleString()} earned</span>
+                      <span>+{totalEarned.toLocaleString()} cheer received</span>
                     </div>
                     <div className="flex items-center gap-1 text-xs font-800 text-amber-800 dark:text-amber-400/90">
                       <ArrowUpRight size={13} />
-                      <span>-{totalSpent.toLocaleString()} spent</span>
+                      <span>-{totalSpent.toLocaleString()} warmth gifted</span>
                     </div>
                   </div>
                 </div>
@@ -313,36 +315,36 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
             {/* Filter Tabs */}
             <div className="flex items-center gap-1 px-6 py-2 border-b border-amber-900/10 dark:border-amber-500/20">
               <button
-                onClick={() => setFilter('all')}
+                onClick={() => { playWoodenClick(); setFilter('all'); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer ${
                   filter === 'all'
                     ? 'bg-stone-900 dark:bg-amber-400 text-white dark:text-stone-950 shadow-xs'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-amber-50 dark:hover:bg-[#342821]'
                 }`}
               >
-                All Activity ({transactions.length})
+                All Moments ({transactions.length})
               </button>
 
               <button
-                onClick={() => setFilter('earned')}
+                onClick={() => { playWoodenClick(); setFilter('earned'); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer flex items-center gap-1 ${
                   filter === 'earned'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
                 }`}
               >
-                <ArrowDownLeft size={12} /> Earned (+)
+                <ArrowDownLeft size={12} /> Cheer Received 💛 (+)
               </button>
 
               <button
-                onClick={() => setFilter('spent')}
+                onClick={() => { playWoodenClick(); setFilter('spent'); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-800 transition-all cursor-pointer flex items-center gap-1 ${
                   filter === 'spent'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'bg-stone-100 dark:bg-[#281e19] text-stone-700 dark:text-amber-200/80 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                 }`}
               >
-                <ArrowUpRight size={12} /> Spent (-)
+                <ArrowUpRight size={12} /> Warmth Gifted 🎁 (-)
               </button>
             </div>
 
@@ -364,10 +366,10 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
                   </div>
                   <div>
                     <h3 className="text-sm font-800 text-stone-800 dark:text-amber-100">
-                      No transactions recorded
+                      No moments recorded yet
                     </h3>
                     <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 max-w-xs mx-auto">
-                      Cheer spaces, share cozy corners, or browse the sticker store to start building your ledger!
+                      Cheer spaces, share cozy moments, or exchange artisan gifts to start building your cozy chronicle!
                     </p>
                   </div>
                 </div>

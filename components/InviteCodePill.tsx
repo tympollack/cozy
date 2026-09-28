@@ -20,7 +20,7 @@ export function InviteCodePill({
 }: InviteCodePillProps) {
   const [copied, setCopied] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
-  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const shareText = `Join ${groupName} on Cozy! Use invite code: ${code}`;
 

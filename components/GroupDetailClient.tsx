@@ -15,6 +15,7 @@ import { CommunityBulletinBoard } from '@/components/CommunityBulletinBoard';
 import { PeerSupportSheet } from '@/components/PeerSupportSheet';
 import { InviteCodePill } from '@/components/InviteCodePill';
 import { AdminGroupModal } from '@/components/AdminGroupModal';
+import type { VibeStatus } from '@/store/useCozyStore';
 
 interface GroupBundleData {
   group: GroupRow;
@@ -58,7 +59,7 @@ export function GroupDetailClient({
   const [selectedPeer, setSelectedPeer] = useState<{
     id: string;
     name: string;
-    vibeStatus?: 'sunshine' | 'neutral' | 'raincloud';
+    vibeStatus?: VibeStatus;
   } | null>(null);
   const [activeBrewTargetId, setActiveBrewTargetId] = useState<string | null>(null);
   const [inviteHighlight, setInviteHighlight] = useState(false);
@@ -111,7 +112,7 @@ export function GroupDetailClient({
     const groupChannel = supabase.channel(groupChannelName);
     const globalChannel = supabase.channel('cozy-global-broadcast');
 
-    const handleVibeBroadcast = (payload: { payload: { userId?: string; vibe_status?: 'sunshine' | 'neutral' | 'raincloud'; points?: number; shell_type?: string } }) => {
+    const handleVibeBroadcast = (payload: { payload: { userId?: string; vibe_status?: VibeStatus; points?: number; shell_type?: string } }) => {
       const data = payload.payload;
       if (data?.userId) {
         setLiveMembers((prev) =>
@@ -148,7 +149,7 @@ export function GroupDetailClient({
                   ? {
                       ...m,
                       ...(updatedUser.vibe_status
-                        ? { vibe_status: updatedUser.vibe_status as 'sunshine' | 'neutral' | 'raincloud' }
+                        ? { vibe_status: updatedUser.vibe_status as VibeStatus }
                         : {}),
                       ...(updatedUser.points !== undefined ? { points: updatedUser.points } : {}),
                       ...(updatedUser.shell_type ? { shell_type: updatedUser.shell_type } : {}),
@@ -214,7 +215,7 @@ export function GroupDetailClient({
   const sortedMembers = [...safeMembers]
     .map((m) => {
       if (m.user_id === currentUserId && storeVibeStatus) {
-        return { ...m, vibe_status: storeVibeStatus as 'sunshine' | 'neutral' | 'raincloud' };
+        return { ...m, vibe_status: storeVibeStatus as VibeStatus };
       }
       return m;
     })

@@ -7,6 +7,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './'),
+      '@digitalcanopy/ui': path.resolve(__dirname, './node_modules/@digitalcanopy/ui/src/index.ts'),
+      '@digitalcanonpy/ui': path.resolve(__dirname, './node_modules/@digitalcanopy/ui/src/index.ts'),
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'react-native': 'react-native-web',
     },
   },
   test: {

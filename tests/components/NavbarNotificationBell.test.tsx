@@ -8,6 +8,12 @@ const mockGetUserNotifications = vi.fn();
 const mockMarkNotificationAsRead = vi.fn();
 const mockTriggerDailyTaskNudge = vi.fn();
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
+
 vi.mock('@/app/actions/notificationActions', () => ({
   getUserNotifications: (...args: unknown[]) => mockGetUserNotifications(...args),
   markNotificationAsRead: (...args: unknown[]) => mockMarkNotificationAsRead(...args),
