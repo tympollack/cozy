@@ -229,6 +229,14 @@ export class DatabaseContractHarness {
         throw new RpcExecutionError('Sender and recipient IDs are required.');
       }
 
+      if (ctx.role === 'authenticated' && ctx.userId && senderId !== ctx.userId) {
+        throw new RpcExecutionError('Cannot send porch gift on behalf of another user.');
+      }
+
+      if (senderId === recipientId) {
+        throw new RpcExecutionError('You cannot send a porch gift to yourself.');
+      }
+
       const sender = this.users.get(senderId);
       if (!sender) {
         throw new RpcExecutionError(`Sender ${senderId} not found.`);
@@ -335,7 +343,16 @@ export class MockQueryBuilder implements PromiseLike<unknown> {
       }
 
       if (this.table === 'porch_items') {
-        return this.applyFilters(this.harness.porchItems);
+        if (this.ctx.role === 'anon') {
+          throw new RLSPolicyViolationError('Anon role cannot read porch items.');
+        }
+        let records = Array.from(this.harness.porchItems);
+        if (this.ctx.role === 'authenticated' && this.ctx.userId) {
+          records = records.filter(
+            (r) => r.recipient_id === this.ctx.userId || r.sender_id === this.ctx.userId
+          );
+        }
+        return this.applyFilters(records);
       }
 
       return [];
@@ -355,6 +372,9 @@ export class MockQueryBuilder implements PromiseLike<unknown> {
       }
       if (this.table === 'porch_items' && this.mutateData) {
         const item = this.mutateData as unknown as DbPorchItem;
+        if (this.ctx.role === 'authenticated' && this.ctx.userId && item.sender_id !== this.ctx.userId) {
+          throw new RLSPolicyViolationError('Cannot insert porch item for another sender.');
+        }
         this.harness.porchItems.push(item);
         return { success: true };
       }

@@ -349,21 +349,62 @@ describe('Database Contracts & Security (Scope C)', () => {
       });
 
       it('validates sender exists and required parameters are supplied', async () => {
-        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+        const serviceClient = harness.createClient({ role: 'service_role' });
 
         await expect(
-          aliceClient.rpc('send_porch_gift_atomic', {
+          serviceClient.rpc('send_porch_gift_atomic', {
             p_sender_id: 'missing_user_999',
             p_recipient_id: 'user_bob',
           })
         ).rejects.toThrow(/Sender missing_user_999 not found/);
 
         await expect(
-          aliceClient.rpc('send_porch_gift_atomic', {
+          serviceClient.rpc('send_porch_gift_atomic', {
             p_sender_id: 'user_alice',
             p_recipient_id: '',
           })
         ).rejects.toThrow(/Sender and recipient IDs are required/);
+      });
+
+      it('prevents authenticated clients from impersonating another sender in RPC', async () => {
+        const bobClient = harness.createClient({ role: 'authenticated', userId: 'user_bob' });
+
+        await expect(
+          bobClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: 'user_bob',
+            p_item_type: 'tea',
+          })
+        ).rejects.toThrow(/Cannot send porch gift on behalf of another user/i);
+      });
+
+      it('prevents self-gifting in RPC', async () => {
+        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+
+        await expect(
+          aliceClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: 'user_alice',
+            p_item_type: 'tea',
+          })
+        ).rejects.toThrow(/You cannot send a porch gift to yourself/i);
+      });
+
+      it('enforces RLS on porch_items table (blocks anon reads and forged direct inserts)', async () => {
+        const anonClient = harness.createClient({ role: 'anon' });
+        await expect(anonClient.from('porch_items').select('*')).rejects.toThrow(RLSPolicyViolationError);
+
+        const bobClient = harness.createClient({ role: 'authenticated', userId: 'user_bob' });
+        await expect(
+          bobClient.from('porch_items').insert({
+            id: 'forged_item_1',
+            sender_id: 'user_alice',
+            recipient_id: 'user_bob',
+            item_type: 'tea',
+            message: 'Forged note',
+            created_at: new Date().toISOString(),
+          })
+        ).rejects.toThrow(RLSPolicyViolationError);
       });
     });
   });
