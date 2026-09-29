@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getUserNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   triggerDailyTaskNudge,
   receiveAdminBroadcast,
   processRaincloudWaterfallAction,
@@ -334,6 +335,55 @@ describe('Notification Actions (notificationActions.ts)', () => {
       const res = await markNotificationAsRead('notif-1');
       expect(res.success).toBe(true);
       expect(mockNotificationsDb[0].is_read).toBe(true);
+    });
+  });
+
+  describe('markAllNotificationsAsRead', () => {
+    it('marks all unread notifications as read for current user', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockNotificationsDb = [
+        {
+          id: 'n1',
+          user_id: 'user-me',
+          type: 'daily_task',
+          title: 'Daily Space Reset',
+          message: 'Task 1',
+          is_read: false,
+          created_at: '2026-08-28T12:00:00Z',
+        },
+        {
+          id: 'n2',
+          user_id: 'user-me',
+          type: 'peer_checkin',
+          title: 'Peer Nudge',
+          message: 'Task 2',
+          is_read: false,
+          created_at: '2026-08-28T13:00:00Z',
+        },
+        {
+          id: 'n3',
+          user_id: 'user-other',
+          type: 'admin_broadcast',
+          title: 'Other User Nudge',
+          message: 'Task 3',
+          is_read: false,
+          created_at: '2026-08-28T14:00:00Z',
+        },
+      ];
+
+      const res = await markAllNotificationsAsRead();
+      expect(res.success).toBe(true);
+      expect(mockNotificationsDb.find((n) => n.id === 'n1')?.is_read).toBe(true);
+      expect(mockNotificationsDb.find((n) => n.id === 'n2')?.is_read).toBe(true);
+      // Other user notification remains unread
+      expect(mockNotificationsDb.find((n) => n.id === 'n3')?.is_read).toBe(false);
+    });
+
+    it('returns error when user is not authenticated', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error('No session') });
+      const res = await markAllNotificationsAsRead();
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/Authentication required/i);
     });
   });
 

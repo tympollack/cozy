@@ -7,6 +7,7 @@ import {
   getUserNotifications,
   type CozyNotificationItem,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   triggerDailyTaskNudge,
 } from '@/app/actions/notificationActions';
 import { NotificationDrawer } from '@/components/NotificationDrawer';
@@ -140,8 +141,7 @@ export function NavbarNotificationBell({
   const handleMarkAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    const unread = notifications.filter((n) => !n.isRead);
-    await Promise.all(unread.map((n) => markNotificationAsRead(n.id)));
+    await markAllNotificationsAsRead();
   };
 
   return (

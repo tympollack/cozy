@@ -14,40 +14,24 @@ import { getCircadianNotificationCopy } from '@/lib/circadianCopy';
 export type NotificationType = 'daily_task' | 'peer_checkin' | 'admin_broadcast';
 
 export interface NotificationMetadata {
-  peer_id?: string;
-  target_user_id?: string;
-  group_id?: string;
-  broadcast_id?: string;
-  target_app?: string;
-  target_scope?: string;
-  action_url?: string;
-  source?: string;
+  peer_id?: string; target_user_id?: string; group_id?: string; broadcast_id?: string;
+  target_app?: string; target_scope?: string; action_url?: string; source?: string;
   [key: string]: unknown;
 }
 
 export interface CozyNotificationItem {
-  id: string;
-  userId: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  metadata: NotificationMetadata;
-  isRead: boolean;
-  createdAt: string;
+  id: string; userId: string; type: NotificationType;
+  title: string; message: string; metadata: NotificationMetadata;
+  isRead: boolean; createdAt: string;
 }
 
 export interface NotificationFeedResult {
-  success: boolean;
-  notifications: CozyNotificationItem[];
-  unreadCount: number;
-  error?: string;
+  success: boolean; notifications: CozyNotificationItem[];
+  unreadCount: number; error?: string;
 }
 
 export interface AdminBroadcastPayload {
-  broadcast_id: string;
-  title: string;
-  message: string;
-  target_scope?: string;
+  broadcast_id: string; title: string; message: string; target_scope?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +148,52 @@ export async function markNotificationAsRead(
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to mark notification as read.';
+    return { success: false, error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2b. markAllNotificationsAsRead
+//
+// Updates is_read = true for all unread notifications of the authenticated user.
+// ---------------------------------------------------------------------------
+
+export async function markAllNotificationsAsRead(): Promise<{
+  success: boolean;
+  count?: number;
+  error?: string;
+}> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+
+  try {
+    const { error: updateError, count } = await service
+      .schema('cozy')
+      .from('notifications')
+      .update({ is_read: true }, { count: 'exact' })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+
+    if (updateError) {
+      console.error('[markAllNotificationsAsRead] Update error:', updateError.message);
+      return { success: false, error: updateError.message };
+    }
+
+    try {
+      revalidatePath('/', 'layout');
+    } catch {
+      // Revalidation outside request context ignored
+    }
+
+    return { success: true, count: count ?? 0 };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to mark all notifications as read.';
     return { success: false, error: message };
   }
 }
@@ -337,28 +367,14 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
 // ---------------------------------------------------------------------------
 
 export interface DailyCircadianStatusResult {
-  success: boolean;
-  lightCompleted: boolean;
-  darkCompleted: boolean;
-  bothCompleted: boolean;
-  currentPhase: 'light' | 'dark';
-  clientLocalHour: number;
-  error?: string;
+  success: boolean; lightCompleted: boolean; darkCompleted: boolean;
+  bothCompleted: boolean; currentPhase: 'light' | 'dark'; clientLocalHour: number; error?: string;
 }
 
 export interface StoredPushSubscription {
-  id: string;
-  userId: string;
-  subscription: {
-    endpoint: string;
-    keys?: {
-      p256dh?: string;
-      auth?: string;
-    };
-    [key: string]: unknown;
-  };
-  userAgent?: string;
-  createdAt: string;
+  id: string; userId: string;
+  subscription: { endpoint: string; keys?: { p256dh?: string; auth?: string }; [key: string]: unknown };
+  userAgent?: string; createdAt: string;
 }
 
 /** In-memory fallback cache for Web Push subscriptions during dev/testing */
@@ -379,12 +395,8 @@ export async function getDailyCircadianStatus(
 
   if (authError || !user) {
     return {
-      success: false,
-      lightCompleted: false,
-      darkCompleted: false,
-      bothCompleted: false,
-      currentPhase: 'light',
-      clientLocalHour: 12,
+      success: false, lightCompleted: false, darkCompleted: false,
+      bothCompleted: false, currentPhase: 'light', clientLocalHour: 12,
       error: 'Authentication required.',
     };
   }
@@ -750,22 +762,12 @@ export async function processCircadianNudgeScheduler(options?: {
       phaseSummary[targetPhase]++;
     }
 
-    return {
-      success: true,
-      evaluatedUsers: users.length,
-      nudgedCount,
-      skippedCount,
-      phaseSummary,
-    };
+    return { success: true, evaluatedUsers: users.length, nudgedCount, skippedCount, phaseSummary };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Circadian scheduler execution error.';
     return {
-      success: false,
-      evaluatedUsers: 0,
-      nudgedCount: 0,
-      skippedCount: 0,
-      phaseSummary: { light: 0, dark: 0 },
-      error: msg,
+      success: false, evaluatedUsers: 0, nudgedCount: 0, skippedCount: 0,
+      phaseSummary: { light: 0, dark: 0 }, error: msg,
     };
   }
 }

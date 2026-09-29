@@ -176,4 +176,127 @@ describe('NotificationDrawer Component', () => {
 
     expect(mockMarkAllRead).toHaveBeenCalled();
   });
+
+  it('closes drawer when explicit close button in header is clicked', async () => {
+    const mockOnClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+      />
+    );
+
+    const closeBtn = screen.getByRole('button', { name: /^Close notification drawer$/i });
+    expect(closeBtn).toBeInTheDocument();
+    expect(closeBtn.className).toMatch(/min-w-\[44px\]/);
+    expect(closeBtn.className).toMatch(/min-h-\[44px\]/);
+    await user.click(closeBtn);
+
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('closes drawer when mobile back button is clicked', async () => {
+    const mockOnClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+      />
+    );
+
+    const backBtn = screen.getByRole('button', { name: /Back to previous screen/i });
+    expect(backBtn).toBeInTheDocument();
+    expect(backBtn.className).toMatch(/min-w-\[44px\]/);
+    expect(backBtn.className).toMatch(/min-h-\[44px\]/);
+    await user.click(backBtn);
+
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('closes drawer when backdrop is clicked', async () => {
+    const mockOnClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+      />
+    );
+
+    const backdrop = screen.getByRole('button', { name: /Close notification drawer backdrop/i });
+    await user.click(backdrop);
+
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('displays "All caught up ✓" feedback and auto-dismisses after clicking Mark all read', async () => {
+    const mockOnClose = vi.fn();
+    const mockMarkAllRead = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+        unreadCount={2}
+        onMarkAllRead={mockMarkAllRead}
+      />
+    );
+
+    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    await user.click(markAllButton);
+
+    expect(mockMarkAllRead).toHaveBeenCalled();
+    expect(screen.getByText('All caught up ✓')).toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('auto-dismisses when the single remaining unread item is marked as read', async () => {
+    const mockOnClose = vi.fn();
+    const mockMarkRead = vi.fn();
+    const user = userEvent.setup();
+
+    const singleUnreadItem: CozyNotificationItem[] = [
+      {
+        id: 'n1',
+        userId: 'u1',
+        type: 'daily_task',
+        title: 'Only unread notification',
+        message: 'Please complete your check-in.',
+        metadata: {},
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={singleUnreadItem}
+        unreadCount={1}
+        onMarkRead={mockMarkRead}
+      />
+    );
+
+    const markReadBtn = screen.getByRole('button', { name: /Mark read/i });
+    await user.click(markReadBtn);
+
+    expect(mockMarkRead).toHaveBeenCalledWith('n1');
+    expect(screen.getByText('All caught up ✓')).toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockOnClose).toHaveBeenCalled();
+  });
 });
