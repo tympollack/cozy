@@ -551,14 +551,28 @@ const getCachedGroupData = unstable_cache(
 
     // 2. Fetch user profiles for all member user_ids directly from cozy.users
     const userIds = memberships.map((m) => m.user_id);
-    const { data: usersData, error: usersError } = await service
+    let usersData: unknown[] | null = null;
+    const { data: initialUsers, error: usersError } = await service
       .schema('cozy')
       .from('users')
       .select('id, display_name, avatar_url, points, shell_type, vibe_status')
       .in('id', userIds);
 
     if (usersError) {
-      console.error('[getGroupWithMembers] Users query error:', usersError.message);
+      console.warn('[getGroupWithMembers] Users query with avatar_url failed, falling back:', usersError.message);
+      const { data: fallbackUsers, error: fallbackError } = await service
+        .schema('cozy')
+        .from('users')
+        .select('id, display_name, points, shell_type, vibe_status')
+        .in('id', userIds);
+
+      if (fallbackError) {
+        console.error('[getGroupWithMembers] Fallback users query error:', fallbackError.message);
+      } else {
+        usersData = fallbackUsers;
+      }
+    } else {
+      usersData = initialUsers;
     }
 
     interface MemberUserRecord {
