@@ -10,6 +10,7 @@ const mockUpdateVibe = vi.fn();
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockUpdate = vi.fn();
+const mockRpc = vi.fn();
 
 vi.mock('@/app/actions/vibeActions', () => ({
   updateVibeStatus: (...args: unknown[]) => mockUpdateVibe(...args),
@@ -28,6 +29,7 @@ vi.mock('@/lib/supabase', () => ({
         insert: (...args: unknown[]) => mockInsert(...args),
         update: (...args: unknown[]) => mockUpdate(...args),
       }),
+      rpc: (...args: unknown[]) => mockRpc(...args),
     }),
   }),
 }));
@@ -54,6 +56,10 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
     vi.clearAllMocks();
     mockInsert.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    mockRpc.mockResolvedValue({
+      data: { awarded: true, new_points: 2, gifts_today: 1 },
+      error: null,
+    });
 
     // Default select mock handles all tables in the happy path
     mockSelect.mockImplementation((table: string) => {
@@ -145,25 +151,37 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'sender-user' } }, error: null });
     });
 
-    it('deposits a quiet warmth gift on neighbor porch', async () => {
+    it('deposits a quiet warmth gift on neighbor porch via send_porch_gift_atomic RPC', async () => {
       const res = await sendPorchWarmth('recipient-user', 'blanket', 'Cozy blanket for your rest.');
       expect(res.success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('send_porch_gift_atomic', expect.objectContaining({
+        p_sender_id: 'sender-user',
+        p_recipient_id: 'recipient-user',
+        p_item_type: 'blanket',
+        p_message: 'Cozy blanket for your rest.',
+      }));
     });
 
-    it('awards +2 warmth points to sender on first gift of the day (count === 1)', async () => {
+    it('awards +2 warmth points to sender on first gift of the day (RPC awarded = true)', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: { awarded: true, new_points: 2, gifts_today: 1 },
+        error: null,
+      });
+
       const res = await sendPorchWarmth('recipient-user', 'flower');
       expect(res.success).toBe(true);
-      expect(res.senderPoints).toBe(2); // 0 base + PORCH_GIFT_SENDER_POINTS(2)
+      expect(res.senderPoints).toBe(2);
+      expect(mockRpc).toHaveBeenCalledWith('send_porch_gift_atomic', expect.objectContaining({
+        p_sender_id: 'sender-user',
+        p_recipient_id: 'recipient-user',
+        p_item_type: 'flower',
+      }));
     });
 
-    it('does not award points when sender has already gifted today (count > 1)', async () => {
-      mockSelect.mockImplementation((table: string) => {
-        if (table === 'group_members') return groupMembersChain(true);
-        if (table === 'users') {
-          return { eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Sender', points: 10 } }) }) };
-        }
-        // count=3 means already gifted earlier today
-        return { eq: vi.fn().mockReturnValue({ gte: vi.fn().mockResolvedValue({ count: 3 }) }) };
+    it('does not award points when sender has already gifted today (RPC awarded = false)', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: { awarded: false, new_points: null, gifts_today: 2 },
+        error: null,
       });
 
       const res = await sendPorchWarmth('recipient-user', 'tea');
@@ -189,16 +207,18 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       expect(res.error).toMatch(/campmates in your group/i);
     });
 
-    it('falls back to memory store when database insertion returns error', async () => {
-      mockInsert.mockResolvedValueOnce({ error: { message: 'Table does not exist' } });
+    it('falls back to memory store when database RPC returns error', async () => {
+      mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'Function send_porch_gift_atomic does not exist' } });
       const res = await sendPorchWarmth('recipient-user', 'tea');
       expect(res.success).toBe(true);
+      expect(res.senderPoints).toBeUndefined();
     });
 
-    it('falls back to memory store when database insertion throws', async () => {
-      mockInsert.mockRejectedValueOnce(new Error('DB crashed'));
+    it('falls back to memory store when database RPC throws', async () => {
+      mockRpc.mockRejectedValueOnce(new Error('DB crashed'));
       const res = await sendPorchWarmth('recipient-user', 'candle');
       expect(res.success).toBe(true);
+      expect(res.senderPoints).toBeUndefined();
     });
 
     it('returns error when recipientUserId is missing', async () => {
