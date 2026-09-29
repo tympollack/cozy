@@ -92,6 +92,10 @@ vi.mock('@/lib/supabase', () => ({
                     error: null,
                   }).then(resolve);
                 }
+                if (tableName === 'notifications') {
+                  const filtered = mockExistingNotifications.filter((n) => n.user_id === val1);
+                  return Promise.resolve({ data: filtered, error: null }).then(resolve);
+                }
                 return Promise.resolve({ data: [], error: null }).then(resolve);
               },
             }),
@@ -210,6 +214,37 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(notes).toHaveLength(1);
     expect(notes[0].message).toBe('Sending you cozy vibes! ☕');
     expect(notes[0].senderName).toBe('Robin');
+  });
+
+  it('blocks unauthorized users from reading another user private notes', async () => {
+    // Current user is user-vibe-1; trying to read user-other's notes
+    const notes = await getPrivateNotes('user-other');
+    expect(notes).toEqual([]);
+  });
+
+  it('merges mixed-store notes from private_notes and fallback notifications without losing earlier outage notes', async () => {
+    mockExistingNotifications = [
+      {
+        id: 'notif-outage-1',
+        user_id: 'user-vibe-1',
+        type: 'peer_checkin',
+        metadata: {
+          peer_id: 'sender-outage',
+          sender_name: 'Alex',
+          support_type: 'note',
+          note_text: 'Sent during outage! 🕯️',
+        },
+        created_at: '2026-08-20T10:00:00.000Z',
+      },
+    ];
+
+    const notes = await getPrivateNotes('user-vibe-1');
+    expect(notes).toHaveLength(2);
+    // Newest note from primary private_notes table
+    expect(notes[0].message).toBe('Sending you cozy vibes! ☕');
+    // Outage note preserved from notifications table
+    expect(notes[1].message).toBe('Sent during outage! 🕯️');
+    expect(notes[1].senderName).toBe('Alex');
   });
 
   it('sends peer support note with delivered_to_porch and notifies recipient', async () => {

@@ -533,12 +533,16 @@ export async function sendPeerSupport(
 
       if (noteInsertError) {
         console.warn('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
-        if (!noteInsertError.message.includes('schema cache') && !noteInsertError.message.includes('does not exist')) {
+        const isSchemaMissing = noteInsertError.message.includes('schema cache') ||
+                                noteInsertError.message.includes('does not exist') ||
+                                (noteInsertError as unknown as { code?: string }).code === '42P01';
+        if (!isSchemaMissing) {
           return { success: false, error: 'Failed to deliver private note. Please try again.' };
         }
       }
     } catch (noteErr) {
       console.warn('[sendPeerSupport] Exception inserting private note:', noteErr);
+      return { success: false, error: 'Failed to deliver private note. Please try again.' };
     }
   }
 
@@ -585,63 +589,82 @@ export async function sendPeerSupport(
 
 /**
  * Retrieves private supportive notes sent to the current authenticated user.
+ * Merges notes across primary private_notes storage and outage fallback notifications.
  */
 export async function getPrivateNotes(recipientId: string): Promise<PrivateSupportNote[]> {
-  const { createServiceClient } = await import('@/lib/supabase');
+  const { createServerClient, createServiceClient } = await import('@/lib/supabase');
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Security guard: authenticated callers can only read their own private notes
+  if (user && user.id !== recipientId) {
+    return [];
+  }
+
   const service = createServiceClient();
 
   try {
-    const { data, error } = await service
-      .schema('cozy')
-      .from('private_notes')
-      .select('*')
-      .eq('recipient_id', recipientId)
-      .order('created_at', { ascending: false });
+    const [privateNotesRes, notifsRes] = await Promise.allSettled([
+      service
+        .schema('cozy')
+        .from('private_notes')
+        .select('*')
+        .eq('recipient_id', recipientId)
+        .order('created_at', { ascending: false }),
+      service
+        .schema('cozy')
+        .from('notifications')
+        .select('*')
+        .eq('user_id', recipientId)
+        .order('created_at', { ascending: false }),
+    ]);
 
-    if (!error && data && data.length > 0) {
-      return data.map((row) => ({
-        id: row.id,
-        senderId: row.sender_id,
-        senderName: row.sender_name || 'A Kind Neighbor',
-        recipientId: row.recipient_id,
-        message: row.message,
-        sentAt: row.created_at,
-      }));
-    }
+    const results: PrivateSupportNote[] = [];
+    const seenSignatures = new Set<string>();
 
-    // Fallback: check notifications for notes if private_notes errored or has no rows
-    const { data: notifData } = await service
-      .schema('cozy')
-      .from('notifications')
-      .select('*')
-      .eq('user_id', recipientId)
-      .eq('type', 'peer_checkin')
-      .order('created_at', { ascending: false });
-
-    if (notifData && notifData.length > 0) {
-      const noteNotifs = notifData.filter(
-        (n: { metadata?: { support_type?: string; note_text?: string } }) =>
-          n.metadata?.support_type === 'note' && n.metadata?.note_text
-      );
-      if (noteNotifs.length > 0) {
-        return noteNotifs.map(
-          (n: {
-            id: string;
-            created_at: string;
-            metadata?: { peer_id?: string; sender_name?: string; note_text?: string };
-          }) => ({
-            id: n.id,
-            senderId: n.metadata?.peer_id || '',
-            senderName: n.metadata?.sender_name || 'A Kind Neighbor',
-            recipientId,
-            message: n.metadata?.note_text || '',
-            sentAt: n.created_at,
-          })
-        );
+    if (privateNotesRes.status === 'fulfilled' && !privateNotesRes.value.error && privateNotesRes.value.data) {
+      for (const row of privateNotesRes.value.data) {
+        results.push({
+          id: row.id,
+          senderId: row.sender_id,
+          senderName: row.sender_name || 'A Kind Neighbor',
+          recipientId: row.recipient_id,
+          message: row.message,
+          sentAt: row.created_at,
+        });
+        const timeKey = row.created_at ? new Date(row.created_at).toISOString().slice(0, 16) : '';
+        seenSignatures.add(`${row.sender_id || ''}|${row.message}|${timeKey}`);
       }
     }
 
-    return [];
+    if (notifsRes.status === 'fulfilled' && !notifsRes.value.error && notifsRes.value.data) {
+      const noteNotifs = notifsRes.value.data.filter(
+        (n: { type?: string; metadata?: { support_type?: string; note_text?: string } }) =>
+          (n.type === 'peer_checkin' || !n.type) && n.metadata?.support_type === 'note' && n.metadata?.note_text
+      );
+
+      for (const n of noteNotifs) {
+        const senderId = n.metadata?.peer_id || '';
+        const msg = n.metadata?.note_text || '';
+        const timeKey = n.created_at ? new Date(n.created_at).toISOString().slice(0, 16) : '';
+        const sig = `${senderId}|${msg}|${timeKey}`;
+
+        if (!seenSignatures.has(sig)) {
+          results.push({
+            id: n.id,
+            senderId,
+            senderName: n.metadata?.sender_name || 'A Kind Neighbor',
+            recipientId,
+            message: msg,
+            sentAt: n.created_at,
+          });
+          seenSignatures.add(sig);
+        }
+      }
+    }
+
+    results.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    return results;
   } catch {
     return [];
   }
