@@ -175,6 +175,8 @@ export async function sendPeerSupport(
     const senderName = sender?.display_name || user.email?.split('@')[0] || 'A Neighbor';
 
     // Insert note with sender_name, created_at, delivered_to_porch
+    let noteDelivered = false;
+    let insertErrorMessage = '';
     const { error: insertErr } = await service.schema('cozy').from('private_notes').insert({
       sender_id: user.id,
       sender_name: senderName,
@@ -185,7 +187,42 @@ export async function sendPeerSupport(
     });
 
     if (insertErr) {
-      console.error('[sendPeerSupport] Failed to insert private note:', insertErr.message);
+      console.warn('[sendPeerSupport] Failed to insert into cozy.private_notes:', insertErr.message);
+      insertErrorMessage = insertErr.message;
+    } else {
+      noteDelivered = true;
+    }
+
+    // Also notify recipient via cozy.notifications so it shows up in their inbox / notification badge
+    try {
+      const { error: notifErr } = await service.schema('cozy').from('notifications').insert({
+        user_id: targetUserId,
+        type: 'peer_checkin',
+        title: '💌 Private Supportive Note',
+        message: `${senderName} left a warm note on your porch: "${text.length > 60 ? text.slice(0, 57) + '...' : text}"`,
+        metadata: {
+          peer_id: user.id,
+          sender_name: senderName,
+          support_type: 'note',
+          action_url: '/profile',
+          note_text: text,
+        },
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+      if (!notifErr) {
+        if (insertErrorMessage && (insertErrorMessage.includes('schema cache') || insertErrorMessage.includes('does not exist'))) {
+          noteDelivered = true;
+        }
+      } else {
+        console.warn('[sendPeerSupport] Recipient notification warning:', notifErr.message);
+      }
+    } catch (notifException) {
+      console.warn('[sendPeerSupport] Recipient notification exception:', notifException);
+    }
+
+    if (!noteDelivered) {
+      console.error('[sendPeerSupport] Failed to insert private note:', insertErrorMessage || 'Insert failed');
       return { success: false, error: 'Could not deliver note to porch.' };
     }
 

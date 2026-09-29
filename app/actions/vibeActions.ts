@@ -532,12 +532,13 @@ export async function sendPeerSupport(
       });
 
       if (noteInsertError) {
-        console.error('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
-        return { success: false, error: 'Failed to deliver private note. Please try again.' };
+        console.warn('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
+        if (!noteInsertError.message.includes('schema cache') && !noteInsertError.message.includes('does not exist')) {
+          return { success: false, error: 'Failed to deliver private note. Please try again.' };
+        }
       }
     } catch (noteErr) {
-      console.error('[sendPeerSupport] Exception inserting private note:', noteErr);
-      return { success: false, error: 'Failed to deliver private note. Please try again.' };
+      console.warn('[sendPeerSupport] Exception inserting private note:', noteErr);
     }
   }
 
@@ -563,8 +564,10 @@ export async function sendPeerSupport(
       message: notifMsg,
       metadata: {
         peer_id: user.id,
+        sender_name: senderName,
         support_type: type,
         action_url: '/profile',
+        note_text: type === 'note' ? payload?.noteText?.trim() : undefined,
       },
       is_read: false,
       created_at: new Date().toISOString(),
@@ -595,16 +598,50 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
       .eq('recipient_id', recipientId)
       .order('created_at', { ascending: false });
 
-    if (error || !data) return [];
+    if (!error && data && data.length > 0) {
+      return data.map((row) => ({
+        id: row.id,
+        senderId: row.sender_id,
+        senderName: row.sender_name || 'A Kind Neighbor',
+        recipientId: row.recipient_id,
+        message: row.message,
+        sentAt: row.created_at,
+      }));
+    }
 
-    return data.map((row) => ({
-      id: row.id,
-      senderId: row.sender_id,
-      senderName: row.sender_name || 'A Kind Neighbor',
-      recipientId: row.recipient_id,
-      message: row.message,
-      sentAt: row.created_at,
-    }));
+    // Fallback: check notifications for notes if private_notes errored or has no rows
+    const { data: notifData } = await service
+      .schema('cozy')
+      .from('notifications')
+      .select('*')
+      .eq('user_id', recipientId)
+      .eq('type', 'peer_checkin')
+      .order('created_at', { ascending: false });
+
+    if (notifData && notifData.length > 0) {
+      const noteNotifs = notifData.filter(
+        (n: { metadata?: { support_type?: string; note_text?: string } }) =>
+          n.metadata?.support_type === 'note' && n.metadata?.note_text
+      );
+      if (noteNotifs.length > 0) {
+        return noteNotifs.map(
+          (n: {
+            id: string;
+            created_at: string;
+            metadata?: { peer_id?: string; sender_name?: string; note_text?: string };
+          }) => ({
+            id: n.id,
+            senderId: n.metadata?.peer_id || '',
+            senderName: n.metadata?.sender_name || 'A Kind Neighbor',
+            recipientId,
+            message: n.metadata?.note_text || '',
+            sentAt: n.created_at,
+          })
+        );
+      }
+    }
+
+    return [];
   } catch {
     return [];
   }
