@@ -130,9 +130,6 @@ const PORCH_GIFT_MESSAGES: Record<PorchItemType, string> = {
   note: 'Left a warm note on your porch. Open it when you feel ready. 💌',
 };
 
-/** Points awarded to a sender for leaving a porch warmth gift. */
-const PORCH_GIFT_SENDER_POINTS = 2;
-
 export async function sendPorchWarmth(
   recipientUserId: string,
   itemType: PorchItemType = 'tea',
@@ -179,11 +176,11 @@ export async function sendPorchWarmth(
     return { success: false, error: 'You can only send porch gifts to campmates in your group.' };
   }
 
-  // Get sender name and current points
+  // Get sender name
   const { data: senderData } = await service
     .schema('cozy')
     .from('users')
-    .select('display_name, points')
+    .select('display_name')
     .eq('id', user.id)
     .maybeSingle();
 

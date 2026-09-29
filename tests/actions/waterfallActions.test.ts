@@ -227,6 +227,8 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       expect(res.error).toMatch(/Recipient user ID is required/i);
     });
 
+    // Verifies application action orchestration across sendPorchWarmth and getPorchDigest.
+    // Database stored procedure contracts & atomic point awards are tested in tests/contracts/databaseContracts.test.ts.
     it('persists warmth gift across delivery and appearance in recipient porch digest', async () => {
       // Simulate stateful storage across RPC insert and getPorchDigest read
       const simulatedPorchItems: Array<{
@@ -264,7 +266,7 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
         if (table === 'users') {
           return {
             eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Robin', points: 0 } }),
+              maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Robin' } }),
             }),
           };
         }
