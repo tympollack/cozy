@@ -226,6 +226,82 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/Recipient user ID is required/i);
     });
+
+    it('persists warmth gift across delivery and appearance in recipient porch digest', async () => {
+      // Simulate stateful storage across RPC insert and getPorchDigest read
+      const simulatedPorchItems: Array<{
+        id: string;
+        recipient_id: string;
+        sender_id: string;
+        sender_name: string;
+        item_type: string;
+        message: string;
+        created_at: string;
+      }> = [];
+
+      mockRpc.mockImplementation((fnName: string, args: Record<string, unknown>) => {
+        if (fnName === 'send_porch_gift_atomic') {
+          const item = {
+            id: 'simulated-porch-item-123',
+            recipient_id: args.p_recipient_id as string,
+            sender_id: args.p_sender_id as string,
+            sender_name: (args.p_sender_name as string) || 'Robin',
+            item_type: args.p_item_type as string,
+            message: args.p_message as string,
+            created_at: (args.p_created_at as string) || new Date().toISOString(),
+          };
+          simulatedPorchItems.unshift(item);
+          return Promise.resolve({
+            data: { awarded: true, new_points: 2, gifts_today: 1 },
+            error: null,
+          });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
+
+      mockSelect.mockImplementation((table: string) => {
+        if (table === 'group_members') return groupMembersChain(true);
+        if (table === 'users') {
+          return {
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Robin', points: 0 } }),
+            }),
+          };
+        }
+        if (table === 'porch_items') {
+          return {
+            eq: vi.fn().mockImplementation((_col: string, val: string) => ({
+              order: vi.fn().mockImplementation(() =>
+                Promise.resolve({
+                  data: simulatedPorchItems.filter((i) => i.recipient_id === val),
+                  error: null,
+                })
+              ),
+            })),
+          };
+        }
+        return { eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) };
+      });
+
+      // 1. Sender deposits a porch gift
+      const sendRes = await sendPorchWarmth('recipient-user', 'cocoa', 'Hot cocoa for a chilly evening.');
+      expect(sendRes.success).toBe(true);
+      expect(sendRes.senderPoints).toBe(2);
+
+      // 2. Recipient views their porch digest
+      mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'recipient-user' } }, error: null });
+      const digestRes = await getPorchDigest('recipient-user');
+
+      expect(digestRes.success).toBe(true);
+      expect(digestRes.items).toHaveLength(1);
+      expect(digestRes.items[0]).toMatchObject({
+        senderId: 'sender-user',
+        senderName: 'Robin',
+        itemType: 'cocoa',
+        message: 'Hot cocoa for a chilly evening.',
+      });
+      expect(digestRes.digestText).toMatch(/1 campmate left cozy thoughts on your porch/i);
+    });
   });
 
   // ---------------------------------------------------------------------------
