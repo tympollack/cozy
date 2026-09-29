@@ -10,6 +10,7 @@ const mockUpdateVibe = vi.fn();
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockUpdate = vi.fn();
+const mockRpc = vi.fn();
 
 vi.mock('@/app/actions/vibeActions', () => ({
   updateVibeStatus: (...args: unknown[]) => mockUpdateVibe(...args),
@@ -28,6 +29,7 @@ vi.mock('@/lib/supabase', () => ({
         insert: (...args: unknown[]) => mockInsert(...args),
         update: (...args: unknown[]) => mockUpdate(...args),
       }),
+      rpc: (...args: unknown[]) => mockRpc(...args),
     }),
   }),
 }));
@@ -54,6 +56,10 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
     vi.clearAllMocks();
     mockInsert.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    mockRpc.mockResolvedValue({
+      data: { awarded: true, new_points: 2, gifts_today: 1 },
+      error: null,
+    });
 
     // Default select mock handles all tables in the happy path
     mockSelect.mockImplementation((table: string) => {
@@ -145,25 +151,37 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'sender-user' } }, error: null });
     });
 
-    it('deposits a quiet warmth gift on neighbor porch', async () => {
+    it('deposits a quiet warmth gift on neighbor porch via send_porch_gift_atomic RPC', async () => {
       const res = await sendPorchWarmth('recipient-user', 'blanket', 'Cozy blanket for your rest.');
       expect(res.success).toBe(true);
+      expect(mockRpc).toHaveBeenCalledWith('send_porch_gift_atomic', expect.objectContaining({
+        p_sender_id: 'sender-user',
+        p_recipient_id: 'recipient-user',
+        p_item_type: 'blanket',
+        p_message: 'Cozy blanket for your rest.',
+      }));
     });
 
-    it('awards +2 warmth points to sender on first gift of the day (count === 1)', async () => {
+    it('awards +2 warmth points to sender on first gift of the day (RPC awarded = true)', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: { awarded: true, new_points: 2, gifts_today: 1 },
+        error: null,
+      });
+
       const res = await sendPorchWarmth('recipient-user', 'flower');
       expect(res.success).toBe(true);
-      expect(res.senderPoints).toBe(2); // 0 base + PORCH_GIFT_SENDER_POINTS(2)
+      expect(res.senderPoints).toBe(2);
+      expect(mockRpc).toHaveBeenCalledWith('send_porch_gift_atomic', expect.objectContaining({
+        p_sender_id: 'sender-user',
+        p_recipient_id: 'recipient-user',
+        p_item_type: 'flower',
+      }));
     });
 
-    it('does not award points when sender has already gifted today (count > 1)', async () => {
-      mockSelect.mockImplementation((table: string) => {
-        if (table === 'group_members') return groupMembersChain(true);
-        if (table === 'users') {
-          return { eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Sender', points: 10 } }) }) };
-        }
-        // count=3 means already gifted earlier today
-        return { eq: vi.fn().mockReturnValue({ gte: vi.fn().mockResolvedValue({ count: 3 }) }) };
+    it('does not award points when sender has already gifted today (RPC awarded = false)', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: { awarded: false, new_points: null, gifts_today: 2 },
+        error: null,
       });
 
       const res = await sendPorchWarmth('recipient-user', 'tea');
@@ -189,22 +207,102 @@ describe('Waterfall Engine & Porch Actions (waterfallActions.ts)', () => {
       expect(res.error).toMatch(/campmates in your group/i);
     });
 
-    it('falls back to memory store when database insertion returns error', async () => {
-      mockInsert.mockResolvedValueOnce({ error: { message: 'Table does not exist' } });
+    it('falls back to memory store when database RPC returns error', async () => {
+      mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'Function send_porch_gift_atomic does not exist' } });
       const res = await sendPorchWarmth('recipient-user', 'tea');
       expect(res.success).toBe(true);
+      expect(res.senderPoints).toBeUndefined();
     });
 
-    it('falls back to memory store when database insertion throws', async () => {
-      mockInsert.mockRejectedValueOnce(new Error('DB crashed'));
+    it('falls back to memory store when database RPC throws', async () => {
+      mockRpc.mockRejectedValueOnce(new Error('DB crashed'));
       const res = await sendPorchWarmth('recipient-user', 'candle');
       expect(res.success).toBe(true);
+      expect(res.senderPoints).toBeUndefined();
     });
 
     it('returns error when recipientUserId is missing', async () => {
       const res = await sendPorchWarmth('');
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/Recipient user ID is required/i);
+    });
+
+    // Verifies application action orchestration across sendPorchWarmth and getPorchDigest.
+    // Database stored procedure contracts & atomic point awards are tested in tests/contracts/databaseContracts.test.ts.
+    it('persists warmth gift across delivery and appearance in recipient porch digest', async () => {
+      // Simulate stateful storage across RPC insert and getPorchDigest read
+      const simulatedPorchItems: Array<{
+        id: string;
+        recipient_id: string;
+        sender_id: string;
+        sender_name: string;
+        item_type: string;
+        message: string;
+        created_at: string;
+      }> = [];
+
+      mockRpc.mockImplementation((fnName: string, args: Record<string, unknown>) => {
+        if (fnName === 'send_porch_gift_atomic') {
+          const item = {
+            id: 'simulated-porch-item-123',
+            recipient_id: args.p_recipient_id as string,
+            sender_id: args.p_sender_id as string,
+            sender_name: (args.p_sender_name as string) || 'Robin',
+            item_type: args.p_item_type as string,
+            message: args.p_message as string,
+            created_at: (args.p_created_at as string) || new Date().toISOString(),
+          };
+          simulatedPorchItems.unshift(item);
+          return Promise.resolve({
+            data: { awarded: true, new_points: 2, gifts_today: 1 },
+            error: null,
+          });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
+
+      mockSelect.mockImplementation((table: string) => {
+        if (table === 'group_members') return groupMembersChain(true);
+        if (table === 'users') {
+          return {
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { display_name: 'Robin' } }),
+            }),
+          };
+        }
+        if (table === 'porch_items') {
+          return {
+            eq: vi.fn().mockImplementation((_col: string, val: string) => ({
+              order: vi.fn().mockImplementation(() =>
+                Promise.resolve({
+                  data: simulatedPorchItems.filter((i) => i.recipient_id === val),
+                  error: null,
+                })
+              ),
+            })),
+          };
+        }
+        return { eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) };
+      });
+
+      // 1. Sender deposits a porch gift
+      const sendRes = await sendPorchWarmth('recipient-user', 'cocoa', 'Hot cocoa for a chilly evening.');
+      expect(sendRes.success).toBe(true);
+      expect(sendRes.senderPoints).toBe(2);
+
+      // 2. Recipient views their porch digest
+      mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'recipient-user' } }, error: null });
+      const digestRes = await getPorchDigest('recipient-user');
+
+      expect(digestRes.success).toBe(true);
+      expect(digestRes.items).toHaveLength(1);
+      expect(digestRes.items[0]).toMatchObject({
+        senderId: 'sender-user',
+        senderName: 'Robin',
+        itemType: 'cocoa',
+        message: 'Hot cocoa for a chilly evening.',
+      });
+      expect(digestRes.digestText).toMatch(/1 campmate left cozy thoughts on your porch/i);
     });
   });
 

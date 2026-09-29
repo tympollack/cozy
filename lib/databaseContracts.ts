@@ -70,6 +70,16 @@ export interface DbCheer {
   created_at: string;
 }
 
+export interface DbPorchItem {
+  id: string;
+  recipient_id: string;
+  sender_id: string;
+  sender_name: string;
+  item_type: string;
+  message: string;
+  created_at: string;
+}
+
 // ---------------------------------------------------------------------------
 // Database Contract Harness
 // ---------------------------------------------------------------------------
@@ -80,6 +90,7 @@ export class DatabaseContractHarness {
   public vaultLocations = new Map<string, DbPostLocationVault>();
   public transactions: DbTransaction[] = [];
   public cheers: DbCheer[] = [];
+  public porchItems: DbPorchItem[] = [];
 
   public seedUser(user: DbUser): void {
     this.users.set(user.id, { ...user });
@@ -93,12 +104,23 @@ export class DatabaseContractHarness {
     this.vaultLocations.set(location.post_id, { ...location });
   }
 
+  public seedPorchItem(item: DbPorchItem): void {
+    this.porchItems.push({ ...item });
+  }
+
   public getUser(userId: string): DbUser | null {
     return this.users.get(userId) ?? null;
   }
 
   public getTransactions(userId: string): DbTransaction[] {
     return this.transactions.filter((t) => t.user_id === userId);
+  }
+
+  public getPorchItems(recipientId?: string): DbPorchItem[] {
+    if (recipientId) {
+      return this.porchItems.filter((i) => i.recipient_id === recipientId);
+    }
+    return [...this.porchItems];
   }
 
   public createClient(ctx: ClientContext) {
@@ -195,6 +217,66 @@ export class DatabaseContractHarness {
       return user.points;
     }
 
+    if (procedure === 'send_porch_gift_atomic') {
+      const senderId = (params.p_sender_id as string) || ctx.userId;
+      const recipientId = params.p_recipient_id as string;
+      const itemType = (params.p_item_type as string) || 'tea';
+      const message = (params.p_message as string) || '';
+      const createdAt = (params.p_created_at as string) || new Date().toISOString();
+      const senderName = (params.p_sender_name as string) || 'A Neighbor';
+
+      if (!senderId || !recipientId) {
+        throw new RpcExecutionError('Sender and recipient IDs are required.');
+      }
+
+      if (ctx.role === 'authenticated' && ctx.userId && senderId !== ctx.userId) {
+        throw new RpcExecutionError('Cannot send porch gift on behalf of another user.');
+      }
+
+      if (senderId === recipientId) {
+        throw new RpcExecutionError('You cannot send a porch gift to yourself.');
+      }
+
+      const sender = this.users.get(senderId);
+      if (!sender) {
+        throw new RpcExecutionError(`Sender ${senderId} not found.`);
+      }
+
+      // 1. Insert the gift into porch_items
+      const item: DbPorchItem = {
+        id: `porch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        recipient_id: recipientId,
+        sender_id: senderId,
+        sender_name: senderName,
+        item_type: itemType,
+        message,
+        created_at: createdAt,
+      };
+      this.porchItems.unshift(item);
+
+      // 2. Count gifts sent today by this sender (UTC day boundary)
+      const giftDate = new Date(createdAt);
+      const startOfDay = new Date(Date.UTC(giftDate.getUTCFullYear(), giftDate.getUTCMonth(), giftDate.getUTCDate()));
+      const giftsToday = this.porchItems.filter((p) => {
+        if (p.sender_id !== senderId) return false;
+        const pDate = new Date(p.created_at);
+        return pDate >= startOfDay;
+      }).length;
+
+      // 3. Award +2 warmth points only on first gift of the day
+      let awarded = false;
+      if (giftsToday === 1) {
+        sender.points += 2;
+        awarded = true;
+      }
+
+      return {
+        awarded,
+        new_points: sender.points,
+        gifts_today: giftsToday,
+      };
+    }
+
     throw new RpcExecutionError(`Unknown RPC procedure: ${procedure}`);
   }
 }
@@ -260,6 +342,19 @@ export class MockQueryBuilder implements PromiseLike<unknown> {
         return this.applyFilters(records);
       }
 
+      if (this.table === 'porch_items') {
+        if (this.ctx.role === 'anon') {
+          throw new RLSPolicyViolationError('Anon role cannot read porch items.');
+        }
+        let records = Array.from(this.harness.porchItems);
+        if (this.ctx.role === 'authenticated' && this.ctx.userId) {
+          records = records.filter(
+            (r) => r.recipient_id === this.ctx.userId || r.sender_id === this.ctx.userId
+          );
+        }
+        return this.applyFilters(records);
+      }
+
       return [];
     }
 
@@ -273,6 +368,14 @@ export class MockQueryBuilder implements PromiseLike<unknown> {
       if (this.table === 'posts' && this.mutateData) {
         const post = this.mutateData as unknown as DbPost;
         this.harness.posts.set(post.id, post);
+        return { success: true };
+      }
+      if (this.table === 'porch_items' && this.mutateData) {
+        const item = this.mutateData as unknown as DbPorchItem;
+        if (this.ctx.role === 'authenticated' && this.ctx.userId && item.sender_id !== this.ctx.userId) {
+          throw new RLSPolicyViolationError('Cannot insert porch item for another sender.');
+        }
+        this.harness.porchItems.push(item);
         return { success: true };
       }
       return { success: true };

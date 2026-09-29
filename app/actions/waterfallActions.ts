@@ -130,9 +130,6 @@ const PORCH_GIFT_MESSAGES: Record<PorchItemType, string> = {
   note: 'Left a warm note on your porch. Open it when you feel ready. 💌',
 };
 
-/** Points awarded to a sender for leaving a porch warmth gift. */
-const PORCH_GIFT_SENDER_POINTS = 2;
-
 export async function sendPorchWarmth(
   recipientUserId: string,
   itemType: PorchItemType = 'tea',
@@ -179,11 +176,11 @@ export async function sendPorchWarmth(
     return { success: false, error: 'You can only send porch gifts to campmates in your group.' };
   }
 
-  // Get sender name and current points
+  // Get sender name
   const { data: senderData } = await service
     .schema('cozy')
     .from('users')
-    .select('display_name, points')
+    .select('display_name')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -199,50 +196,29 @@ export async function sendPorchWarmth(
     createdAt: new Date().toISOString(),
   };
 
-  // Insert porch gift FIRST, then count — this makes the TOCTOU race safe:
-  // after our own insert, giftsToday is always >= 1. If two calls race, both
-  // insert, then both see count >= 2, so neither awards a second time. Only
-  // the single call whose insert brought the count to exactly 1 awards points.
+  // Atomically insert porch gift and award points (+2) on first gift of the day via RPC
   let newSenderPoints: number | undefined;
 
   try {
-    const { error: dbError } = await service
+    const { data: rpcResult, error: rpcError } = await service
       .schema('cozy')
-      .from('porch_items')
-      .insert({
-        recipient_id: recipientUserId,
-        sender_id: user.id,
-        sender_name: senderName,
-        item_type: itemType,
-        message: newItem.message,
-        created_at: newItem.createdAt,
+      .rpc('send_porch_gift_atomic', {
+        p_sender_id: user.id,
+        p_recipient_id: recipientUserId,
+        p_item_type: itemType,
+        p_message: newItem.message,
+        p_created_at: newItem.createdAt,
+        p_sender_name: senderName,
       });
 
-    if (dbError) {
+    if (rpcError) {
       // Memory store fallback — no points award in fallback path
       const existing = porchMemoryStore.get(recipientUserId) || [];
       porchMemoryStore.set(recipientUserId, [newItem, ...existing]);
     } else {
-      // Count today's gifts by this sender (post-insert, so always >= 1)
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
-
-      const { count: giftsToday } = await service
-        .schema('cozy')
-        .from('porch_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('sender_id', user.id)
-        .gte('created_at', todayStart.toISOString());
-
-      // Award points only on the FIRST gift of the day (count === 1 means this insert was it)
-      if (giftsToday === 1) {
-        const currentPoints = senderData?.points ?? 0;
-        newSenderPoints = currentPoints + PORCH_GIFT_SENDER_POINTS;
-        await service
-          .schema('cozy')
-          .from('users')
-          .update({ points: newSenderPoints })
-          .eq('id', user.id);
+      const result = rpcResult as { awarded?: boolean; new_points?: number | null } | null;
+      if (result?.awarded && typeof result.new_points === 'number') {
+        newSenderPoints = result.new_points;
       }
     }
   } catch {
