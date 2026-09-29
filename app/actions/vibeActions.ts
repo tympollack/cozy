@@ -516,111 +516,134 @@ export async function sendPeerSupport(
     }
   }
 
+  let noteId: string | undefined;
+  let isSchemaMissing = false;
   if (type === 'note') {
-    if (!payload?.noteText || !payload.noteText.trim()) {
-      return { success: false, error: 'Note text cannot be empty.' };
+      if (!payload?.noteText || !payload.noteText.trim()) {
+        return { success: false, error: 'Note text cannot be empty.' };
+      }
+      noteId = crypto.randomUUID();
+      // Store in cozy.private_notes table; verify successful insert before notifying recipient
+      try {
+        const { error: noteInsertError } = await service.schema('cozy').from('private_notes').insert({
+          id: noteId,
+          sender_id: user.id,
+          sender_name: senderName,
+          recipient_id: recipientId,
+          message: payload.noteText.trim(),
+          delivered_to_porch: true,
+          created_at: new Date().toISOString(),
+        });
+
+        if (noteInsertError) {
+          console.warn('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
+          isSchemaMissing = noteInsertError.message.includes('schema cache') ||
+                            noteInsertError.message.includes('does not exist') ||
+                            (noteInsertError as unknown as { code?: string }).code === '42P01';
+          if (!isSchemaMissing) {
+            return { success: false, error: 'Failed to deliver private note. Please try again.' };
+          }
+        }
+      } catch (noteErr) {
+        console.warn('[sendPeerSupport] Exception inserting private note:', noteErr);
+        return { success: false, error: 'Failed to deliver private note. Please try again.' };
+      }
     }
-    // Store in cozy.private_notes table; verify successful insert before notifying recipient
+
+    // Insert recipient notification in cozy.notifications so bell badge updates
     try {
-      const { error: noteInsertError } = await service.schema('cozy').from('private_notes').insert({
-        sender_id: user.id,
-        sender_name: senderName,
-        recipient_id: recipientId,
-        message: payload.noteText.trim(),
-        delivered_to_porch: true,
+      let notifTitle = '💛 Peer Support Received';
+      let notifMsg = `${senderName} sent you some warm thoughts!`;
+      if (type === 'brew') {
+        notifTitle = '☕ Warm Brew Delivered';
+        notifMsg = `${senderName} sent you a warm brew! (+5 pts)`;
+      } else if (type === 'sticker') {
+        notifTitle = '🎨 Comfort Sticker';
+        notifMsg = `${senderName} placed a comfort sticker on your space! (+5 pts)`;
+      } else if (type === 'note') {
+        notifTitle = '💌 Private Supportive Note';
+        notifMsg = `${senderName} left a warm note on your porch.`;
+      }
+
+      const { error: notifError } = await service.schema('cozy').from('notifications').insert({
+        user_id: recipientId,
+        type: 'peer_checkin',
+        title: notifTitle,
+        message: notifMsg,
+        metadata: {
+          ...(noteId ? { note_id: noteId } : {}),
+          peer_id: user.id,
+          sender_name: senderName,
+          support_type: type,
+          action_url: '/profile',
+          // Only include note_text in fallback notification metadata when private_notes table is missing
+          ...(type === 'note' && isSchemaMissing ? { note_text: payload?.noteText?.trim() } : {}),
+        },
+        is_read: false,
         created_at: new Date().toISOString(),
       });
 
-      if (noteInsertError) {
-        console.warn('[sendPeerSupport] Failed to insert private note:', noteInsertError.message);
-        const isSchemaMissing = noteInsertError.message.includes('schema cache') ||
-                                noteInsertError.message.includes('does not exist') ||
-                                (noteInsertError as unknown as { code?: string }).code === '42P01';
-        if (!isSchemaMissing) {
-          return { success: false, error: 'Failed to deliver private note. Please try again.' };
-        }
+      if (notifError) {
+        console.warn('[sendPeerSupport] Notification insert warning:', notifError.message);
       }
-    } catch (noteErr) {
-      console.warn('[sendPeerSupport] Exception inserting private note:', noteErr);
-      return { success: false, error: 'Failed to deliver private note. Please try again.' };
+    } catch (notifErr) {
+      console.warn('[sendPeerSupport] Recipient notification insert note:', notifErr);
     }
+
+    return { success: true, senderPoints: newSenderPoints };
   }
 
-  // Insert recipient notification in cozy.notifications so bell badge updates
-  try {
-    let notifTitle = '💛 Peer Support Received';
-    let notifMsg = `${senderName} sent you some warm thoughts!`;
-    if (type === 'brew') {
-      notifTitle = '☕ Warm Brew Delivered';
-      notifMsg = `${senderName} sent you a warm brew! (+5 pts)`;
-    } else if (type === 'sticker') {
-      notifTitle = '🎨 Comfort Sticker';
-      notifMsg = `${senderName} placed a comfort sticker on your space! (+5 pts)`;
-    } else if (type === 'note') {
-      notifTitle = '💌 Private Supportive Note';
-      notifMsg = `${senderName} left a warm note on your porch.`;
-    }
-
-    const { error: notifError } = await service.schema('cozy').from('notifications').insert({
-      user_id: recipientId,
-      type: 'peer_checkin',
-      title: notifTitle,
-      message: notifMsg,
-      metadata: {
-        peer_id: user.id,
-        sender_name: senderName,
-        support_type: type,
-        action_url: '/profile',
-        note_text: type === 'note' ? payload?.noteText?.trim() : undefined,
-      },
-      is_read: false,
-      created_at: new Date().toISOString(),
-    });
-
-    if (notifError) {
-      console.warn('[sendPeerSupport] Notification insert warning:', notifError.message);
-    }
-  } catch (notifErr) {
-    console.warn('[sendPeerSupport] Recipient notification insert note:', notifErr);
-  }
-
-  return { success: true, senderPoints: newSenderPoints };
+export interface GetPrivateNotesOptions {
+  limit?: number;
+  offset?: number;
 }
 
 /**
  * Retrieves private supportive notes sent to the current authenticated user.
  * Merges notes across primary private_notes storage and outage fallback notifications.
+ * Preserves full history by default, or applies pagination when limit/offset are specified.
  */
-export async function getPrivateNotes(recipientId: string): Promise<PrivateSupportNote[]> {
+export async function getPrivateNotes(
+  recipientId: string,
+  options?: GetPrivateNotesOptions
+): Promise<PrivateSupportNote[]> {
   const { createServerClient, createServiceClient } = await import('@/lib/supabase');
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Security guard: authenticated callers can only read their own private notes
-  if (user && user.id !== recipientId) {
+  // Security guard: caller must be authenticated and can only read their own private notes
+  if (!user || user.id !== recipientId) {
     return [];
   }
 
   const service = createServiceClient();
 
   try {
-    const [privateNotesRes, notifsRes] = await Promise.allSettled([
-      service
-        .schema('cozy')
-        .from('private_notes')
-        .select('*')
-        .eq('recipient_id', recipientId)
-        .order('created_at', { ascending: false }),
-      service
-        .schema('cozy')
-        .from('notifications')
-        .select('*')
-        .eq('user_id', recipientId)
-        .order('created_at', { ascending: false }),
-    ]);
+    let notesQuery = service
+      .schema('cozy')
+      .from('private_notes')
+      .select('*')
+      .eq('recipient_id', recipientId)
+      .order('created_at', { ascending: false });
+
+    let notifsQuery = service
+      .schema('cozy')
+      .from('notifications')
+      .select('*')
+      .eq('user_id', recipientId)
+      .eq('type', 'peer_checkin')
+      .order('created_at', { ascending: false });
+
+    if (typeof options?.limit === 'number') {
+      const offset = options.offset || 0;
+      notesQuery = notesQuery.limit(offset + options.limit);
+      notifsQuery = notifsQuery.limit(offset + options.limit);
+    }
+
+    const [privateNotesRes, notifsRes] = await Promise.allSettled([notesQuery, notifsQuery]);
 
     const results: PrivateSupportNote[] = [];
-    const seenSignatures = new Set<string>();
+    const seenNoteIds = new Set<string>();
 
     if (privateNotesRes.status === 'fulfilled' && !privateNotesRes.value.error && privateNotesRes.value.data) {
       for (const row of privateNotesRes.value.data) {
@@ -632,8 +655,7 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
           message: row.message,
           sentAt: row.created_at,
         });
-        const timeKey = row.created_at ? new Date(row.created_at).toISOString().slice(0, 16) : '';
-        seenSignatures.add(`${row.sender_id || ''}|${row.message}|${timeKey}`);
+        seenNoteIds.add(row.id);
       }
     }
 
@@ -644,26 +666,36 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
       );
 
       for (const n of noteNotifs) {
-        const senderId = n.metadata?.peer_id || '';
-        const msg = n.metadata?.note_text || '';
-        const timeKey = n.created_at ? new Date(n.created_at).toISOString().slice(0, 16) : '';
-        const sig = `${senderId}|${msg}|${timeKey}`;
+        const noteId = n.metadata?.note_id;
+        // If notification references a primary note that is already in results, skip duplicate
+        if (noteId && seenNoteIds.has(noteId)) {
+          continue;
+        }
 
-        if (!seenSignatures.has(sig)) {
-          results.push({
-            id: n.id,
-            senderId,
-            senderName: n.metadata?.sender_name || 'A Kind Neighbor',
-            recipientId,
-            message: msg,
-            sentAt: n.created_at,
-          });
-          seenSignatures.add(sig);
+        // Distinct fallback notifications (both legacy without note_id and modern outage deliveries)
+        // are preserved as independent deliveries and keyed by their unique identifier
+        results.push({
+          id: noteId || n.id,
+          senderId: n.metadata?.peer_id || '',
+          senderName: n.metadata?.sender_name || 'A Kind Neighbor',
+          recipientId,
+          message: n.metadata?.note_text || '',
+          sentAt: n.created_at,
+        });
+
+        if (noteId) {
+          seenNoteIds.add(noteId);
         }
       }
     }
 
     results.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+
+    if (typeof options?.limit === 'number') {
+      const offset = options.offset || 0;
+      return results.slice(offset, offset + options.limit);
+    }
+
     return results;
   } catch {
     return [];
