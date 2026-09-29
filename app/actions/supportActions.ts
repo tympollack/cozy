@@ -177,7 +177,9 @@ export async function sendPeerSupport(
     // Insert note with sender_name, created_at, delivered_to_porch
     let noteDelivered = false;
     let insertErrorMessage = '';
+    const noteId = crypto.randomUUID();
     const { error: insertErr } = await service.schema('cozy').from('private_notes').insert({
+      id: noteId,
       sender_id: user.id,
       sender_name: senderName,
       recipient_id: targetUserId,
@@ -212,11 +214,12 @@ export async function sendPeerSupport(
         title: '💌 Private Supportive Note',
         message: `${senderName} left a warm note on your porch.`,
         metadata: {
+          note_id: noteId,
           peer_id: user.id,
           sender_name: senderName,
           support_type: 'note',
           action_url: '/profile',
-          note_text: text,
+          ...(isSchemaMissing ? { note_text: text } : {}),
         },
         is_read: false,
         created_at: new Date().toISOString(),

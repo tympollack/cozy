@@ -101,8 +101,16 @@ describe('Enhanced Peer Support Actions (supportActions.ts)', () => {
         type: 'peer_checkin',
         title: '💌 Private Supportive Note',
         message: 'Kind Neighbor left a warm note on your porch.',
+        metadata: expect.objectContaining({
+          note_id: expect.any(String),
+          peer_id: 'user-me',
+          sender_name: 'Kind Neighbor',
+          support_type: 'note',
+        }),
       })
     );
+    const notifCall = mockInsert.mock.calls.find((call) => call[0]?.type === 'peer_checkin');
+    expect(notifCall?.[0]?.metadata?.note_text).toBeUndefined();
   });
 
   it('returns failure when note text is empty or toxic', async () => {

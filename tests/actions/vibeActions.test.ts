@@ -71,13 +71,10 @@ vi.mock('@/lib/supabase', () => ({
             gte: () => ({
               limit: () => Promise.resolve({ data: [], error: null }),
             }),
-            order: () => ({
-              limit: () => ({
-                maybeSingle: () => Promise.resolve({ data: { group_id: 'group-123' }, error: null }),
-              }),
-              then: (resolve: (v: unknown) => void) => {
+            order: () => {
+              const getData = () => {
                 if (tableName === 'private_notes') {
-                  return Promise.resolve({
+                  return {
                     data: [
                       {
                         id: 'note-1',
@@ -90,15 +87,26 @@ vi.mock('@/lib/supabase', () => ({
                       },
                     ],
                     error: null,
-                  }).then(resolve);
+                  };
                 }
                 if (tableName === 'notifications') {
                   const filtered = mockExistingNotifications.filter((n) => n.user_id === val1);
-                  return Promise.resolve({ data: filtered, error: null }).then(resolve);
+                  return { data: filtered, error: null };
                 }
-                return Promise.resolve({ data: [], error: null }).then(resolve);
-              },
-            }),
+                return { data: [], error: null };
+              };
+
+              return {
+                limit: (lim: number) => ({
+                  maybeSingle: () => Promise.resolve({ data: { group_id: 'group-123' }, error: null }),
+                  then: (resolve: (v: unknown) => void) => {
+                    const res = getData();
+                    return Promise.resolve({ ...res, data: res.data?.slice(0, lim) }).then(resolve);
+                  },
+                }),
+                then: (resolve: (v: unknown) => void) => Promise.resolve(getData()).then(resolve),
+              };
+            },
             limit: () => ({
               maybeSingle: () => Promise.resolve({ data: { group_id: 'group-123' }, error: null }),
             }),
@@ -222,6 +230,48 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(notes).toEqual([]);
   });
 
+  it('blocks unauthenticated users from reading private notes', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    const notes = await getPrivateNotes('user-vibe-1');
+    expect(notes).toEqual([]);
+  });
+
+  it('preserves distinct repeated notes sent during an outage without collapsing', async () => {
+    mockExistingNotifications = [
+      {
+        id: 'notif-repeat-1',
+        user_id: 'user-vibe-1',
+        type: 'peer_checkin',
+        metadata: {
+          peer_id: 'sender-alex',
+          sender_name: 'Alex',
+          support_type: 'note',
+          note_text: 'Thinking of you! 💛',
+        },
+        created_at: '2026-08-20T10:01:05.000Z',
+      },
+      {
+        id: 'notif-repeat-2',
+        user_id: 'user-vibe-1',
+        type: 'peer_checkin',
+        metadata: {
+          peer_id: 'sender-alex',
+          sender_name: 'Alex',
+          support_type: 'note',
+          note_text: 'Thinking of you! 💛',
+        },
+        created_at: '2026-08-20T10:01:45.000Z',
+      },
+    ];
+
+    const notes = await getPrivateNotes('user-vibe-1');
+    expect(notes).toHaveLength(3);
+    const repeated = notes.filter((n) => n.message === 'Thinking of you! 💛');
+    expect(repeated).toHaveLength(2);
+    expect(repeated[0].id).toBe('notif-repeat-2');
+    expect(repeated[1].id).toBe('notif-repeat-1');
+  });
+
   it('merges mixed-store notes from private_notes and fallback notifications without losing earlier outage notes', async () => {
     mockExistingNotifications = [
       {
@@ -247,7 +297,7 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(notes[1].senderName).toBe('Alex');
   });
 
-  it('sends peer support note with delivered_to_porch and notifies recipient', async () => {
+  it('sends peer support note with delivered_to_porch, seals preview, and does not leak note_text in notification metadata on success', async () => {
     const res = await sendPeerSupport('user-peer-2', 'note', {
       noteText: 'Here is some cozy sunshine for your day!',
     });
@@ -260,6 +310,14 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     expect(mockInsertedNotifications[0].user_id).toBe('user-peer-2');
     expect(mockInsertedNotifications[0].type).toBe('peer_checkin');
     expect(mockInsertedNotifications[0].title).toContain('Private Supportive Note');
+    expect(mockInsertedNotifications[0].message).toBe('Cozy Jordan left a warm note on your porch.');
+    expect(mockInsertedNotifications[0].metadata).toMatchObject({
+      note_id: expect.any(String),
+      peer_id: 'user-vibe-1',
+      sender_name: 'Cozy Jordan',
+      support_type: 'note',
+    });
+    expect(mockInsertedNotifications[0].metadata.note_text).toBeUndefined();
   });
 
   it('sends warm brew peer support, rewards points and notifies recipient', async () => {

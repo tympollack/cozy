@@ -559,17 +559,26 @@ const getCachedGroupData = unstable_cache(
       .in('id', userIds);
 
     if (usersError) {
-      console.warn('[getGroupWithMembers] Users query with avatar_url failed, falling back:', usersError.message);
-      const { data: fallbackUsers, error: fallbackError } = await service
-        .schema('cozy')
-        .from('users')
-        .select('id, display_name, points, shell_type, vibe_status')
-        .in('id', userIds);
+      const isMissingColumn =
+        usersError.message.includes('avatar_url') ||
+        usersError.message.includes('column') ||
+        (usersError as unknown as { code?: string }).code === '42703';
 
-      if (fallbackError) {
-        console.error('[getGroupWithMembers] Fallback users query error:', fallbackError.message);
+      if (isMissingColumn) {
+        console.warn('[getGroupWithMembers] Users query with avatar_url failed (missing column), falling back:', usersError.message);
+        const { data: fallbackUsers, error: fallbackError } = await service
+          .schema('cozy')
+          .from('users')
+          .select('id, display_name, points, shell_type, vibe_status')
+          .in('id', userIds);
+
+        if (fallbackError) {
+          console.error('[getGroupWithMembers] Fallback users query error:', fallbackError.message);
+        } else {
+          usersData = fallbackUsers;
+        }
       } else {
-        usersData = fallbackUsers;
+        console.error('[getGroupWithMembers] Users query error:', usersError.message);
       }
     } else {
       usersData = initialUsers;
