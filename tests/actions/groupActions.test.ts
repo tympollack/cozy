@@ -124,4 +124,152 @@ describe('Group Actions & Dynamic Map Theme Bundle', () => {
       { x: 25, y: 32 },
     ]);
   });
+
+  it('triggers fallback query when users query fails due to missing avatar_url column', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user_1' } },
+      error: null,
+    });
+
+    const mockGroup = {
+      id: 'grp_test',
+      name: 'Test Group',
+      type: 'neighborhood',
+      min_members: 1,
+      max_members: 10,
+      pooled_points: 0,
+      theme_id: 'default',
+      invite_code: 'TEST1234',
+      created_at: new Date().toISOString(),
+    };
+
+    const mockMemberships = [{ user_id: 'user_1', role: 'member', joined_at: new Date().toISOString() }];
+
+    const mockFallbackUsers = [
+      {
+        id: 'user_1',
+        display_name: 'Fallback User',
+        points: 100,
+        shell_type: 'default_dollhouse',
+        vibe_status: 'sunshine',
+      },
+    ];
+
+    let userQueryCount = 0;
+    mockServiceFrom.mockImplementation((table: string) => {
+      if (table === 'groups') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: mockGroup, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'group_members') {
+        return {
+          select: () => ({
+            eq: vi.fn().mockResolvedValue({ data: mockMemberships, error: null }),
+          }),
+        };
+      }
+      if (table === 'users') {
+        return {
+          select: (cols: string) => ({
+            in: vi.fn().mockImplementation(() => {
+              userQueryCount++;
+              if (cols.includes('avatar_url')) {
+                return Promise.resolve({
+                  data: null,
+                  error: { message: "column users.avatar_url does not exist", code: '42703' },
+                });
+              }
+              return Promise.resolve({ data: mockFallbackUsers, error: null });
+            }),
+          }),
+        };
+      }
+      if (table === 'village_map_themes') {
+        return {
+          select: () => ({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const result = await getGroupWithMembers('grp_test');
+    expect(result).not.toBeNull();
+    expect(userQueryCount).toBe(2);
+    expect(result!.members[0].display_name).toBe('Fallback User');
+  });
+
+  it('does not trigger avatar fallback on unrelated column errors', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user_1' } },
+      error: null,
+    });
+
+    const mockGroup = {
+      id: 'grp_test',
+      name: 'Test Group',
+      type: 'neighborhood',
+      min_members: 1,
+      max_members: 10,
+      pooled_points: 0,
+      theme_id: 'default',
+      invite_code: 'TEST1234',
+      created_at: new Date().toISOString(),
+    };
+
+    const mockMemberships = [{ user_id: 'user_1', role: 'member', joined_at: new Date().toISOString() }];
+
+    let userQueryCount = 0;
+    mockServiceFrom.mockImplementation((table: string) => {
+      if (table === 'groups') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: mockGroup, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'group_members') {
+        return {
+          select: () => ({
+            eq: vi.fn().mockResolvedValue({ data: mockMemberships, error: null }),
+          }),
+        };
+      }
+      if (table === 'users') {
+        return {
+          select: () => ({
+            in: vi.fn().mockImplementation(() => {
+              userQueryCount++;
+              return Promise.resolve({
+                data: null,
+                error: { message: "column users.shell_type does not exist", code: '42703' },
+              });
+            }),
+          }),
+        };
+      }
+      if (table === 'village_map_themes') {
+        return {
+          select: () => ({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const result = await getGroupWithMembers('grp_test');
+    expect(result).not.toBeNull();
+    // Only 1 attempt made; does not blindly retry with the fallback that also requires shell_type
+    expect(userQueryCount).toBe(1);
+    expect(result!.members[0].display_name).toBe('Cozy Neighbor');
+  });
 });

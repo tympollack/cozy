@@ -95,6 +95,22 @@ describe('Enhanced Peer Support Actions (supportActions.ts)', () => {
         created_at: expect.any(String),
       })
     );
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-neighbor',
+        type: 'peer_checkin',
+        title: '💌 Private Supportive Note',
+        message: 'Kind Neighbor left a warm note on your porch.',
+        metadata: expect.objectContaining({
+          note_id: expect.any(String),
+          peer_id: 'user-me',
+          sender_name: 'Kind Neighbor',
+          support_type: 'note',
+        }),
+      })
+    );
+    const notifCall = mockInsert.mock.calls.find((call) => call[0]?.type === 'peer_checkin');
+    expect(notifCall?.[0]?.metadata?.note_text).toBeUndefined();
   });
 
   it('returns failure when note text is empty or toxic', async () => {
@@ -109,12 +125,37 @@ describe('Enhanced Peer Support Actions (supportActions.ts)', () => {
     expect(res2.error).toMatch(/warm, uplifting messages only/i);
   });
 
-  it('returns failure when note database insertion fails', async () => {
+  it('returns failure when note database insertion fails with non-schema error and aborts notification', async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
     mockInsert.mockResolvedValue({ error: { message: 'Database disk full' } });
 
     const res = await sendPeerSupport('user-neighbor', 'note', 'Warm hugs');
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/Could not deliver note to porch/i);
+    // Should NOT send fallback notification on disk/constraint failure
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('delivers note via fallback notification when private_notes table is missing from schema cache', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+    mockInsert.mockImplementation((record: Record<string, unknown>) => {
+      if (record?.delivered_to_porch) {
+        return Promise.resolve({ error: { message: "Could not find the table 'cozy.private_notes' in the schema cache" } });
+      }
+      return Promise.resolve({ error: null });
+    });
+
+    const res = await sendPeerSupport('user-neighbor', 'note', 'Hope you have a warm evening! ✨');
+    expect(res.success).toBe(true);
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-neighbor',
+        type: 'peer_checkin',
+        message: 'Kind Neighbor left a warm note on your porch.',
+        metadata: expect.objectContaining({
+          note_text: 'Hope you have a warm evening! ✨',
+        }),
+      })
+    );
   });
 });
