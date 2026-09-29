@@ -593,11 +593,20 @@ export async function sendPeerSupport(
     return { success: true, senderPoints: newSenderPoints };
   }
 
+export interface GetPrivateNotesOptions {
+  limit?: number;
+  offset?: number;
+}
+
 /**
  * Retrieves private supportive notes sent to the current authenticated user.
  * Merges notes across primary private_notes storage and outage fallback notifications.
+ * Preserves full history by default, or applies pagination when limit/offset are specified.
  */
-export async function getPrivateNotes(recipientId: string): Promise<PrivateSupportNote[]> {
+export async function getPrivateNotes(
+  recipientId: string,
+  options?: GetPrivateNotesOptions
+): Promise<PrivateSupportNote[]> {
   const { createServerClient, createServiceClient } = await import('@/lib/supabase');
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -610,26 +619,31 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
   const service = createServiceClient();
 
   try {
-    const [privateNotesRes, notifsRes] = await Promise.allSettled([
-      service
-        .schema('cozy')
-        .from('private_notes')
-        .select('*')
-        .eq('recipient_id', recipientId)
-        .order('created_at', { ascending: false })
-        .limit(50),
-      service
-        .schema('cozy')
-        .from('notifications')
-        .select('*')
-        .eq('user_id', recipientId)
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
+    let notesQuery = service
+      .schema('cozy')
+      .from('private_notes')
+      .select('*')
+      .eq('recipient_id', recipientId)
+      .order('created_at', { ascending: false });
+
+    let notifsQuery = service
+      .schema('cozy')
+      .from('notifications')
+      .select('*')
+      .eq('user_id', recipientId)
+      .eq('type', 'peer_checkin')
+      .order('created_at', { ascending: false });
+
+    if (typeof options?.limit === 'number') {
+      const offset = options.offset || 0;
+      notesQuery = notesQuery.limit(offset + options.limit);
+      notifsQuery = notifsQuery.limit(offset + options.limit);
+    }
+
+    const [privateNotesRes, notifsRes] = await Promise.allSettled([notesQuery, notifsQuery]);
 
     const results: PrivateSupportNote[] = [];
     const seenNoteIds = new Set<string>();
-    const primarySignatures = new Set<string>();
 
     if (privateNotesRes.status === 'fulfilled' && !privateNotesRes.value.error && privateNotesRes.value.data) {
       for (const row of privateNotesRes.value.data) {
@@ -642,8 +656,6 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
           sentAt: row.created_at,
         });
         seenNoteIds.add(row.id);
-        const timeKey = row.created_at ? new Date(row.created_at).toISOString().slice(0, 16) : '';
-        primarySignatures.add(`${row.sender_id || ''}|${row.message}|${timeKey}`);
       }
     }
 
@@ -660,23 +672,14 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
           continue;
         }
 
-        const senderId = n.metadata?.peer_id || '';
-        const msg = n.metadata?.note_text || '';
-        const timeKey = n.created_at ? new Date(n.created_at).toISOString().slice(0, 16) : '';
-        const sig = `${senderId}|${msg}|${timeKey}`;
-
-        // If no explicit note_id, check if signature matches a primary note already loaded
-        if (!noteId && primarySignatures.has(sig)) {
-          continue;
-        }
-
-        // Distinct fallback notifications during an outage are preserved and keyed by n.id
+        // Distinct fallback notifications (both legacy without note_id and modern outage deliveries)
+        // are preserved as independent deliveries and keyed by their unique identifier
         results.push({
           id: noteId || n.id,
-          senderId,
+          senderId: n.metadata?.peer_id || '',
           senderName: n.metadata?.sender_name || 'A Kind Neighbor',
           recipientId,
-          message: msg,
+          message: n.metadata?.note_text || '',
           sentAt: n.created_at,
         });
 
@@ -687,6 +690,12 @@ export async function getPrivateNotes(recipientId: string): Promise<PrivateSuppo
     }
 
     results.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+
+    if (typeof options?.limit === 'number') {
+      const offset = options.offset || 0;
+      return results.slice(offset, offset + options.limit);
+    }
+
     return results;
   } catch {
     return [];

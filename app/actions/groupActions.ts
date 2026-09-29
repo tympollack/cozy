@@ -559,13 +559,12 @@ const getCachedGroupData = unstable_cache(
       .in('id', userIds);
 
     if (usersError) {
-      const isMissingColumn =
+      const isMissingAvatarUrl =
         usersError.message.includes('avatar_url') ||
-        usersError.message.includes('column') ||
-        (usersError as unknown as { code?: string }).code === '42703';
+        Boolean((usersError as unknown as { details?: string })?.details?.includes('avatar_url'));
 
-      if (isMissingColumn) {
-        console.warn('[getGroupWithMembers] Users query with avatar_url failed (missing column), falling back:', usersError.message);
+      if (isMissingAvatarUrl) {
+        console.warn('[getGroupWithMembers] Users query with avatar_url failed (missing avatar_url column), falling back:', usersError.message);
         const { data: fallbackUsers, error: fallbackError } = await service
           .schema('cozy')
           .from('users')

@@ -9,6 +9,7 @@ let mockInsertedNotifications: any[] = [];
 let mockUpdatedUsers: any[] = [];
 
 let mockExistingNotifications: any[] = [];
+let mockExistingPrivateNotes: any[] | null = null;
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
@@ -60,20 +61,60 @@ vi.mock('@/lib/supabase', () => ({
               }
               return Promise.resolve({ data: null, error: null });
             },
-            eq: (col2: string, val2: unknown) => ({
-              maybeSingle: () => {
-                if (tableName === 'group_members' && val2 === 'group-123') {
-                  return Promise.resolve({ data: { group_id: 'group-123' }, error: null });
+            eq: (col2: string, val2: unknown) => {
+              const getData = () => {
+                if (tableName === 'notifications') {
+                  const filtered = mockExistingNotifications.filter((n) => {
+                    const matches1 = (n as Record<string, unknown>)[col1] === val1;
+                    const matches2 = (n as Record<string, unknown>)[col2] === val2;
+                    return matches1 && matches2;
+                  });
+                  return { data: filtered, error: null };
                 }
-                return Promise.resolve({ data: null, error: null });
-              },
-            }),
+                return { data: [], error: null };
+              };
+
+              return {
+                maybeSingle: () => {
+                  if (tableName === 'group_members' && val2 === 'group-123') {
+                    return Promise.resolve({ data: { group_id: 'group-123' }, error: null });
+                  }
+                  return Promise.resolve({ data: null, error: null });
+                },
+                order: () => ({
+                  limit: (lim: number) => ({
+                    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                    then: (resolve: (v: unknown) => void) => {
+                      const res = getData();
+                      return Promise.resolve({ ...res, data: res.data?.slice(0, lim) }).then(resolve);
+                    },
+                  }),
+                  then: (resolve: (v: unknown) => void) => Promise.resolve(getData()).then(resolve),
+                }),
+                limit: (lim: number) => ({
+                  order: () => ({
+                    then: (resolve: (v: unknown) => void) => {
+                      const res = getData();
+                      return Promise.resolve({ ...res, data: res.data?.slice(0, lim) }).then(resolve);
+                    },
+                  }),
+                  then: (resolve: (v: unknown) => void) => {
+                    const res = getData();
+                    return Promise.resolve({ ...res, data: res.data?.slice(0, lim) }).then(resolve);
+                  },
+                }),
+                then: (resolve: (v: unknown) => void) => Promise.resolve(getData()).then(resolve),
+              };
+            },
             gte: () => ({
               limit: () => Promise.resolve({ data: [], error: null }),
             }),
             order: () => {
               const getData = () => {
                 if (tableName === 'private_notes') {
+                  if (mockExistingPrivateNotes !== null) {
+                    return { data: mockExistingPrivateNotes, error: null };
+                  }
                   return {
                     data: [
                       {
@@ -140,6 +181,7 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     mockInsertedNotifications = [];
     mockUpdatedUsers = [];
     mockExistingNotifications = [];
+    mockExistingPrivateNotes = null;
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-vibe-1' } }, error: null });
     mockRpc.mockResolvedValue({
       data: [{ peer_user_id: 'peer-1', peer_name: 'Jordan' }],
@@ -295,6 +337,96 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     // Outage note preserved from notifications table
     expect(notes[1].message).toBe('Sent during outage! 🕯️');
     expect(notes[1].senderName).toBe('Alex');
+  });
+
+  it('preserves full history when user has more than 50 notes, and supports optional limit/offset pagination', async () => {
+    mockExistingPrivateNotes = Array.from({ length: 60 }, (_, i) => ({
+      id: `note-${i}`,
+      sender_id: `sender-${i}`,
+      sender_name: `Neighbor ${i}`,
+      recipient_id: 'user-vibe-1',
+      message: `Warm note #${i}`,
+      created_at: new Date(Date.now() - i * 1000).toISOString(),
+    }));
+
+    // Calling without options returns all 60 notes (no artificial 50-item truncation)
+    const allNotes = await getPrivateNotes('user-vibe-1');
+    expect(allNotes).toHaveLength(60);
+
+    // Calling with pagination returns the requested slice
+    const page1 = await getPrivateNotes('user-vibe-1', { limit: 10, offset: 0 });
+    expect(page1).toHaveLength(10);
+    expect(page1[0].id).toBe('note-0');
+
+    const page2 = await getPrivateNotes('user-vibe-1', { limit: 10, offset: 10 });
+    expect(page2).toHaveLength(10);
+    expect(page2[0].id).toBe('note-10');
+  });
+
+  it('does not hide outage notes when recipient receives unrelated non-note notifications', async () => {
+    // 50 unrelated notifications (e.g. daily tasks) + 1 outage fallback note
+    const nonNoteNotifs = Array.from({ length: 50 }, (_, i) => ({
+      id: `task-${i}`,
+      user_id: 'user-vibe-1',
+      type: 'daily_task',
+      metadata: { task_id: `t-${i}` },
+      created_at: new Date(Date.now() - i * 60000).toISOString(),
+    }));
+
+    mockExistingNotifications = [
+      ...nonNoteNotifs,
+      {
+        id: 'notif-outage-important',
+        user_id: 'user-vibe-1',
+        type: 'peer_checkin',
+        metadata: {
+          peer_id: 'sender-alex',
+          sender_name: 'Alex',
+          support_type: 'note',
+          note_text: 'You got this! 🌟',
+        },
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ];
+
+    const notes = await getPrivateNotes('user-vibe-1');
+    const outageNote = notes.find((n) => n.id === 'notif-outage-important');
+    expect(outageNote).toBeDefined();
+    expect(outageNote?.message).toBe('You got this! 🌟');
+  });
+
+  it('preserves both legacy fallback note and primary note sent with identical text within the same minute', async () => {
+    // Legacy fallback notification without note_id
+    mockExistingNotifications = [
+      {
+        id: 'notif-legacy-1',
+        user_id: 'user-vibe-1',
+        type: 'peer_checkin',
+        metadata: {
+          peer_id: 'sender-alex',
+          sender_name: 'Alex',
+          support_type: 'note',
+          note_text: 'Take care',
+        },
+        created_at: '2026-08-20T10:01:05.000Z',
+      },
+    ];
+
+    // Primary note with exact same message sent in the same minute
+    mockExistingPrivateNotes = [
+      {
+        id: 'note-primary-1',
+        sender_id: 'sender-alex',
+        sender_name: 'Alex',
+        recipient_id: 'user-vibe-1',
+        message: 'Take care',
+        created_at: '2026-08-20T10:01:45.000Z',
+      },
+    ];
+
+    const notes = await getPrivateNotes('user-vibe-1');
+    expect(notes).toHaveLength(2);
+    expect(notes.map((n) => n.id)).toEqual(['note-primary-1', 'notif-legacy-1']);
   });
 
   it('sends peer support note with delivered_to_porch, seals preview, and does not leak note_text in notification metadata on success', async () => {
