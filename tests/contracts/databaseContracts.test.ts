@@ -235,5 +235,177 @@ describe('Database Contracts & Security (Scope C)', () => {
         bobClient.rpc('unsupported_procedure', {})
       ).rejects.toThrow(/Unknown RPC/i);
     });
+
+    describe('send_porch_gift_atomic RPC Stored Procedure Contract Verification', () => {
+      it('rejects call when made with anon role', async () => {
+        const anonClient = harness.createClient({ role: 'anon' });
+        await expect(
+          anonClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: 'user_bob',
+            p_item_type: 'tea',
+          })
+        ).rejects.toThrow(/Authentication required/);
+      });
+
+      it('atomically inserts gift and awards +2 points on first gift of the day', async () => {
+        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+        const initialPoints = harness.getUser('user_alice')?.points ?? 0;
+
+        const res = (await aliceClient.rpc('send_porch_gift_atomic', {
+          p_sender_id: 'user_alice',
+          p_recipient_id: 'user_bob',
+          p_item_type: 'tea',
+          p_message: 'Hot cup of tea for you!',
+          p_created_at: new Date().toISOString(),
+          p_sender_name: 'Alice',
+        })) as { awarded: boolean; new_points: number; gifts_today: number };
+
+        expect(res.awarded).toBe(true);
+        expect(res.gifts_today).toBe(1);
+        expect(res.new_points).toBe(initialPoints + 2);
+        expect(harness.getUser('user_alice')?.points).toBe(initialPoints + 2);
+
+        const porchItems = harness.getPorchItems('user_bob');
+        expect(porchItems).toHaveLength(1);
+        expect(porchItems[0].item_type).toBe('tea');
+        expect(porchItems[0].sender_id).toBe('user_alice');
+        expect(porchItems[0].sender_name).toBe('Alice');
+        expect(porchItems[0].message).toBe('Hot cup of tea for you!');
+      });
+
+      it('inserts subsequent gifts on same day but does not award additional points', async () => {
+        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+
+        // First gift
+        await aliceClient.rpc('send_porch_gift_atomic', {
+          p_sender_id: 'user_alice',
+          p_recipient_id: 'user_bob',
+          p_item_type: 'tea',
+          p_message: 'First tea',
+        });
+        const pointsAfterFirst = harness.getUser('user_alice')?.points ?? 0;
+
+        // Second gift on same day
+        const res2 = (await aliceClient.rpc('send_porch_gift_atomic', {
+          p_sender_id: 'user_alice',
+          p_recipient_id: 'user_bob',
+          p_item_type: 'blanket',
+          p_message: 'Cozy blanket',
+        })) as { awarded: boolean; new_points: number; gifts_today: number };
+
+        expect(res2.awarded).toBe(false);
+        expect(res2.gifts_today).toBe(2);
+        expect(res2.new_points).toBe(pointsAfterFirst);
+        expect(harness.getUser('user_alice')?.points).toBe(pointsAfterFirst);
+
+        // Third gift to a different recipient on same day still does not award points
+        const res3 = (await aliceClient.rpc('send_porch_gift_atomic', {
+          p_sender_id: 'user_alice',
+          p_recipient_id: 'user_charlie',
+          p_item_type: 'candle',
+          p_message: 'Warm candle',
+        })) as { awarded: boolean; new_points: number; gifts_today: number };
+
+        expect(res3.awarded).toBe(false);
+        expect(res3.gifts_today).toBe(3);
+        expect(res3.new_points).toBe(pointsAfterFirst);
+        expect(harness.getUser('user_alice')?.points).toBe(pointsAfterFirst);
+
+        expect(harness.getPorchItems()).toHaveLength(3);
+      });
+
+      it('resets daily counter and awards points on subsequent day', async () => {
+        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+        const yesterdayIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // Seed a gift from yesterday
+        harness.seedPorchItem({
+          id: 'porch_yesterday',
+          recipient_id: 'user_bob',
+          sender_id: 'user_alice',
+          sender_name: 'Alice',
+          item_type: 'tea',
+          message: 'Yesterday tea',
+          created_at: yesterdayIso,
+        });
+
+        const initialPoints = harness.getUser('user_alice')?.points ?? 0;
+
+        // Today's first gift
+        const todayRes = (await aliceClient.rpc('send_porch_gift_atomic', {
+          p_sender_id: 'user_alice',
+          p_recipient_id: 'user_bob',
+          p_item_type: 'cocoa',
+          p_message: 'Fresh cocoa today',
+          p_created_at: new Date().toISOString(),
+          p_sender_name: 'Alice',
+        })) as { awarded: boolean; new_points: number; gifts_today: number };
+
+        expect(todayRes.awarded).toBe(true);
+        expect(todayRes.gifts_today).toBe(1);
+        expect(todayRes.new_points).toBe(initialPoints + 2);
+        expect(harness.getUser('user_alice')?.points).toBe(initialPoints + 2);
+      });
+
+      it('validates sender exists and required parameters are supplied', async () => {
+        const serviceClient = harness.createClient({ role: 'service_role' });
+
+        await expect(
+          serviceClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'missing_user_999',
+            p_recipient_id: 'user_bob',
+          })
+        ).rejects.toThrow(/Sender missing_user_999 not found/);
+
+        await expect(
+          serviceClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: '',
+          })
+        ).rejects.toThrow(/Sender and recipient IDs are required/);
+      });
+
+      it('prevents authenticated clients from impersonating another sender in RPC', async () => {
+        const bobClient = harness.createClient({ role: 'authenticated', userId: 'user_bob' });
+
+        await expect(
+          bobClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: 'user_bob',
+            p_item_type: 'tea',
+          })
+        ).rejects.toThrow(/Cannot send porch gift on behalf of another user/i);
+      });
+
+      it('prevents self-gifting in RPC', async () => {
+        const aliceClient = harness.createClient({ role: 'authenticated', userId: 'user_alice' });
+
+        await expect(
+          aliceClient.rpc('send_porch_gift_atomic', {
+            p_sender_id: 'user_alice',
+            p_recipient_id: 'user_alice',
+            p_item_type: 'tea',
+          })
+        ).rejects.toThrow(/You cannot send a porch gift to yourself/i);
+      });
+
+      it('enforces RLS on porch_items table (blocks anon reads and forged direct inserts)', async () => {
+        const anonClient = harness.createClient({ role: 'anon' });
+        await expect(anonClient.from('porch_items').select('*')).rejects.toThrow(RLSPolicyViolationError);
+
+        const bobClient = harness.createClient({ role: 'authenticated', userId: 'user_bob' });
+        await expect(
+          bobClient.from('porch_items').insert({
+            id: 'forged_item_1',
+            sender_id: 'user_alice',
+            recipient_id: 'user_bob',
+            item_type: 'tea',
+            message: 'Forged note',
+            created_at: new Date().toISOString(),
+          })
+        ).rejects.toThrow(RLSPolicyViolationError);
+      });
+    });
   });
 });
