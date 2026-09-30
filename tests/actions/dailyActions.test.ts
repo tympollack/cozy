@@ -15,6 +15,7 @@ let mockUsersTable: Record<string, { points: number }> = {};
 let mockGroupsTable: Record<string, { pooled_points: number }> = {};
 let mockGroupMembersTable: Array<{ user_id: string; group_id: string }> = [];
 let mockTransactionsTable: Array<{ id: string; user_id: string; transaction_type: string }> = [];
+let mockNotificationsTable: Array<{ id: string; user_id: string; type: string; is_read: boolean; metadata: any }> = [];
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
@@ -37,6 +38,14 @@ vi.mock('@/lib/supabase', () => ({
               }),
             }),
             eq: (col2: string, val2: unknown) => {
+              if (tableName === 'notifications') {
+                return {
+                  gte: () => Promise.resolve({
+                    data: mockNotificationsTable.filter((n) => (n as any)[col1] === val1 && (n as any)[col2] === val2),
+                    error: null,
+                  }),
+                };
+              }
               if (tableName === 'transactions') {
                 return {
                   gte: () => ({
@@ -101,6 +110,12 @@ vi.mock('@/lib/supabase', () => ({
                 mockGroupsTable[val] = { pooled_points: data.pooled_points as number };
               }
             }
+            if (tableName === 'notifications') {
+              const notif = mockNotificationsTable.find((n) => (n as any)[col] === val);
+              if (notif) {
+                Object.assign(notif, data);
+              }
+            }
             return Promise.resolve({ data: null, error: null });
           },
         }),
@@ -113,6 +128,7 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPostsTable = [];
+    mockNotificationsTable = [];
     mockUsersTable = { 'user-123': { points: 100 } };
     mockGroupsTable = { 'group-abc': { pooled_points: 200 } };
     mockGroupMembersTable = [{ user_id: 'user-123', group_id: 'group-abc' }];
@@ -288,6 +304,33 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
           transactionType: 'daily_space_reset',
         })
       );
+    });
+
+    it('resolves active daily_task notifications for today to completed and is_read = true', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+      mockPostsTable = [
+        {
+          id: 'post-with-notif',
+          user_id: 'user-123',
+          light_img_url: 'https://cozy.dev/light.jpg',
+          dark_img_url: null,
+          created_at: new Date().toISOString(),
+        },
+      ];
+      mockNotificationsTable = [
+        {
+          id: 'notif-active-today',
+          user_id: 'user-123',
+          type: 'daily_task',
+          is_read: false,
+          metadata: { action_url: '/camera' },
+        },
+      ];
+
+      const res = await submitDailySpaceReset('post-with-notif');
+      expect(res.success).toBe(true);
+      expect(mockNotificationsTable[0].is_read).toBe(true);
+      expect(mockNotificationsTable[0].metadata.status).toBe('completed');
     });
   });
 });

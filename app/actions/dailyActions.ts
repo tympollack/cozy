@@ -282,6 +282,14 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
       console.warn('[submitDailySpaceReset] Group cascade note:', groupErr);
     }
 
+    // 7. Dynamic CTA Resolution: Mark active daily_task notifications for today as completed
+    try {
+      const { resolveDailyTaskNotifications } = await import('@/app/actions/notificationActions');
+      await resolveDailyTaskNotifications(user.id);
+    } catch (notifErr) {
+      console.warn('[submitDailySpaceReset] Notification resolution error:', notifErr);
+    }
+
     // Revalidate relevant paths and cache tags
     try {
       revalidateTag('posts', 'default');

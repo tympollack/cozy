@@ -13,6 +13,7 @@ import {
   deletePushSubscriptionAction,
   sendWebPushNotification,
   processCircadianNudgeScheduler,
+  resolveDailyTaskNotifications,
 } from '@/app/actions/notificationActions';
 
 const mockGetUser = vi.fn();
@@ -112,19 +113,28 @@ vi.mock('@/lib/supabase', () => ({
               });
               return Promise.resolve({ error: null });
             },
-            update: (updates: any) => ({
-              eq: (col1: string, val1: any) => ({
-                eq: (col2: string, val2: any) => {
-                  mockNotificationsDb = mockNotificationsDb.map((n: any) => {
-                    if (n[col1] === val1 && n[col2] === val2) {
-                      return { ...n, ...updates };
-                    }
-                    return n;
-                  });
-                  return Promise.resolve({ error: null });
+            update: (updates: any) => {
+              const filters: Array<{ col: string; val: any }> = [];
+              const applyUpdate = () => {
+                mockNotificationsDb = mockNotificationsDb.map((n: any) => {
+                  const match = filters.every((f) => n[f.col] === f.val);
+                  if (match) {
+                    return { ...n, ...updates };
+                  }
+                  return n;
+                });
+                return Promise.resolve({ error: null, count: mockNotificationsDb.length });
+              };
+              const builder: any = {
+                eq: (col: string, val: any) => {
+                  filters.push({ col, val });
+                  applyUpdate();
+                  return builder;
                 },
-              }),
-            }),
+                then: (resolve: any) => applyUpdate().then(resolve),
+              };
+              return builder;
+            },
           };
         }
 
@@ -294,7 +304,7 @@ describe('Notification Actions (notificationActions.ts)', () => {
           message: 'Time for your daily space reset!',
           metadata: { action_url: '/camera' },
           is_read: false,
-          created_at: '2026-08-28T12:00:00Z',
+          created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
         },
         {
           id: 'notif-2',
@@ -304,7 +314,7 @@ describe('Notification Actions (notificationActions.ts)', () => {
           message: 'Alice is sitting under a raincloud.',
           metadata: { peer_id: 'user-1' },
           is_read: true,
-          created_at: '2026-08-28T10:00:00Z',
+          created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         },
       ];
 
@@ -314,6 +324,62 @@ describe('Notification Actions (notificationActions.ts)', () => {
       expect(res.unreadCount).toBe(1);
       expect(res.notifications[0].title).toBe('Daily Space Reset');
       expect(res.notifications[0].isRead).toBe(false);
+    });
+
+    it('filters out daily_task notifications older than 24 hours to prevent stale backlog', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockNotificationsDb = [
+        {
+          id: 'notif-stale',
+          user_id: 'user-me',
+          type: 'daily_task',
+          title: 'Stale 11d Daily Space Reset',
+          message: 'Old task from 11 days ago',
+          metadata: { action_url: '/camera' },
+          is_read: false,
+          created_at: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 'notif-fresh',
+          user_id: 'user-me',
+          type: 'daily_task',
+          title: 'Today Daily Space Reset',
+          message: 'Today task',
+          metadata: { action_url: '/camera' },
+          is_read: false,
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+
+      const res = await getUserNotifications();
+      expect(res.success).toBe(true);
+      expect(res.notifications).toHaveLength(1);
+      expect(res.notifications[0].id).toBe('notif-fresh');
+      expect(res.unreadCount).toBe(1);
+    });
+  });
+
+  describe('resolveDailyTaskNotifications', () => {
+    it('marks active daily_task notifications for today as completed and is_read = true', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockNotificationsDb = [
+        {
+          id: 'notif-today-1',
+          user_id: 'user-me',
+          type: 'daily_task',
+          title: 'Daily Space Reset',
+          message: 'Take a photo',
+          metadata: { action_url: '/camera' },
+          is_read: false,
+          created_at: new Date().toISOString(),
+        },
+      ];
+
+      const res = await resolveDailyTaskNotifications('user-me');
+      expect(res.success).toBe(true);
+      expect(res.resolvedCount).toBe(1);
+      expect(mockNotificationsDb[0].is_read).toBe(true);
+      expect(mockNotificationsDb[0].metadata?.status).toBe('completed');
     });
   });
 
