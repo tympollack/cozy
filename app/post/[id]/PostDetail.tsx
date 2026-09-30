@@ -14,6 +14,7 @@ import type { StickerCatalogItem } from '@/components/StickerDrawer';
 import { CommentBox } from '@/components/CommentBox';
 import { getComments, type Comment } from '@/app/actions/commentActions';
 import { ClaimHouseModal } from '@/components/ClaimHouseModal';
+import { ENABLE_SPACE_CLAIMING } from '@/app/actions/claimActions';
 import { Home, Tag } from 'lucide-react';
 import { ShoppableImage } from '@/components/ShoppableImage';
 import { PinDropZone } from '@/components/PinDropZone';
@@ -222,7 +223,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         )}
 
         {/* Claim This Space button */}
-        {!post.claimed_by_user_id && currentUserId && !pendingSticker && !isTagging && (
+        {ENABLE_SPACE_CLAIMING && !post.claimed_by_user_id && currentUserId && !pendingSticker && !isTagging && (
           <button
             onClick={() => setShowClaimModal(true)}
             aria-label="Claim this space"
@@ -332,7 +333,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       />
 
       {/* Claim House Modal */}
-      {showClaimModal && (
+      {ENABLE_SPACE_CLAIMING && showClaimModal && (
         <ClaimHouseModal 
           postId={post.id} 
           onClose={() => setShowClaimModal(false)} 

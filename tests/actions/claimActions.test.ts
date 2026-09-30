@@ -4,6 +4,7 @@ import {
   getVillageSuggestions,
   verifyProximity,
   triggerPostcard,
+  setEnableSpaceClaimingForTesting,
 } from '@/app/actions/claimActions';
 
 const mockGetUser = vi.fn();
@@ -110,22 +111,48 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 describe('claimActions server suite (Phase 3 Onboarding)', () => {
-  beforeEach(() => {
-    mockGetUser.mockReset();
-    mockRecordPointTransaction.mockReset();
-    mockPostsDb = [
-      { id: 'post-unclaimed-1', claimed_by_user_id: null, verification_status: 'unclaimed' },
-      { id: 'post-claimed-2', claimed_by_user_id: 'other-user', verification_status: 'claimed' },
-    ];
-    mockLocationsDb = [
-      { post_id: 'post-unclaimed-1', exact_lat: 40.7128, exact_lng: -74.006 },
-    ];
-    mockGroupsDb = [
-      { id: 'grp-1', name: 'Pine Village', type: 'village', invite_code: 'pine-village' },
-    ];
+  describe('Feature Flag Inactivity (ENABLE_SPACE_CLAIMING = false)', () => {
+    beforeEach(async () => {
+      await setEnableSpaceClaimingForTesting(false);
+    });
+
+    it('returns error when claimPlotOneTap is called while disabled', async () => {
+      const res = await claimPlotOneTap('post-unclaimed-1');
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/temporarily deactivated/i);
+    });
+
+    it('returns error when verifyProximity is called while disabled', async () => {
+      const res = await verifyProximity('post-unclaimed-1', 40.7128, -74.006);
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/temporarily deactivated/i);
+    });
+
+    it('returns error when triggerPostcard is called while disabled', async () => {
+      const res = await triggerPostcard('post-unclaimed-1');
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/temporarily deactivated/i);
+    });
   });
 
-  describe('claimPlotOneTap', () => {
+  describe('Active Functionality (with ENABLE_SPACE_CLAIMING enabled)', () => {
+    beforeEach(async () => {
+      await setEnableSpaceClaimingForTesting(true);
+      mockGetUser.mockReset();
+      mockRecordPointTransaction.mockReset();
+      mockPostsDb = [
+        { id: 'post-unclaimed-1', claimed_by_user_id: null, verification_status: 'unclaimed' },
+        { id: 'post-claimed-2', claimed_by_user_id: 'other-user', verification_status: 'claimed' },
+      ];
+      mockLocationsDb = [
+        { post_id: 'post-unclaimed-1', exact_lat: 40.7128, exact_lng: -74.006 },
+      ];
+      mockGroupsDb = [
+        { id: 'grp-1', name: 'Pine Village', type: 'village', invite_code: 'pine-village' },
+      ];
+    });
+
+    describe('claimPlotOneTap', () => {
     it('requires authentication to claim space', async () => {
       mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
 
@@ -221,3 +248,5 @@ describe('claimActions server suite (Phase 3 Onboarding)', () => {
     });
   });
 });
+});
+

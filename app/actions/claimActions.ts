@@ -2,6 +2,12 @@
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
 
+export let ENABLE_SPACE_CLAIMING = false;
+
+export async function setEnableSpaceClaimingForTesting(enabled: boolean) {
+  ENABLE_SPACE_CLAIMING = enabled;
+}
+
 // Helper: Haversine formula
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371e3; // Radius of the earth in m
@@ -20,6 +26,9 @@ function deg2rad(deg: number) {
 }
 
 export async function verifyProximity(postId: string, userLat: number, userLng: number) {
+  if (!ENABLE_SPACE_CLAIMING) {
+    return { success: false, error: 'Space claiming is temporarily deactivated.' };
+  }
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -53,6 +62,9 @@ export async function verifyProximity(postId: string, userLat: number, userLng: 
 }
 
 export async function submitInteriorProof(postId: string, imageUrl: string) {
+  if (!ENABLE_SPACE_CLAIMING) {
+    return { success: false, error: 'Space claiming is temporarily deactivated.' };
+  }
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -75,6 +87,9 @@ export async function submitInteriorProof(postId: string, imageUrl: string) {
 }
 
 export async function triggerPostcard(postId: string) {
+  if (!ENABLE_SPACE_CLAIMING) {
+    return { success: false, error: 'Space claiming is temporarily deactivated.' };
+  }
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -127,6 +142,10 @@ export interface OneTapClaimResult {
  * Assigns space ownership without requiring GPS proximity lockouts or physical postcards.
  */
 export async function claimPlotOneTap(postId: string): Promise<OneTapClaimResult> {
+  if (!ENABLE_SPACE_CLAIMING) {
+    return { success: false, error: 'Space claiming is temporarily deactivated.' };
+  }
+
   if (!postId) return { success: false, error: 'Post ID is required.' };
 
   const supabase = await createServerClient();
