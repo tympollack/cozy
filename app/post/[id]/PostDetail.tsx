@@ -18,6 +18,7 @@ import { ENABLE_SPACE_CLAIMING } from '@/app/actions/claimActions';
 import { Home, Tag } from 'lucide-react';
 import { ShoppableImage } from '@/components/ShoppableImage';
 import { PinDropZone } from '@/components/PinDropZone';
+import { getDefaultTimeMode, type CaptureMode } from '@/lib/photoTimeUtils';
 
 interface PostDetailProps {
   post: UserPost;
@@ -28,7 +29,9 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const router = useRouter();
   const { points } = useCozyStore();
 
-  const [showDark, setShowDark] = useState(!post.light_img_url);
+  const hasDualCaptures = Boolean(post.light_img_url && post.dark_img_url);
+  const [viewMode, setViewMode] = useState<CaptureMode>(() => getDefaultTimeMode(post));
+  const showDark = viewMode === 'dark';
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pendingSticker, setPendingSticker] = useState<StickerCatalogItem | null>(null);
   const [localStickers, setLocalStickers] = useState<PostSticker[]>(
@@ -132,29 +135,24 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
           onPinDeleted={(id) => setLocalPins((prev) => prev.filter((p) => p.id !== id))}
         >
           {/* Main photo(s) */}
-          {post.light_img_url && post.dark_img_url ? (
+          {hasDualCaptures ? (
             <>
-              <img
-                src={getOptimizedImageUrl(post.dark_img_url, 800)}
+              <motion.img
+                src={getOptimizedImageUrl(post.dark_img_url!, 800)}
                 alt="Night-time room"
                 className="absolute inset-0 w-full h-full object-cover"
+                initial={false}
+                animate={{ opacity: viewMode === 'dark' ? 1 : 0 }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
               />
-              <img
-                src={getOptimizedImageUrl(post.light_img_url, 800)}
+              <motion.img
+                src={getOptimizedImageUrl(post.light_img_url!, 800)}
                 alt="Day-time room"
                 className="absolute inset-0 w-full h-full object-cover"
-                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                initial={false}
+                animate={{ opacity: viewMode === 'light' ? 1 : 0 }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
               />
-              <motion.div
-                onPan={handleDrag}
-                className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
-                style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
-              >
-                <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
-                <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
-                  <GripVertical size={16} className="text-white drop-shadow-md" />
-                </div>
-              </motion.div>
             </>
           ) : activeUrl && (
             <img
@@ -205,6 +203,32 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         )}
 
 
+
+        {/* Dual capture Light/Dark toggle pill */}
+        {hasDualCaptures && !pendingSticker && !isTagging && (
+          <button
+            id="post-time-toggle-btn"
+            type="button"
+            onClick={() => setViewMode((prev) => (prev === 'light' ? 'dark' : 'light'))}
+            aria-label={`Switch to ${viewMode === 'light' ? 'evening' : 'daytime'} view`}
+            className="absolute bottom-4 left-4 z-30
+              flex items-center gap-1.5 px-3 py-1.5 rounded-full
+              font-800 text-xs text-white/95 backdrop-blur-md bg-stone-950/75 hover:bg-stone-900/95 border border-amber-400/40
+              shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          >
+            {viewMode === 'light' ? (
+              <>
+                <Sun size={14} className="text-amber-400 fill-amber-400" />
+                <span className="text-amber-200">Day View</span>
+              </>
+            ) : (
+              <>
+                <Moon size={14} className="text-sky-300 fill-sky-300" />
+                <span className="text-sky-200">Night View</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* Decorate button — always visible for authenticated users */}
         {currentUserId && !pendingSticker && !isTagging && (
