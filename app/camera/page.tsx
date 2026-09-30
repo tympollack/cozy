@@ -20,6 +20,7 @@ import {
   probeCloudFile,
   CLOUD_SYNC_ERROR_MESSAGE,
 } from '@/components/ImageUploader';
+import { PhotoUploadPreview } from '@/components/PhotoUploadPreview';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -123,6 +124,7 @@ export default function CameraPage() {
         if (processedFile !== file) {
           const processedPreview = URL.createObjectURL(processedFile);
           setter({ file: processedFile, preview: processedPreview });
+          setImgErrors((prev) => ({ ...prev, [mode]: false }));
         }
       } catch (err) {
         if (isCloudSyncError(err)) {
@@ -530,92 +532,18 @@ export default function CameraPage() {
                     `}
                   >
                     {slot.preview ? (
-                      <>
-                        {/* Fallback card when native image rendering is unsupported or fails */}
-                        {imgErrors[mode] && (
-                          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-3 bg-gradient-to-br from-amber-950/80 via-stone-900/90 to-black/90 text-center">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mb-1.5 shadow-inner">
-                              <ImageIcon size={22} className="text-amber-400" />
-                            </div>
-                            <span className="text-[11px] font-800 text-amber-100 tracking-tight line-clamp-1 max-w-[130px]">
-                              {slot.file?.name ?? `${label} Photo`}
-                            </span>
-                            <span className="text-[9px] font-700 text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30 mt-1">
-                              ✨ Ready to share
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Real-time warm preview image with filter applied */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          data-testid={`camera-preview-${mode}`}
-                          src={slot.preview}
-                          alt=""
-                          loading="lazy"
-                          style={{ filter: filterDef.css }}
-                          onError={() => setImgErrors((prev) => ({ ...prev, [mode]: true }))}
-                          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${imgErrors[mode] ? 'opacity-0' : 'opacity-100'}`}
-                        />
-
-                        {/* Viewfinder Overlays */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 p-2 flex flex-col justify-between select-none">
-                          {/* Top controls */}
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-700 text-white bg-black/50 rounded-full px-2 py-0.5 backdrop-blur-md flex items-center gap-1">
-                              <Icon size={10} className={accent} />
-                              {label}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => clearSlot(mode, e)}
-                              className="w-6 h-6 rounded-full bg-black/60 text-white/80 hover:text-white flex items-center justify-center backdrop-blur-md cursor-pointer"
-                              title="Remove photo"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-
-                          {/* Privacy and Warmth Badge */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[9px] text-white/90 font-700">
-                              <span
-                                data-testid={`badge-filter-${mode}`}
-                                className="px-1.5 py-0.5 rounded-md bg-amber-500/80 text-stone-950 font-800"
-                              >
-                                {filterDef.emoji} {filterDef.name}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs flex items-center gap-1 text-emerald-300">
-                                <ShieldCheck size={9} /> GPS Clean
-                              </span>
-                            </div>
-
-                            {/* Retake buttons */}
-                            <div className="flex gap-1 justify-center pt-0.5">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cameraRef.current?.click();
-                                }}
-                                className="flex items-center gap-1 text-[9px] font-700 text-white bg-black/60 hover:bg-black/80 px-2 py-1 rounded-full backdrop-blur-md cursor-pointer"
-                              >
-                                <Camera size={10} /> Retake
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  galleryRef.current?.click();
-                                }}
-                                className="flex items-center gap-1 text-[9px] font-700 text-white bg-black/60 hover:bg-black/80 px-2 py-1 rounded-full backdrop-blur-md cursor-pointer"
-                              >
-                                <ImageIcon size={10} /> Gallery
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                      <PhotoUploadPreview
+                        file={slot.file}
+                        previewUrl={slot.preview}
+                        mode={mode}
+                        filterDef={filterDef}
+                        imgError={imgErrors[mode]}
+                        onImgError={() => setImgErrors((prev) => ({ ...prev, [mode]: true }))}
+                        onImgLoad={() => setImgErrors((prev) => ({ ...prev, [mode]: false }))}
+                        onClear={(e) => clearSlot(mode, e)}
+                        onRetake={() => cameraRef.current?.click()}
+                        onGallery={() => galleryRef.current?.click()}
+                      />
                     ) : (
                       <div className="flex flex-col items-center gap-2 p-3 text-center">
                         <Icon size={24} className={accent} aria-hidden="true" />
