@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -67,6 +67,27 @@ export function NotificationDrawer({
   const [isPending, startTransition] = useTransition();
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+  const dismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear pending timers and feedback banner when drawer closes
+  useEffect(() => {
+    if (!isOpen) {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+      setFeedbackToast(null);
+    }
+  }, [isOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
 
   // Filter items
   const items = notifications.map((n) => ({
@@ -79,61 +100,96 @@ export function NotificationDrawer({
     return n.type === activeTab;
   });
 
+  // Track optimistic reads not yet reflected as read in incoming notifications
+  const optimisticUnreadCount = notifications.filter(
+    (n) => !n.isRead && localReadIds.has(n.id)
+  ).length;
+
   const activeUnreadCount =
     unreadCount !== undefined
-      ? Math.max(0, unreadCount - localReadIds.size)
+      ? Math.max(0, unreadCount - optimisticUnreadCount)
       : items.filter((n) => !n.isRead).length;
 
   const handleMarkItemRead = (id: string) => {
-    const willBeAllRead = activeUnreadCount <= 1;
+    const currentUnread = activeUnreadCount;
+    const willBeAllRead = currentUnread <= 1;
+
+    const prevLocalReadIds = new Set(localReadIds);
     setLocalReadIds((prev) => new Set(prev).add(id));
 
-    if (willBeAllRead) {
-      setFeedbackToast('All caught up ✓');
-    }
-
     startTransition(async () => {
-      if (onMarkRead) {
-        await onMarkRead(id);
-      } else {
-        await markNotificationAsRead(id);
-      }
-      if (willBeAllRead) {
-        onRefresh?.();
+      try {
+        let result = { success: true, error: undefined as string | undefined };
+        if (onMarkRead) {
+          await onMarkRead(id);
+        } else {
+          const res = await markNotificationAsRead(id);
+          if (!res.success) {
+            result = { success: false, error: res.error };
+          }
+        }
+
+        if (!result.success) {
+          setLocalReadIds(prevLocalReadIds);
+          setFeedbackToast(result.error || 'Failed to mark notification as read');
+          return;
+        }
+
+        if (willBeAllRead) {
+          setFeedbackToast('All caught up ✓');
+          onRefresh?.();
+          if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+          dismissTimerRef.current = setTimeout(() => {
+            onClose();
+          }, 300);
+        }
+      } catch (err: any) {
+        setLocalReadIds(prevLocalReadIds);
+        setFeedbackToast(err?.message || 'Failed to mark notification as read');
       }
     });
-
-    if (willBeAllRead) {
-      setTimeout(() => {
-        onClose();
-      }, 300);
-    }
   };
 
   const handleMarkAllRead = () => {
     const unreadIds = items.filter((n) => !n.isRead).map((n) => n.id);
-    if (unreadIds.length === 0) return;
+    if (unreadIds.length === 0 && activeUnreadCount <= 0) return;
 
+    const prevLocalReadIds = new Set(localReadIds);
     setLocalReadIds((prev) => {
       const next = new Set(prev);
       unreadIds.forEach((id) => next.add(id));
       return next;
     });
 
-    setFeedbackToast('All caught up ✓');
-
     startTransition(async () => {
-      if (onMarkAllRead) {
-        await onMarkAllRead();
-      } else {
-        await markAllNotificationsAsRead();
-      }
-      onRefresh?.();
-    });
+      try {
+        let result = { success: true, error: undefined as string | undefined };
+        if (onMarkAllRead) {
+          await onMarkAllRead();
+        } else {
+          const res = await markAllNotificationsAsRead();
+          if (!res.success) {
+            result = { success: false, error: res.error };
+          }
+        }
 
-    setTimeout(() => {
-      onClose();
-    }, 300);
+        if (!result.success) {
+          setLocalReadIds(prevLocalReadIds);
+          setFeedbackToast(result.error || 'Failed to mark notifications as read');
+          return;
+        }
+
+        setFeedbackToast('All caught up ✓');
+        onRefresh?.();
+        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = setTimeout(() => {
+          onClose();
+        }, 300);
+      } catch (err: any) {
+        setLocalReadIds(prevLocalReadIds);
+        setFeedbackToast(err?.message || 'Failed to mark notifications as read');
+      }
+    });
   };
 
   if (typeof document === 'undefined') return null;
@@ -263,7 +319,10 @@ export function NotificationDrawer({
               </AnimatePresence>
 
               {/* Filter Tabs */}
-              <div className="px-4 py-2 border-b border-amber-500/10 bg-stone-900/20 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              <div
+                className="px-4 py-2 border-b border-amber-500/10 bg-stone-900/20 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0 touch-pan-x"
+                onPointerDownCapture={(e) => e.stopPropagation()}
+              >
                 {(
                   [
                     { id: 'all', label: 'All', count: items.length },

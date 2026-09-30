@@ -299,4 +299,84 @@ describe('NotificationDrawer Component', () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     expect(mockOnClose).toHaveBeenCalled();
   });
+
+  it('does not auto-dismiss when multiple unread notifications remain', async () => {
+    const mockOnClose = vi.fn();
+    const mockMarkRead = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+        unreadCount={3}
+        onMarkRead={mockMarkRead}
+      />
+    );
+
+    const markReadBtns = screen.getAllByRole('button', { name: /Mark read/i });
+    await user.click(markReadBtns[0]);
+
+    expect(mockMarkRead).toHaveBeenCalled();
+    expect(screen.queryByText('All caught up ✓')).not.toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it('triggers Mark all read even when all loaded items are read but unreadCount > 0', async () => {
+    const mockOnClose = vi.fn();
+    const mockMarkAllRead = vi.fn();
+    const user = userEvent.setup();
+
+    const allReadItems: CozyNotificationItem[] = mockNotifications.map((n) => ({
+      ...n,
+      isRead: true,
+    }));
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={allReadItems}
+        unreadCount={5}
+        onMarkAllRead={mockMarkAllRead}
+      />
+    );
+
+    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    await user.click(markAllButton);
+
+    expect(mockMarkAllRead).toHaveBeenCalled();
+    expect(screen.getByText('All caught up ✓')).toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('shows error banner and does not dismiss drawer when markAllRead fails', async () => {
+    const mockOnClose = vi.fn();
+    const mockMarkAllRead = vi.fn().mockRejectedValue(new Error('Network error'));
+    const user = userEvent.setup();
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={mockOnClose}
+        notifications={mockNotifications}
+        unreadCount={2}
+        onMarkAllRead={mockMarkAllRead}
+      />
+    );
+
+    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    await user.click(markAllButton);
+
+    expect(mockMarkAllRead).toHaveBeenCalled();
+    expect(await screen.findByText('Network error')).toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
 });
