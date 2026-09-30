@@ -139,7 +139,17 @@ export async function updateVibeStatus(
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  const triggerConfig = VIBE_TRIGGER_CONFIG[status];
+  const normalizedStatus = status === 'breeze' ? 'breezy' : status;
+  const VALID_VIBE_STATUSES = ['sunshine', 'breezy', 'starlight', 'neutral', 'foggy', 'raincloud', 'storm'];
+  if (!VALID_VIBE_STATUSES.includes(normalizedStatus)) {
+    return {
+      success: false,
+      groupPeers: [],
+      error: `Invalid vibe status '${status}'. Must be one of: sunshine, breezy, starlight, neutral, foggy, raincloud.`,
+    };
+  }
+
+  const triggerConfig = VIBE_TRIGGER_CONFIG[normalizedStatus];
   const shouldTriggerWaterfall = Boolean(triggerConfig?.triggersWaterfall);
 
   // 1. Date-aware deduplication check:
@@ -194,7 +204,6 @@ export async function updateVibeStatus(
   }
 
   // 2. Call the RPC to enforce constraints, update status & get group peers
-  const normalizedStatus = status === 'breeze' ? 'breezy' : status;
   let groupPeers: GroupPeer[] = [];
   try {
     const { data: peers, error: rpcError } = await supabase.schema('cozy').rpc('update_vibe_status', {
