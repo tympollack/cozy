@@ -466,20 +466,30 @@ export function NotificationDrawer({
                             <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-stone-800/60">
                               <div>
                                 {item.type === 'daily_task' && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleMarkItemRead(item.id);
-                                      onClose();
-                                      router.push('/camera');
-                                    }}
-                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
-                                  >
-                                    <Camera size={13} />
-                                    <span>Upload Room</span>
-                                    <ChevronRight size={12} />
-                                  </button>
+                                  (item.metadata?.status === 'completed' || item.metadata?.is_completed === true || Boolean(item.metadata?.completed)) ? (
+                                    <span
+                                      data-testid={`daily-completed-${item.id}`}
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 select-none"
+                                    >
+                                      <Check size={13} className="text-emerald-400" />
+                                      <span>Completed</span>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMarkItemRead(item.id);
+                                        onClose();
+                                        router.push(item.metadata?.action_url ? String(item.metadata.action_url) : '/camera');
+                                      }}
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+                                    >
+                                      <Camera size={13} />
+                                      <span>Upload Room</span>
+                                      <ChevronRight size={12} />
+                                    </button>
+                                  )
                                 )}
 
                                 {item.type === 'peer_checkin' && (

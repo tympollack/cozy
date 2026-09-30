@@ -15,6 +15,12 @@ import { processImageFile, getPreviewUrlFromFile } from '@/lib/imageUtils';
 import { playCameraShutter } from '@/lib/audio/soundscape';
 import { saveOfflinePost, useOfflineSync } from '@/lib/offlinePhotoStore';
 import { CAMERA_WARMTH_FILTERS, type CameraFilter, type FilterOption } from '@/lib/cameraFilters';
+import {
+  isCloudSyncError,
+  probeCloudFile,
+  CLOUD_SYNC_ERROR_MESSAGE,
+} from '@/components/ImageUploader';
+import { PhotoUploadPreview } from '@/components/PhotoUploadPreview';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -44,6 +50,7 @@ export default function CameraPage() {
   const [activePickerModalMode, setActivePickerModalMode] = useState<Mode | null>(null);
   const [imgErrors, setImgErrors] = useState<Record<Mode, boolean>>({ light: false, dark: false });
   const [offlineSaved, setOfflineSaved] = useState(false);
+  const [cloudSyncToast, setCloudSyncToast] = useState<string | null>(null);
 
   // Background IndexedDB offline sync hook
   const { isOnline, queuedCount, isSyncing, syncNow } = useOfflineSync(uploadPost);
@@ -60,9 +67,16 @@ export default function CameraPage() {
   const activeFilterConfig =
     CAMERA_WARMTH_FILTERS.find((f) => f.id === activeFilter) ?? CAMERA_WARMTH_FILTERS[0];
 
+  const resetFileInputs = useCallback(() => {
+    if (lightCameraRef.current) lightCameraRef.current.value = '';
+    if (lightGalleryRef.current) lightGalleryRef.current.value = '';
+    if (darkCameraRef.current) darkCameraRef.current.value = '';
+    if (darkGalleryRef.current) darkGalleryRef.current.value = '';
+  }, []);
+
   // --- File selection ---
   const handleFileChange = useCallback(
-    async (mode: Mode, file: File | null) => {
+    async (mode: Mode, file: File | null, inputElement?: HTMLInputElement | null) => {
       if (!file) return;
       playCameraShutter();
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
@@ -71,10 +85,35 @@ export default function CameraPage() {
 
       setActivePickerModalMode(null);
       setImgErrors((prev) => ({ ...prev, [mode]: false }));
+      setCloudSyncToast(null);
+
+      // Probe file to catch unhydrated OS cloud placeholder files (OneDrive 0x80070185, iCloud NotReadableError)
+      try {
+        await probeCloudFile(file);
+      } catch (err) {
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+          setIsProcessingFile(false);
+          return;
+        }
+      }
 
       // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
-      const instantPreview = await getPreviewUrlFromFile(file);
-      setter({ file, preview: instantPreview });
+      try {
+        const instantPreview = await getPreviewUrlFromFile(file);
+        setter({ file, preview: instantPreview });
+      } catch (err) {
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+          setIsProcessingFile(false);
+          return;
+        }
+        console.error('Instant preview error:', err);
+      }
 
       // 2. Background image processing, EXIF scrubbing & compression (<100ms)
       setIsProcessingFile(true);
@@ -83,14 +122,21 @@ export default function CameraPage() {
         if (processedFile !== file) {
           const processedPreview = URL.createObjectURL(processedFile);
           setter({ file: processedFile, preview: processedPreview });
+          setImgErrors((prev) => ({ ...prev, [mode]: false }));
         }
       } catch (err) {
-        console.error('Image processing error:', err);
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+        } else {
+          console.error('Image processing error:', err);
+        }
       } finally {
         setIsProcessingFile(false);
       }
     },
-    [lightFilter, darkFilter]
+    [lightFilter, darkFilter, resetFileInputs]
   );
 
   const clearSlot = useCallback((mode: Mode, e: React.MouseEvent) => {
@@ -289,7 +335,35 @@ export default function CameraPage() {
   }
 
   return (
-    <div className="cozy-page-bg px-4 py-8">
+    <div className="cozy-page-bg px-4 py-8 relative">
+      {/* Cloud Hydration Error Toast Alert */}
+      <AnimatePresence>
+        {cloudSyncToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            role="alert"
+            data-testid="cloud-sync-toast"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] p-3.5 rounded-2xl bg-amber-950/95 border-2 border-amber-400 text-amber-100 shadow-2xl backdrop-blur-md flex items-start gap-3"
+          >
+            <AlertCircle className="text-amber-400 flex-shrink-0 mt-0.5" size={18} />
+            <div className="flex-1 text-xs font-semibold leading-relaxed">
+              {cloudSyncToast}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCloudSyncToast(null)}
+              className="text-amber-400 hover:text-amber-200 cursor-pointer p-0.5 transition-colors"
+              aria-label="Dismiss alert"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-lg mx-auto space-y-6">
         {/* Offline Status Alert Banner */}
         {!isOnline && (
@@ -393,7 +467,7 @@ export default function CameraPage() {
           accept="image/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null, e.currentTarget)}
         />
         <input
           id="gallery-input-light"
@@ -401,7 +475,7 @@ export default function CameraPage() {
           type="file"
           accept="image/*"
           className="sr-only"
-          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null, e.currentTarget)}
         />
 
         {/* Hidden inputs for Dark mode */}
@@ -412,7 +486,7 @@ export default function CameraPage() {
           accept="image/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null, e.currentTarget)}
         />
         <input
           id="gallery-input-dark"
@@ -420,7 +494,7 @@ export default function CameraPage() {
           type="file"
           accept="image/*"
           className="sr-only"
-          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null, e.currentTarget)}
         />
 
         <form id="camera-upload-form" onSubmit={handleSubmit} className="space-y-5">
@@ -455,92 +529,22 @@ export default function CameraPage() {
                     `}
                   >
                     {slot.preview ? (
-                      <>
-                        {/* Fallback card when native image rendering is unsupported or fails */}
-                        {imgErrors[mode] && (
-                          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-3 bg-gradient-to-br from-amber-950/80 via-stone-900/90 to-black/90 text-center">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center mb-1.5 shadow-inner">
-                              <ImageIcon size={22} className="text-amber-400" />
-                            </div>
-                            <span className="text-[11px] font-800 text-amber-100 tracking-tight line-clamp-1 max-w-[130px]">
-                              {slot.file?.name ?? `${label} Photo`}
-                            </span>
-                            <span className="text-[9px] font-700 text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30 mt-1">
-                              ✨ Ready to share
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Real-time warm preview image with filter applied */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          data-testid={`camera-preview-${mode}`}
-                          src={slot.preview}
-                          alt=""
-                          loading="lazy"
-                          style={{ filter: filterDef.css }}
-                          onError={() => setImgErrors((prev) => ({ ...prev, [mode]: true }))}
-                          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${imgErrors[mode] ? 'opacity-0' : 'opacity-100'}`}
-                        />
-
-                        {/* Viewfinder Overlays */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 p-2 flex flex-col justify-between select-none">
-                          {/* Top controls */}
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-700 text-white bg-black/50 rounded-full px-2 py-0.5 backdrop-blur-md flex items-center gap-1">
-                              <Icon size={10} className={accent} />
-                              {label}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => clearSlot(mode, e)}
-                              className="w-6 h-6 rounded-full bg-black/60 text-white/80 hover:text-white flex items-center justify-center backdrop-blur-md cursor-pointer"
-                              title="Remove photo"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-
-                          {/* Privacy and Warmth Badge */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[9px] text-white/90 font-700">
-                              <span
-                                data-testid={`badge-filter-${mode}`}
-                                className="px-1.5 py-0.5 rounded-md bg-amber-500/80 text-stone-950 font-800"
-                              >
-                                {filterDef.emoji} {filterDef.name}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs flex items-center gap-1 text-emerald-300">
-                                <ShieldCheck size={9} /> GPS Clean
-                              </span>
-                            </div>
-
-                            {/* Retake buttons */}
-                            <div className="flex gap-1 justify-center pt-0.5">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cameraRef.current?.click();
-                                }}
-                                className="flex items-center gap-1 text-[9px] font-700 text-white bg-black/60 hover:bg-black/80 px-2 py-1 rounded-full backdrop-blur-md cursor-pointer"
-                              >
-                                <Camera size={10} /> Retake
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  galleryRef.current?.click();
-                                }}
-                                className="flex items-center gap-1 text-[9px] font-700 text-white bg-black/60 hover:bg-black/80 px-2 py-1 rounded-full backdrop-blur-md cursor-pointer"
-                              >
-                                <ImageIcon size={10} /> Gallery
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                      <PhotoUploadPreview
+                        file={slot.file}
+                        previewUrl={slot.preview}
+                        mode={mode}
+                        filterDef={filterDef}
+                        imgError={imgErrors[mode]}
+                        onImgError={() =>
+                          setImgErrors((prev) => (prev[mode] ? prev : { ...prev, [mode]: true }))
+                        }
+                        onImgLoad={() =>
+                          setImgErrors((prev) => (!prev[mode] ? prev : { ...prev, [mode]: false }))
+                        }
+                        onClear={(e) => clearSlot(mode, e)}
+                        onRetake={() => cameraRef.current?.click()}
+                        onGallery={() => galleryRef.current?.click()}
+                      />
                     ) : (
                       <div className="flex flex-col items-center gap-2 p-3 text-center">
                         <Icon size={24} className={accent} aria-hidden="true" />

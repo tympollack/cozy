@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Check, ArrowRight, LayoutGrid,
-  Lock, Coins, Camera, Plus,
+  Lock, Coins, Camera, Plus, Sun, Moon,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
+import { getDefaultTimeMode, type CaptureMode } from '@/lib/photoTimeUtils';
 import {
   SHELL_DEFINITIONS,
   getShellDefinition,
@@ -79,6 +80,7 @@ export function ProfileShell({
   const [milestoneTokens, setLocalMilestoneTokens] = useState(initialMilestoneTokens);
   const [selectedSlotForAssignment, setSelectedSlotForAssignment] = useState<ShellSlot | null>(null);
   const [expandedPost, setExpandedPost] = useState<{ post: UserPost; slot: ShellSlot } | null>(null);
+  const [lightboxMode, setLightboxMode] = useState<CaptureMode>('light');
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
@@ -529,6 +531,7 @@ export function ProfileShell({
                 onUnassignPost={handleUnassignPost}
                 onViewPost={(p) => {
                   setExpandedPost({ post: p, slot });
+                  setLightboxMode(getDefaultTimeMode(p));
                   onPostSelect?.(p);
                 }}
               />
@@ -582,7 +585,7 @@ export function ProfileShell({
                         {expandedPost.slot.label}
                       </h3>
                       <p className="text-[11px] font-500 text-stone-600 dark:text-amber-300/70">
-                        Featured in your {currentShell.name}
+                        {isOwner ? `Featured in your ${currentShell.name}` : `Featured in ${currentShell.name}`}
                       </p>
                     </div>
                   </div>
@@ -596,7 +599,44 @@ export function ProfileShell({
 
                 {/* Expanded Photo Container */}
                 <div className="relative flex-1 min-h-[260px] max-h-[55vh] bg-stone-950 flex items-center justify-center overflow-hidden">
-                  {expandedPost.post.light_img_url || expandedPost.post.dark_img_url ? (
+                  {expandedPost.post.light_img_url && expandedPost.post.dark_img_url ? (
+                    <>
+                      <motion.img
+                        src={getOptimizedImageUrl(expandedPost.post.dark_img_url, 1000)}
+                        alt={expandedPost.slot.label}
+                        className="w-full h-full object-contain max-h-[55vh]"
+                        initial={false}
+                        animate={{ opacity: lightboxMode === 'dark' ? 1 : 0 }}
+                        transition={{ duration: 0.35, ease: 'easeInOut' }}
+                      />
+                      <motion.img
+                        src={getOptimizedImageUrl(expandedPost.post.light_img_url, 1000)}
+                        alt={expandedPost.slot.label}
+                        className="absolute inset-0 w-full h-full object-contain max-h-[55vh]"
+                        initial={false}
+                        animate={{ opacity: lightboxMode === 'light' ? 1 : 0 }}
+                        transition={{ duration: 0.35, ease: 'easeInOut' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxMode((m) => (m === 'light' ? 'dark' : 'light'))}
+                        aria-label={`Switch to ${lightboxMode === 'light' ? 'evening' : 'daytime'} view`}
+                        className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md border border-white/30 text-white shadow-xl transition-all active:scale-95 cursor-pointer"
+                      >
+                        {lightboxMode === 'light' ? (
+                          <>
+                            <Sun size={13} className="text-amber-400 fill-amber-400" />
+                            <span className="text-[11px] font-800 text-amber-200">Day View</span>
+                          </>
+                        ) : (
+                          <>
+                            <Moon size={13} className="text-sky-300 fill-sky-300" />
+                            <span className="text-[11px] font-800 text-sky-200">Night View</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  ) : expandedPost.post.light_img_url || expandedPost.post.dark_img_url ? (
                     <motion.img
                       layoutId={`nook-img-${expandedPost.post.id}`}
                       src={getOptimizedImageUrl(

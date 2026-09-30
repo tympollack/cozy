@@ -379,4 +379,29 @@ describe('NotificationDrawer Component', () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     expect(mockOnClose).not.toHaveBeenCalled();
   });
+
+  it('renders neutral Completed indicator when daily_task notification metadata indicates completion', () => {
+    const completedNotification: CozyNotificationItem = {
+      id: 'n-completed-1',
+      userId: 'u1',
+      type: 'daily_task',
+      title: 'Daily Space Reset',
+      message: 'Time for your daily space reset! Capture your Light & Dark room.',
+      metadata: { action_url: '/camera', status: 'completed' },
+      isRead: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+        notifications={[completedNotification]}
+        unreadCount={0}
+      />
+    );
+
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Upload Room/i })).not.toBeInTheDocument();
+  });
 });

@@ -10,6 +10,13 @@ vi.mock('@/app/actions/supportActions', () => ({
   sendPeerSupport: (...args: unknown[]) => mockSendPeerSupport(...args),
 }));
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 describe('PeerSupportSheet Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,5 +144,47 @@ describe('PeerSupportSheet Component', () => {
     const closeButton = screen.getByRole('button', { name: /Close/i });
     await user.click(closeButton);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('navigates to peer profile/dollhouse when clicking Visit Dollhouse in header', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(
+      <PeerSupportSheet
+        recipientId="peer-alex"
+        recipientName="Alex"
+        vibeStatus="neutral"
+        isOpen={true}
+        onClose={onClose}
+      />
+    );
+
+    const visitBtn = screen.getByRole('button', { name: /Visit Dollhouse/i });
+    await user.click(visitBtn);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/profile/peer-alex');
+  });
+
+  it('navigates to peer profile/dollhouse when clicking View Spaces & Dollhouse banner', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(
+      <PeerSupportSheet
+        recipientId="peer-alex"
+        recipientName="Alex"
+        vibeStatus="neutral"
+        isOpen={true}
+        onClose={onClose}
+      />
+    );
+
+    const viewSpacesBtn = screen.getByRole('button', { name: /View Spaces & Dollhouse/i });
+    await user.click(viewSpacesBtn);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/profile/peer-alex');
   });
 });

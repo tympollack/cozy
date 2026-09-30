@@ -1,4 +1,4 @@
-﻿export type CameraFilter = 'natural' | 'golden_hour' | 'candlelight' | 'soft_honey';
+export type CameraFilter = 'natural' | 'golden_hour' | 'candlelight' | 'soft_honey';
 
 export interface FilterOption {
   id: CameraFilter;
@@ -20,14 +20,14 @@ export const CAMERA_WARMTH_FILTERS: FilterOption[] = [
     id: 'golden_hour',
     name: 'Golden Hour',
     emoji: '🌅',
-    css: 'sepia(0.22) saturate(1.28) brightness(1.04) contrast(1.02) hue-rotate(-6deg)',
+    css: 'sepia(0.25) saturate(1.2) contrast(1.05)',
     description: 'Warm late-afternoon sunlight',
   },
   {
     id: 'candlelight',
     name: 'Candlelight',
     emoji: '🕯️',
-    css: 'sepia(0.35) saturate(1.35) brightness(0.96) contrast(1.08) hue-rotate(-12deg)',
+    css: 'sepia(0.4) saturate(1.3) brightness(0.95)',
     description: 'Cozy hearth & firelight amber glow',
   },
   {

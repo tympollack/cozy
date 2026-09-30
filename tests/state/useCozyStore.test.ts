@@ -183,6 +183,16 @@ describe('Zustand State Machine (Scope B - useCozyStore)', () => {
       expect(useCozyStore.getState().groupPoints).toBe(125);
     });
 
+    it('persists all 6 atmospheric vibe status keys without falling back to neutral', () => {
+      const store = useCozyStore.getState();
+      const keys = ['sunshine', 'breezy', 'starlight', 'neutral', 'foggy', 'raincloud'] as const;
+
+      keys.forEach((key) => {
+        store.setVibeStatus(key);
+        expect(useCozyStore.getState().vibeStatus).toBe(key);
+      });
+    });
+
     it('guards group points addition when group is null', () => {
       const store = useCozyStore.getState();
       store.setGroupPoints(null);
