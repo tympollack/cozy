@@ -189,6 +189,16 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
       .limit(1);
 
     if (!txCheckErr && existingTx && existingTx.length > 0) {
+      // Resolve daily task notifications for the uploaded post's phase even if reward is already claimed
+      try {
+        const { resolveDailyTaskNotifications } = await import('@/app/actions/notificationActions');
+        const isDual = Boolean(post.light_img_url && post.dark_img_url);
+        const completedPhase = isDual ? 'both' : (post.light_img_url ? 'light' : 'dark');
+        await resolveDailyTaskNotifications({ completedPhase, postId });
+      } catch (notifErr) {
+        console.warn('[submitDailySpaceReset] Notification resolution error:', notifErr);
+      }
+
       return {
         success: false,
         error: 'Daily space reset already claimed for today.',
@@ -286,7 +296,7 @@ export async function submitDailySpaceReset(postId: string): Promise<SubmitDaily
     try {
       const { resolveDailyTaskNotifications } = await import('@/app/actions/notificationActions');
       const completedPhase = isDualMode ? 'both' : (post.light_img_url ? 'light' : 'dark');
-      await resolveDailyTaskNotifications({ completedPhase });
+      await resolveDailyTaskNotifications({ completedPhase, postId });
     } catch (notifErr) {
       console.warn('[submitDailySpaceReset] Notification resolution error:', notifErr);
     }

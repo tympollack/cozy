@@ -14,8 +14,8 @@ let mockPostsTable: Array<Record<string, unknown>> = [];
 let mockUsersTable: Record<string, { points: number }> = {};
 let mockGroupsTable: Record<string, { pooled_points: number }> = {};
 let mockGroupMembersTable: Array<{ user_id: string; group_id: string }> = [];
-let mockTransactionsTable: Array<{ id: string; user_id: string; transaction_type: string }> = [];
-let mockNotificationsTable: Array<{ id: string; user_id: string; type: string; is_read: boolean; metadata: any }> = [];
+let mockTransactionsTable: Array<{ id: string; user_id: string; transaction_type: string; created_at?: string }> = [];
+let mockNotificationsTable: Array<{ id: string; user_id: string; type: string; is_read: boolean; metadata: any; created_at?: string }> = [];
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: async () => ({
@@ -31,12 +31,21 @@ vi.mock('@/lib/supabase', () => ({
       from: (tableName: string) => ({
         select: (cols: string) => ({
           eq: (col1: string, val1: unknown) => ({
-            gte: () => ({
-              order: () => Promise.resolve({
+            gte: () => {
+              const res = {
                 data: mockPostsTable.filter((p) => p[col1] === val1),
                 error: null,
-              }),
-            }),
+              };
+              return {
+                order: () => Promise.resolve(res),
+                eq: (col2: string, val2: unknown) =>
+                  Promise.resolve({
+                    data: mockPostsTable.filter((p) => p[col1] === val1 && p[col2] === val2),
+                    error: null,
+                  }),
+                then: (resolve: (val: unknown) => void) => Promise.resolve(res).then(resolve),
+              };
+            },
             eq: (col2: string, val2: unknown) => {
               if (tableName === 'notifications') {
                 return {
@@ -323,12 +332,54 @@ describe('Daily Task & Habit Engine (dailyActions.ts)', () => {
           user_id: 'user-123',
           type: 'daily_task',
           is_read: false,
+          created_at: new Date().toISOString(),
           metadata: { action_url: '/camera' },
         },
       ];
 
       const res = await submitDailySpaceReset('post-with-notif');
       expect(res.success).toBe(true);
+      expect(mockNotificationsTable[0].is_read).toBe(true);
+      expect(mockNotificationsTable[0].metadata.status).toBe('completed');
+    });
+
+    it('resolves daily task for second post even when daily space reset reward was already claimed today', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null });
+      // Simulate that morning upload already created a daily_space_reset transaction today
+      mockTransactionsTable = [
+        {
+          id: 'tx-morning',
+          user_id: 'user-123',
+          transaction_type: 'daily_space_reset',
+          created_at: new Date().toISOString(),
+        },
+      ];
+      // Evening post (dark capture)
+      mockPostsTable = [
+        {
+          id: 'post-evening-dark',
+          user_id: 'user-123',
+          light_img_url: null,
+          dark_img_url: 'https://cozy.dev/dark.jpg',
+          created_at: new Date().toISOString(),
+        },
+      ];
+      mockNotificationsTable = [
+        {
+          id: 'notif-evening-dark',
+          user_id: 'user-123',
+          type: 'daily_task',
+          is_read: false,
+          created_at: new Date().toISOString(),
+          metadata: { target_phase: 'dark', action_url: '/camera' },
+        },
+      ];
+
+      const res = await submitDailySpaceReset('post-evening-dark');
+      // Reward is rejected due to idempotency
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/already claimed/i);
+      // But the evening task notification is still marked completed and read!
       expect(mockNotificationsTable[0].is_read).toBe(true);
       expect(mockNotificationsTable[0].metadata.status).toBe('completed');
     });

@@ -51,6 +51,22 @@ function formatTimeAgo(isoString: string): string {
   }
 }
 
+/**
+ * Ensures an action URL is a valid, relative path within Cozy.
+ * Blocks external domains, protocol-relative URLs (//), backslash variations, and javascript: URIs.
+ */
+export function sanitizeInternalUrl(url?: unknown, fallback = '/camera'): string {
+  if (typeof url !== 'string') return fallback;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/\\')) {
+    // Only permit safe pathname, query, and fragment characters
+    if (/^\/[a-zA-Z0-9_.~%!$&'()*+,;=:@\/?#-]*$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return fallback;
+}
+
 export function NotificationDrawer({
   isOpen,
   onClose,
@@ -481,7 +497,7 @@ export function NotificationDrawer({
                                         e.stopPropagation();
                                         handleMarkItemRead(item.id);
                                         onClose();
-                                        router.push(item.metadata?.action_url ? String(item.metadata.action_url) : '/camera');
+                                        router.push(sanitizeInternalUrl(item.metadata?.action_url, '/camera'));
                                       }}
                                       className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
                                     >
@@ -514,7 +530,7 @@ export function NotificationDrawer({
 
                                 {item.type === 'admin_broadcast' && item.metadata?.action_url && (
                                   <Link
-                                    href={String(item.metadata.action_url)}
+                                    href={sanitizeInternalUrl(item.metadata.action_url, '/')}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleMarkItemRead(item.id);

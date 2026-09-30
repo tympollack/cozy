@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useTransition, useRef } from 'react';
+import { useState, useCallback, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, Sparkles, X, Check, Sun, Moon } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -102,6 +102,17 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
 
   const hasDualCaptures = Boolean(post.light_img_url && post.dark_img_url);
   const [viewMode, setViewMode] = useState<CaptureMode>(() => getDefaultTimeMode(post));
+  const [userToggled, setUserToggled] = useState(false);
+
+  // Synchronize viewMode with the circadian clock every minute unless user has explicitly toggled
+  useEffect(() => {
+    if (!hasDualCaptures || userToggled) return;
+    const interval = setInterval(() => {
+      const mode = getDefaultTimeMode(post);
+      setViewMode((prev) => (userToggled ? prev : mode));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [hasDualCaptures, userToggled, post]);
 
   const activeUrl = viewMode === 'light'
     ? (post.light_img_url || post.dark_img_url)
@@ -209,6 +220,7 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                setUserToggled(true);
                 setViewMode((prev) => (prev === 'light' ? 'dark' : 'light'));
               }}
               aria-label={`Switch to ${viewMode === 'light' ? 'evening' : 'daytime'} view`}

@@ -181,5 +181,36 @@ describe('ImageUploader & Cloud Sync Handling', () => {
       // Valid preview remains visible and was not wiped out
       expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
     });
+
+    it('restores empty slot and keeps share button disabled if cloud error occurs during processing on initial selection', async () => {
+      vi.spyOn(offlineStore, 'useOfflineSync').mockReturnValue({
+        isOnline: true,
+        queuedCount: 0,
+        isSyncing: false,
+        lastSyncResult: null,
+        refreshCount: vi.fn(),
+        syncNow: vi.fn(),
+      });
+
+      render(<CameraPage />);
+      const galleryInput = document.getElementById('gallery-input-light') as HTMLInputElement;
+
+      const cloudFile = new File(['mock-bytes'], 'cloud-fail.jpg', { type: 'image/jpeg' });
+      // Probe succeeds, but background image processing throws cloud sync error
+      const imageUtils = await import('@/lib/imageUtils');
+      vi.spyOn(imageUtils, 'processImageFile').mockRejectedValueOnce(
+        new DOMException('The cloud operation was unsuccessful', 'NotReadableError')
+      );
+
+      fireEvent.change(galleryInput, { target: { files: [cloudFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cloud-sync-toast')).toBeInTheDocument();
+      });
+
+      // Submit button remains disabled because slot was restored to empty
+      const submitButton = screen.getByRole('button', { name: /Share my space/i });
+      expect(submitButton).toBeDisabled();
+    });
   });
 });

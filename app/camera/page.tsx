@@ -74,11 +74,17 @@ export default function CameraPage() {
     if (darkGalleryRef.current) darkGalleryRef.current.value = '';
   }, []);
 
+  const lightSlotRef = useRef(lightSlot);
+  lightSlotRef.current = lightSlot;
+  const darkSlotRef = useRef(darkSlot);
+  darkSlotRef.current = darkSlot;
+
   // --- File selection ---
   const handleFileChange = useCallback(
     async (mode: Mode, file: File | null, inputElement?: HTMLInputElement | null) => {
       if (!file) return;
       playCameraShutter();
+      const previousSlot = mode === 'light' ? lightSlotRef.current : darkSlotRef.current;
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
       const filterToApply = mode === 'light' ? lightFilter : darkFilter;
       const filterCss = CAMERA_WARMTH_FILTERS.find((f) => f.id === filterToApply)?.css;
@@ -100,10 +106,12 @@ export default function CameraPage() {
         }
       }
 
+      let newlyCreatedPreview: string | null = null;
+
       // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
       try {
-        const instantPreview = await getPreviewUrlFromFile(file);
-        setter({ file, preview: instantPreview });
+        newlyCreatedPreview = await getPreviewUrlFromFile(file);
+        setter({ file, preview: newlyCreatedPreview });
       } catch (err) {
         if (isCloudSyncError(err)) {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
@@ -125,6 +133,15 @@ export default function CameraPage() {
           setImgErrors((prev) => ({ ...prev, [mode]: false }));
         }
       } catch (err) {
+        // Processing failed: revoke any temporary preview created for this unreadable file
+        if (newlyCreatedPreview && newlyCreatedPreview.startsWith('blob:') && newlyCreatedPreview !== previousSlot.preview) {
+          try {
+            URL.revokeObjectURL(newlyCreatedPreview);
+          } catch {}
+        }
+        // Restore prior valid photo slot (or EMPTY_SLOT if none existed)
+        setter(previousSlot);
+
         if (isCloudSyncError(err)) {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
           if (inputElement) inputElement.value = '';
