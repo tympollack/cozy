@@ -4,8 +4,8 @@ import {
   getVillageSuggestions,
   verifyProximity,
   triggerPostcard,
-  setEnableSpaceClaimingForTesting,
 } from '@/app/actions/claimActions';
+import { setEnableSpaceClaimingForTesting } from '@/lib/claimConfig';
 
 const mockGetUser = vi.fn();
 const mockRecordPointTransaction = vi.fn();

@@ -14,7 +14,7 @@ import type { StickerCatalogItem } from '@/components/StickerDrawer';
 import { CommentBox } from '@/components/CommentBox';
 import { getComments, type Comment } from '@/app/actions/commentActions';
 import { ClaimHouseModal } from '@/components/ClaimHouseModal';
-import { ENABLE_SPACE_CLAIMING } from '@/app/actions/claimActions';
+import { ENABLE_SPACE_CLAIMING } from '@/lib/claimConfig';
 import { Home, Tag } from 'lucide-react';
 import { ShoppableImage } from '@/components/ShoppableImage';
 import { PinDropZone } from '@/components/PinDropZone';

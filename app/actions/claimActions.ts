@@ -1,12 +1,7 @@
 'use server';
 
 import { createServerClient, createServiceClient } from '@/lib/supabase';
-
-export let ENABLE_SPACE_CLAIMING = false;
-
-export async function setEnableSpaceClaimingForTesting(enabled: boolean) {
-  ENABLE_SPACE_CLAIMING = enabled;
-}
+import { ENABLE_SPACE_CLAIMING } from '@/lib/claimConfig';
 
 // Helper: Haversine formula
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
