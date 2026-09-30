@@ -95,7 +95,6 @@ export default function CameraPage() {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
           if (inputElement) inputElement.value = '';
           resetFileInputs();
-          setter(EMPTY_SLOT);
           setIsProcessingFile(false);
           return;
         }
@@ -110,7 +109,6 @@ export default function CameraPage() {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
           if (inputElement) inputElement.value = '';
           resetFileInputs();
-          setter(EMPTY_SLOT);
           setIsProcessingFile(false);
           return;
         }
@@ -131,7 +129,6 @@ export default function CameraPage() {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
           if (inputElement) inputElement.value = '';
           resetFileInputs();
-          setter(EMPTY_SLOT);
         } else {
           console.error('Image processing error:', err);
         }
@@ -538,8 +535,12 @@ export default function CameraPage() {
                         mode={mode}
                         filterDef={filterDef}
                         imgError={imgErrors[mode]}
-                        onImgError={() => setImgErrors((prev) => ({ ...prev, [mode]: true }))}
-                        onImgLoad={() => setImgErrors((prev) => ({ ...prev, [mode]: false }))}
+                        onImgError={() =>
+                          setImgErrors((prev) => (prev[mode] ? prev : { ...prev, [mode]: true }))
+                        }
+                        onImgLoad={() =>
+                          setImgErrors((prev) => (!prev[mode] ? prev : { ...prev, [mode]: false }))
+                        }
                         onClear={(e) => clearSlot(mode, e)}
                         onRetake={() => cameraRef.current?.click()}
                         onGallery={() => galleryRef.current?.click()}

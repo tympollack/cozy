@@ -80,9 +80,12 @@ export default async function PeerProfilePage({ params }: PeerProfilePageProps) 
     error,
   } = await getUserProfileData(id);
 
-  // 4. Fetch peer relationship & porch items
+  // 4. Fetch peer relationship & porch items (private porch gifts only disclosed to owner)
+  const isOwner = user?.id === id;
   const peerStatus = await getPeerStatus(user?.id ?? null, id);
-  const porchDigest = await getPorchDigest(id);
+  const porchDigest = isOwner
+    ? await getPorchDigest(id)
+    : { success: true, items: [] };
 
   const peerName = peerUser?.display_name || 'Neighbor';
   const peerVibe = (peerUser?.vibe_status as VibeStatus) || 'neutral';
@@ -184,7 +187,10 @@ export default async function PeerProfilePage({ params }: PeerProfilePageProps) 
               </p>
             </div>
           ) : (
-            <ProfileGrid posts={sharedPosts.length > 0 ? sharedPosts : posts} />
+            <ProfileGrid
+              posts={sharedPosts.length > 0 ? sharedPosts : posts}
+              readOnly={!isOwner}
+            />
           )}
         </div>
       </div>

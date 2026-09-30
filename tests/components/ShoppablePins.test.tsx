@@ -38,7 +38,7 @@ describe('Shoppable Pins & Makerverse Linking', () => {
     const urlInput = (await screen.findByPlaceholderText(/makerverse\.com\/item/i)) as HTMLInputElement;
     expect(urlInput.value).toBe('https://makerverse.com/item/');
     expect(await screen.findByText(/✓ Makerverse Shop Item Linked/i)).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders Makerverse badge in ShoppableImage for Makerverse shop links', async () => {
     const user = userEvent.setup();

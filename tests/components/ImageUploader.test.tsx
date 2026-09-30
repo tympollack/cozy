@@ -142,5 +142,44 @@ describe('ImageUploader & Cloud Sync Handling', () => {
       expect(submitButton).toBeDisabled(); // Disabled because no valid photo is ready, NOT stuck processing
       expect(screen.queryByText(/Scrubbing EXIF & compressing/i)).not.toBeInTheDocument();
     });
+
+    it('preserves existing valid photo in slot if replacement file throws cloud error', async () => {
+      vi.spyOn(offlineStore, 'useOfflineSync').mockReturnValue({
+        isOnline: true,
+        queuedCount: 0,
+        isSyncing: false,
+        lastSyncResult: null,
+        refreshCount: vi.fn(),
+        syncNow: vi.fn(),
+      });
+
+      render(<CameraPage />);
+      const galleryInput = document.getElementById('gallery-input-light') as HTMLInputElement;
+
+      // 1. Select a valid photo first
+      const validFile = new File(['valid-image'], 'cozy-room.jpg', { type: 'image/jpeg' });
+      fireEvent.change(galleryInput, { target: { files: [validFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
+      });
+
+      // 2. Try to replace it with an unhydrated cloud file
+      const cloudFile = new File([''], 'cloud-fail.jpg', { type: 'image/jpeg' });
+      vi.spyOn(cloudFile, 'slice').mockImplementation(() => {
+        return {
+          arrayBuffer: () => Promise.reject(new DOMException('The cloud operation was unsuccessful', 'NotReadableError')),
+        } as unknown as Blob;
+      });
+
+      fireEvent.change(galleryInput, { target: { files: [cloudFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cloud-sync-toast')).toBeInTheDocument();
+      });
+
+      // Valid preview remains visible and was not wiped out
+      expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
+    });
   });
 });

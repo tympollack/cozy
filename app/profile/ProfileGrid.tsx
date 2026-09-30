@@ -181,7 +181,13 @@ function PostThumbnail({
 // ProfileGrid
 // ---------------------------------------------------------------------------
 
-export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
+export function ProfileGrid({
+  posts: initialPosts,
+  readOnly = false,
+}: {
+  posts: UserPost[];
+  readOnly?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [localPosts, setLocalPosts] = useState<UserPost[]>(initialPosts);
@@ -222,7 +228,10 @@ export function ProfileGrid({ posts: initialPosts }: { posts: UserPost[] }) {
       >
         {localPosts.map((post) => (
           <div key={post.id} className="break-inside-avoid mb-3">
-            <PostThumbnail post={post} onManage={(p) => setManagedPost(p)} />
+            <PostThumbnail
+              post={post}
+              onManage={readOnly ? undefined : (p) => setManagedPost(p)}
+            />
           </div>
         ))}
       </div>

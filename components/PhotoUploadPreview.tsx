@@ -54,12 +54,11 @@ export function PhotoUploadPreview({
 
   const resolvedFilterCss = filterCss ?? activeDef.css;
 
-  // Whenever previewUrl or file changes (e.g., converted JPG arrives from WASM pipeline),
-  // reset error state so the converted JPG URL renders directly in the preview img element
+  // Whenever previewUrl changes (e.g., converted JPG arrives from WASM pipeline),
+  // reset internal error state so the converted JPG URL renders directly in the preview img element
   useEffect(() => {
     setInternalImgError(false);
-    onImgLoad?.();
-  }, [previewUrl, onImgLoad]);
+  }, [previewUrl]);
 
   const Icon = mode === 'light' ? Sun : Moon;
   const label = mode === 'light' ? 'Light Mode' : 'Dark Mode';

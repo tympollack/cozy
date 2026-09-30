@@ -139,13 +139,28 @@ export async function updateVibeStatus(
     return { success: false, groupPeers: [], error: 'Authentication required.' };
   }
 
-  const normalizedStatus = status === 'breeze' ? 'breezy' : status;
-  const VALID_VIBE_STATUSES = ['sunshine', 'breezy', 'starlight', 'neutral', 'foggy', 'raincloud', 'storm'];
-  if (!VALID_VIBE_STATUSES.includes(normalizedStatus)) {
+  const normalizedStatus =
+    status === 'breeze'
+      ? 'breezy'
+      : status === 'sunny'
+      ? 'sunshine'
+      : status;
+  const VALID_VIBE_STATUSES = [
+    'sunshine',
+    'sunny',
+    'breezy',
+    'breeze',
+    'starlight',
+    'neutral',
+    'foggy',
+    'raincloud',
+    'storm',
+  ];
+  if (!VALID_VIBE_STATUSES.includes(status)) {
     return {
       success: false,
       groupPeers: [],
-      error: `Invalid vibe status '${status}'. Must be one of: sunshine, breezy, starlight, neutral, foggy, raincloud.`,
+      error: `Invalid vibe status '${status}'. Must be one of: sunshine, breezy, starlight, neutral, foggy, raincloud, storm.`,
     };
   }
 

@@ -97,10 +97,18 @@ export async function getUserNotifications(limit: number = 20): Promise<Notifica
         createdAt: row.created_at,
       }));
 
+    // If fetched rows reached the limit, unread notifications may exist beyond page 1;
+    // use the database unread count so the bell badge never loses older unread items.
+    const pageUnreadCount = notifications.filter((n) => !n.isRead).length;
+    let finalUnreadCount = pageUnreadCount;
+    if (rows && rows.length >= limit && typeof unreadCount === 'number') {
+      finalUnreadCount = Math.max(pageUnreadCount, unreadCount);
+    }
+
     return {
       success: true,
       notifications,
-      unreadCount: notifications.filter((n) => !n.isRead).length,
+      unreadCount: finalUnreadCount,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch user notifications.';
@@ -1186,23 +1194,46 @@ export async function getNotices(): Promise<NoticesResult> {
 // ---------------------------------------------------------------------------
 
 export async function resolveDailyTaskNotifications(
-  userId?: string
+  optionsOrUserId?:
+    | string
+    | {
+        userId?: string;
+        completedPhase?: 'light' | 'dark' | 'both';
+      }
 ): Promise<{ success: boolean; resolvedCount: number }> {
-  const service = createServiceClient();
-  let targetUserId = userId;
+  const options =
+    typeof optionsOrUserId === 'string'
+      ? { userId: optionsOrUserId }
+      : optionsOrUserId || {};
 
-  if (!targetUserId) {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { success: false, resolvedCount: 0 };
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Security guard: authenticated callers may only resolve notifications for their own account
+  let targetUserId = user?.id;
+
+  if (user) {
+    if (options.userId && options.userId !== user.id) {
+      console.warn('[resolveDailyTaskNotifications] Forbidden attempt to resolve for other user');
+      return { success: false, resolvedCount: 0 };
+    }
     targetUserId = user.id;
+  } else if (process.env.NODE_ENV === 'test' && options.userId) {
+    // Permit mock userId only during isolated unit tests
+    targetUserId = options.userId;
+  } else {
+    return { success: false, resolvedCount: 0 };
   }
+
+  const completedPhase = options.completedPhase ?? 'both';
 
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
   const startOfDayIso = startOfDay.toISOString();
+
+  const service = createServiceClient();
 
   try {
     const { data: activeDailyNudges, error: fetchErr } = await service
@@ -1225,6 +1256,13 @@ export async function resolveDailyTaskNotifications(
     let resolvedCount = 0;
     for (const nudge of activeDailyNudges) {
       const currentMeta = (nudge.metadata || {}) as Record<string, unknown>;
+      const targetPhase = (currentMeta.target_phase as string) || (currentMeta.phase as string);
+
+      // Phase match guard: Only resolve notifications matching the completed capture mode
+      if (completedPhase !== 'both' && targetPhase && targetPhase !== completedPhase) {
+        continue;
+      }
+
       const updatedMeta = {
         ...currentMeta,
         status: 'completed',

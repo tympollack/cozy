@@ -95,11 +95,17 @@ export function GroupDetailClient({
     }
   }, [group, members, currentUserRole, memberCount, activeChallenge, initialMapTheme]);
 
+  const activeGroupIdRef = useRef(activeGroupId);
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
+
   // Query Invalidation & Dependency Binding:
   // Hook fetching group details and members includes activeGroupId directly in its dependency array.
   // Clears previous member state immediately to avoid ghost members from group A in group B.
   useEffect(() => {
     if (!activeGroupId) return;
+    let isCurrent = true;
 
     const cached = groupBundleCache.get(activeGroupId);
     if (cached) {
@@ -109,6 +115,7 @@ export function GroupDetailClient({
       if (Date.now() - cached.cachedAt > 30000) {
         getGroupPageBundle(activeGroupId)
           .then((res) => {
+            if (!isCurrent || activeGroupIdRef.current !== activeGroupId) return;
             if (res.groupWithMembers && res.groupWithMembers.group.id === activeGroupId) {
               groupBundleCache.set(activeGroupId, {
                 group: res.groupWithMembers.group,
@@ -130,7 +137,8 @@ export function GroupDetailClient({
 
       getGroupPageBundle(activeGroupId)
         .then((res) => {
-          if (res.groupWithMembers) {
+          if (!isCurrent || activeGroupIdRef.current !== activeGroupId) return;
+          if (res.groupWithMembers && res.groupWithMembers.group.id === activeGroupId) {
             groupBundleCache.set(activeGroupId, {
               group: res.groupWithMembers.group,
               members: res.groupWithMembers.members,
@@ -145,6 +153,10 @@ export function GroupDetailClient({
         })
         .catch((err) => console.warn('[GroupDetailClient] bundle fetch error:', err));
     }
+
+    return () => {
+      isCurrent = false;
+    };
   }, [activeGroupId]);
 
   // Supabase Realtime channel subscription for instant broadcast & postgres_changes
@@ -319,7 +331,9 @@ export function GroupDetailClient({
               cachedAt: Date.now(),
               mapTheme: res.groupWithMembers.mapTheme,
             });
-            setLiveMembers(res.groupWithMembers.members || []);
+            if (activeGroupIdRef.current === targetGroupId) {
+              setLiveMembers(res.groupWithMembers.members || []);
+            }
           }
         }).catch(() => {});
       }
@@ -327,7 +341,7 @@ export function GroupDetailClient({
       // Not yet in cache — fetch quickly and transition
       getGroupPageBundle(targetGroupId)
         .then((res) => {
-          if (res.groupWithMembers) {
+          if (res.groupWithMembers && res.groupWithMembers.group.id === targetGroupId) {
             groupBundleCache.set(targetGroupId, {
               group: res.groupWithMembers.group,
               members: res.groupWithMembers.members,
@@ -337,7 +351,9 @@ export function GroupDetailClient({
               cachedAt: Date.now(),
               mapTheme: res.groupWithMembers.mapTheme,
             });
-            setLiveMembers(res.groupWithMembers.members || []);
+            if (activeGroupIdRef.current === targetGroupId) {
+              setLiveMembers(res.groupWithMembers.members || []);
+            }
           } else {
             router.push(`/groups/${targetGroupId}`);
           }
