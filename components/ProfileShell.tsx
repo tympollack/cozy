@@ -582,7 +582,7 @@ export function ProfileShell({
                         {expandedPost.slot.label}
                       </h3>
                       <p className="text-[11px] font-500 text-stone-600 dark:text-amber-300/70">
-                        Featured in your {currentShell.name}
+                        {isOwner ? `Featured in your ${currentShell.name}` : `Featured in ${currentShell.name}`}
                       </p>
                     </div>
                   </div>
