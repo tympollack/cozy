@@ -7,6 +7,7 @@ import {
   getUserNotifications,
   type CozyNotificationItem,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   triggerDailyTaskNudge,
 } from '@/app/actions/notificationActions';
 import { NotificationDrawer } from '@/components/NotificationDrawer';
@@ -130,18 +131,31 @@ export function NavbarNotificationBell({
   }, [userId, fetchLatestNotifications]);
 
   const handleMarkRead = async (id: string) => {
+    const prevNotifications = notifications;
+    const prevUnreadCount = unreadCount;
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
     setUnreadCount((c) => Math.max(0, c - 1));
-    await markNotificationAsRead(id);
+    const res = await markNotificationAsRead(id);
+    if (!res.success) {
+      setNotifications(prevNotifications);
+      setUnreadCount(prevUnreadCount);
+      throw new Error(res.error || 'Failed to mark notification as read');
+    }
   };
 
   const handleMarkAllRead = async () => {
+    const prevNotifications = notifications;
+    const prevUnreadCount = unreadCount;
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    const unread = notifications.filter((n) => !n.isRead);
-    await Promise.all(unread.map((n) => markNotificationAsRead(n.id)));
+    const res = await markAllNotificationsAsRead();
+    if (!res.success) {
+      setNotifications(prevNotifications);
+      setUnreadCount(prevUnreadCount);
+      throw new Error(res.error || 'Failed to mark all as read');
+    }
   };
 
   return (

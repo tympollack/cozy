@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
+  ArrowLeft,
   Bell,
   Sparkles,
   CloudRain,
@@ -22,7 +23,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CozyNotificationItem, NotificationType } from '@/app/actions/notificationActions';
-import { markNotificationAsRead } from '@/app/actions/notificationActions';
+import { markNotificationAsRead, markAllNotificationsAsRead } from '@/app/actions/notificationActions';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
 
 export interface NotificationDrawerProps {
@@ -65,6 +66,28 @@ export function NotificationDrawer({
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [isPending, startTransition] = useTransition();
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+  const dismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear pending timers and feedback banner when drawer closes
+  useEffect(() => {
+    if (!isOpen) {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+      setFeedbackToast(null);
+    }
+  }, [isOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
 
   // Filter items
   const items = notifications.map((n) => ({
@@ -77,24 +100,61 @@ export function NotificationDrawer({
     return n.type === activeTab;
   });
 
+  // Track optimistic reads not yet reflected as read in incoming notifications
+  const optimisticUnreadCount = notifications.filter(
+    (n) => !n.isRead && localReadIds.has(n.id)
+  ).length;
+
   const activeUnreadCount =
     unreadCount !== undefined
-      ? Math.max(0, unreadCount - localReadIds.size)
+      ? Math.max(0, unreadCount - optimisticUnreadCount)
       : items.filter((n) => !n.isRead).length;
 
   const handleMarkItemRead = (id: string) => {
+    const currentUnread = activeUnreadCount;
+    const willBeAllRead = currentUnread <= 1;
+
+    const prevLocalReadIds = new Set(localReadIds);
     setLocalReadIds((prev) => new Set(prev).add(id));
+
     startTransition(async () => {
-      if (onMarkRead) {
-        await onMarkRead(id);
-      } else {
-        await markNotificationAsRead(id);
+      try {
+        let result = { success: true, error: undefined as string | undefined };
+        if (onMarkRead) {
+          await onMarkRead(id);
+        } else {
+          const res = await markNotificationAsRead(id);
+          if (!res.success) {
+            result = { success: false, error: res.error };
+          }
+        }
+
+        if (!result.success) {
+          setLocalReadIds(prevLocalReadIds);
+          setFeedbackToast(result.error || 'Failed to mark notification as read');
+          return;
+        }
+
+        if (willBeAllRead) {
+          setFeedbackToast('All caught up ✓');
+          onRefresh?.();
+          if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+          dismissTimerRef.current = setTimeout(() => {
+            onClose();
+          }, 300);
+        }
+      } catch (err: any) {
+        setLocalReadIds(prevLocalReadIds);
+        setFeedbackToast(err?.message || 'Failed to mark notification as read');
       }
     });
   };
 
   const handleMarkAllRead = () => {
     const unreadIds = items.filter((n) => !n.isRead).map((n) => n.id);
+    if (unreadIds.length === 0 && activeUnreadCount <= 0) return;
+
+    const prevLocalReadIds = new Set(localReadIds);
     setLocalReadIds((prev) => {
       const next = new Set(prev);
       unreadIds.forEach((id) => next.add(id));
@@ -102,12 +162,33 @@ export function NotificationDrawer({
     });
 
     startTransition(async () => {
-      if (onMarkAllRead) {
-        await onMarkAllRead();
-      } else {
-        await Promise.all(unreadIds.map((id) => markNotificationAsRead(id)));
+      try {
+        let result = { success: true, error: undefined as string | undefined };
+        if (onMarkAllRead) {
+          await onMarkAllRead();
+        } else {
+          const res = await markAllNotificationsAsRead();
+          if (!res.success) {
+            result = { success: false, error: res.error };
+          }
+        }
+
+        if (!result.success) {
+          setLocalReadIds(prevLocalReadIds);
+          setFeedbackToast(result.error || 'Failed to mark notifications as read');
+          return;
+        }
+
+        setFeedbackToast('All caught up ✓');
+        onRefresh?.();
+        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = setTimeout(() => {
+          onClose();
+        }, 300);
+      } catch (err: any) {
+        setLocalReadIds(prevLocalReadIds);
+        setFeedbackToast(err?.message || 'Failed to mark notifications as read');
       }
-      onRefresh?.();
     });
   };
 
@@ -123,44 +204,69 @@ export function NotificationDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            role="button"
+            tabIndex={0}
+            aria-label="Close notification drawer backdrop"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' || e.key === 'Enter') onClose();
+            }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity cursor-pointer"
           />
 
-          {/* Slide-over Drawer */}
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+          {/* Slide-over Drawer with swipe-to-dismiss support */}
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
             <motion.aside
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-              className="w-screen max-w-md backdrop-blur-md bg-stone-950/90 border-l border-amber-500/20 text-stone-100 flex flex-col shadow-2xl relative"
+              drag="x"
+              dragConstraints={{ left: 0 }}
+              dragElastic={{ left: 0, right: 0.5 }}
+              onDragEnd={(_e, info) => {
+                if (info.offset.x > 80 || info.velocity.x > 300) {
+                  onClose();
+                }
+              }}
+              className="w-screen max-w-md backdrop-blur-md bg-stone-950/90 border-l border-amber-500/20 text-stone-100 flex flex-col shadow-2xl relative touch-pan-y"
             >
               {/* Drawer Header */}
-              <div className="p-4 sm:p-5 border-b border-amber-500/10 flex items-center justify-between shrink-0 bg-stone-900/40">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <div className="p-4 sm:p-5 border-b border-amber-500/10 flex items-center justify-between shrink-0 bg-stone-900/40 gap-2">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                  {/* Mobile Back affordance */}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Back to previous screen"
+                    className="sm:hidden min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-xl bg-stone-800/80 hover:bg-stone-700/80 border border-amber-500/20 text-stone-300 hover:text-stone-100 transition-colors cursor-pointer shrink-0"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+
+                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
                     <Bell size={18} />
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-amber-100 flex items-center gap-2">
-                      Notifications
+                  <div className="truncate">
+                    <h2 className="text-base font-bold text-amber-100 flex items-center gap-2 truncate">
+                      <span>Notifications</span>
                       {activeUnreadCount > 0 && (
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse shrink-0">
                           {activeUnreadCount} new
                         </span>
                       )}
                     </h2>
-                    <p className="text-xs text-stone-400">Cozy space updates & system alerts</p>
+                    <p className="text-xs text-stone-400 truncate">Cozy space updates & system alerts</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {onRefresh && (
                     <button
+                      type="button"
                       onClick={() => startTransition(async () => onRefresh())}
                       disabled={isPending || isLoading}
                       aria-label="Refresh notifications"
-                      className="p-2 rounded-xl text-stone-400 hover:text-amber-300 hover:bg-stone-800/60 transition-colors disabled:opacity-50"
+                      className="min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-xl text-stone-400 hover:text-amber-300 hover:bg-stone-800/60 transition-colors disabled:opacity-50 cursor-pointer"
                       title="Refresh"
                     >
                       <RefreshCw size={15} className={isPending || isLoading ? 'animate-spin' : ''} />
@@ -168,10 +274,11 @@ export function NotificationDrawer({
                   )}
                   {activeUnreadCount > 0 && (
                     <button
+                      type="button"
                       onClick={handleMarkAllRead}
                       disabled={isPending}
                       aria-label="Mark all as read"
-                      className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-stone-800/80 hover:bg-amber-950/40 text-amber-300 hover:text-amber-200 border border-amber-500/20 transition-colors"
+                      className="min-h-[44px] px-3 py-2 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-stone-800/80 hover:bg-amber-950/40 text-amber-300 hover:text-amber-200 border border-amber-500/20 transition-colors cursor-pointer"
                       title="Mark all as read"
                     >
                       <CheckCheck size={14} />
@@ -179,17 +286,43 @@ export function NotificationDrawer({
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={onClose}
                     aria-label="Close notification drawer"
-                    className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 transition-colors"
+                    className="min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-xl bg-stone-800/80 hover:bg-stone-700/80 border border-stone-700/50 text-stone-300 hover:text-stone-100 backdrop-blur-md transition-colors cursor-pointer"
                   >
                     <X size={18} />
                   </button>
                 </div>
               </div>
 
+              {/* Toast Feedback Banner */}
+              <AnimatePresence>
+                {feedbackToast && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, y: -6 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden shrink-0"
+                  >
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mx-4 mt-3 p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 shadow-lg backdrop-blur-md"
+                    >
+                      <Check size={15} className="text-amber-400 stroke-[2.5]" />
+                      <span>{feedbackToast}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Filter Tabs */}
-              <div className="px-4 py-2 border-b border-amber-500/10 bg-stone-900/20 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              <div
+                className="px-4 py-2 border-b border-amber-500/10 bg-stone-900/20 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0 touch-pan-x"
+                onPointerDownCapture={(e) => e.stopPropagation()}
+              >
                 {(
                   [
                     { id: 'all', label: 'All', count: items.length },
