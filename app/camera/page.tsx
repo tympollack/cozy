@@ -15,6 +15,11 @@ import { processImageFile, getPreviewUrlFromFile } from '@/lib/imageUtils';
 import { playCameraShutter } from '@/lib/audio/soundscape';
 import { saveOfflinePost, useOfflineSync } from '@/lib/offlinePhotoStore';
 import { CAMERA_WARMTH_FILTERS, type CameraFilter, type FilterOption } from '@/lib/cameraFilters';
+import {
+  isCloudSyncError,
+  probeCloudFile,
+  CLOUD_SYNC_ERROR_MESSAGE,
+} from '@/components/ImageUploader';
 
 type Mode = 'light' | 'dark';
 type SubmitState = 'idle' | 'uploading' | 'success' | 'error';
@@ -44,6 +49,7 @@ export default function CameraPage() {
   const [activePickerModalMode, setActivePickerModalMode] = useState<Mode | null>(null);
   const [imgErrors, setImgErrors] = useState<Record<Mode, boolean>>({ light: false, dark: false });
   const [offlineSaved, setOfflineSaved] = useState(false);
+  const [cloudSyncToast, setCloudSyncToast] = useState<string | null>(null);
 
   // Background IndexedDB offline sync hook
   const { isOnline, queuedCount, isSyncing, syncNow } = useOfflineSync(uploadPost);
@@ -60,9 +66,16 @@ export default function CameraPage() {
   const activeFilterConfig =
     CAMERA_WARMTH_FILTERS.find((f) => f.id === activeFilter) ?? CAMERA_WARMTH_FILTERS[0];
 
+  const resetFileInputs = useCallback(() => {
+    if (lightCameraRef.current) lightCameraRef.current.value = '';
+    if (lightGalleryRef.current) lightGalleryRef.current.value = '';
+    if (darkCameraRef.current) darkCameraRef.current.value = '';
+    if (darkGalleryRef.current) darkGalleryRef.current.value = '';
+  }, []);
+
   // --- File selection ---
   const handleFileChange = useCallback(
-    async (mode: Mode, file: File | null) => {
+    async (mode: Mode, file: File | null, inputElement?: HTMLInputElement | null) => {
       if (!file) return;
       playCameraShutter();
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
@@ -71,10 +84,37 @@ export default function CameraPage() {
 
       setActivePickerModalMode(null);
       setImgErrors((prev) => ({ ...prev, [mode]: false }));
+      setCloudSyncToast(null);
+
+      // Probe file to catch unhydrated OS cloud placeholder files (OneDrive 0x80070185, iCloud NotReadableError)
+      try {
+        await probeCloudFile(file);
+      } catch (err) {
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+          setter(EMPTY_SLOT);
+          setIsProcessingFile(false);
+          return;
+        }
+      }
 
       // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
-      const instantPreview = await getPreviewUrlFromFile(file);
-      setter({ file, preview: instantPreview });
+      try {
+        const instantPreview = await getPreviewUrlFromFile(file);
+        setter({ file, preview: instantPreview });
+      } catch (err) {
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+          setter(EMPTY_SLOT);
+          setIsProcessingFile(false);
+          return;
+        }
+        console.error('Instant preview error:', err);
+      }
 
       // 2. Background image processing, EXIF scrubbing & compression (<100ms)
       setIsProcessingFile(true);
@@ -85,12 +125,19 @@ export default function CameraPage() {
           setter({ file: processedFile, preview: processedPreview });
         }
       } catch (err) {
-        console.error('Image processing error:', err);
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+          if (inputElement) inputElement.value = '';
+          resetFileInputs();
+          setter(EMPTY_SLOT);
+        } else {
+          console.error('Image processing error:', err);
+        }
       } finally {
         setIsProcessingFile(false);
       }
     },
-    [lightFilter, darkFilter]
+    [lightFilter, darkFilter, resetFileInputs]
   );
 
   const clearSlot = useCallback((mode: Mode, e: React.MouseEvent) => {
@@ -289,7 +336,35 @@ export default function CameraPage() {
   }
 
   return (
-    <div className="cozy-page-bg px-4 py-8">
+    <div className="cozy-page-bg px-4 py-8 relative">
+      {/* Cloud Hydration Error Toast Alert */}
+      <AnimatePresence>
+        {cloudSyncToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            role="alert"
+            data-testid="cloud-sync-toast"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] p-3.5 rounded-2xl bg-amber-950/95 border-2 border-amber-400 text-amber-100 shadow-2xl backdrop-blur-md flex items-start gap-3"
+          >
+            <AlertCircle className="text-amber-400 flex-shrink-0 mt-0.5" size={18} />
+            <div className="flex-1 text-xs font-semibold leading-relaxed">
+              {cloudSyncToast}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCloudSyncToast(null)}
+              className="text-amber-400 hover:text-amber-200 cursor-pointer p-0.5 transition-colors"
+              aria-label="Dismiss alert"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-lg mx-auto space-y-6">
         {/* Offline Status Alert Banner */}
         {!isOnline && (
@@ -393,7 +468,7 @@ export default function CameraPage() {
           accept="image/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null, e.currentTarget)}
         />
         <input
           id="gallery-input-light"
@@ -401,7 +476,7 @@ export default function CameraPage() {
           type="file"
           accept="image/*"
           className="sr-only"
-          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('light', e.target.files?.[0] ?? null, e.currentTarget)}
         />
 
         {/* Hidden inputs for Dark mode */}
@@ -412,7 +487,7 @@ export default function CameraPage() {
           accept="image/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null, e.currentTarget)}
         />
         <input
           id="gallery-input-dark"
@@ -420,7 +495,7 @@ export default function CameraPage() {
           type="file"
           accept="image/*"
           className="sr-only"
-          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange('dark', e.target.files?.[0] ?? null, e.currentTarget)}
         />
 
         <form id="camera-upload-form" onSubmit={handleSubmit} className="space-y-5">
