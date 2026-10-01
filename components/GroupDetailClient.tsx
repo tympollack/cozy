@@ -74,34 +74,90 @@ export function GroupDetailClient({
   // Live real-time members state
   const [liveMembers, setLiveMembers] = useState<GroupMemberRow[]>(members || []);
 
-  useEffect(() => {
-    if (members && members.length > 0) {
-      setLiveMembers(members);
-    }
-  }, [members]);
-
   // Adjust state when incoming server prop changes
-  if (group?.id && group.id !== prevPropGroupId) {
-    setPrevPropGroupId(group.id);
-    setActiveGroupId(group.id);
-  }
-
-  // Keep cache in sync when server navigation props change
   useEffect(() => {
     if (group?.id) {
+      setPrevPropGroupId(group.id);
+      setActiveGroupId(group.id);
+      setLiveMembers(members || []);
+
       const now = Date.now();
       const existing = groupBundleCache.get(group.id);
       groupBundleCache.set(group.id, {
         group,
-        members: liveMembers.length > 0 ? liveMembers : members,
+        members: members || [],
         currentUserRole,
-        memberCount,
+        memberCount: memberCount ?? members?.length ?? 0,
         activeChallenge,
         cachedAt: existing ? existing.cachedAt : now,
         mapTheme: initialMapTheme || existing?.mapTheme,
       });
     }
-  }, [group, members, liveMembers, currentUserRole, memberCount, activeChallenge, initialMapTheme]);
+  }, [group, members, currentUserRole, memberCount, activeChallenge, initialMapTheme]);
+
+  const activeGroupIdRef = useRef(activeGroupId);
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
+
+  // Query Invalidation & Dependency Binding:
+  // Hook fetching group details and members includes activeGroupId directly in its dependency array.
+  // Clears previous member state immediately to avoid ghost members from group A in group B.
+  useEffect(() => {
+    if (!activeGroupId) return;
+    let isCurrent = true;
+
+    const cached = groupBundleCache.get(activeGroupId);
+    if (cached) {
+      setLiveMembers(cached.members || []);
+
+      // Silent background revalidation if cache is older than 30s
+      if (Date.now() - cached.cachedAt > 30000) {
+        getGroupPageBundle(activeGroupId)
+          .then((res) => {
+            if (!isCurrent || activeGroupIdRef.current !== activeGroupId) return;
+            if (res.groupWithMembers && res.groupWithMembers.group.id === activeGroupId) {
+              groupBundleCache.set(activeGroupId, {
+                group: res.groupWithMembers.group,
+                members: res.groupWithMembers.members,
+                currentUserRole: res.groupWithMembers.currentUserRole,
+                memberCount: res.groupWithMembers.memberCount,
+                activeChallenge: res.activeChallenge,
+                cachedAt: Date.now(),
+                mapTheme: res.groupWithMembers.mapTheme,
+              });
+              setLiveMembers(res.groupWithMembers.members || []);
+            }
+          })
+          .catch((err) => console.warn('[GroupDetailClient] revalidation error:', err));
+      }
+    } else {
+      // Clear previous member state immediately upon rotation to avoid ghost members
+      setLiveMembers([]);
+
+      getGroupPageBundle(activeGroupId)
+        .then((res) => {
+          if (!isCurrent || activeGroupIdRef.current !== activeGroupId) return;
+          if (res.groupWithMembers && res.groupWithMembers.group.id === activeGroupId) {
+            groupBundleCache.set(activeGroupId, {
+              group: res.groupWithMembers.group,
+              members: res.groupWithMembers.members,
+              currentUserRole: res.groupWithMembers.currentUserRole,
+              memberCount: res.groupWithMembers.memberCount,
+              activeChallenge: res.activeChallenge,
+              cachedAt: Date.now(),
+              mapTheme: res.groupWithMembers.mapTheme,
+            });
+            setLiveMembers(res.groupWithMembers.members || []);
+          }
+        })
+        .catch((err) => console.warn('[GroupDetailClient] bundle fetch error:', err));
+    }
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeGroupId]);
 
   // Supabase Realtime channel subscription for instant broadcast & postgres_changes
   useEffect(() => {
@@ -172,33 +228,47 @@ export function GroupDetailClient({
     };
   }, [activeGroupId]);
 
-  // Retrieve active group data from cache (or fallback to props)
-  const activeBundle = groupBundleCache.get(activeGroupId) || {
+  // Group Switcher calculations & fallback data
+  const safeMyGroups = useMemo(() => (Array.isArray(myGroups) ? myGroups : []), [myGroups]);
+
+  // Retrieve active group data from cache (or fallback to props if matching activeGroupId)
+  const isInitialGroupActive = group?.id === activeGroupId;
+  const activeBundle = groupBundleCache.get(activeGroupId) || (isInitialGroupActive ? {
     group,
-    members: liveMembers.length > 0 ? liveMembers : members,
+    members,
     currentUserRole,
     memberCount,
     activeChallenge,
     cachedAt: 0,
     mapTheme: initialMapTheme,
-  };
+  } : undefined);
 
-  const safeGroup = activeBundle.group || group || {
-    id: '',
-    name: 'Cozy Group',
-    type: 'household',
-    min_members: 1,
-    max_members: 10,
-    pooled_points: 0,
-    theme_id: 'default_dollhouse',
-    invite_code: '',
-    created_at: new Date().toISOString(),
-  };
+  const selectedMyGroup = safeMyGroups.find((g) => g.group.id === activeGroupId);
+  const isBundleLoaded = Boolean(activeBundle || isInitialGroupActive);
 
-  const safeMembers = liveMembers.length > 0 ? liveMembers : (Array.isArray(activeBundle.members) ? activeBundle.members : []);
-  const safeCount = activeBundle.memberCount ?? memberCount ?? safeMembers.length ?? 1;
-  const currentRole = activeBundle.currentUserRole ?? currentUserRole;
-  const currentChallenge = activeBundle.activeChallenge !== undefined ? activeBundle.activeChallenge : activeChallenge;
+  const safeGroup: GroupRow = activeBundle?.group || (isInitialGroupActive ? group : (selectedMyGroup?.group ?? {
+    id: activeGroupId,
+    name: selectedMyGroup?.group?.name || group?.name || 'Group',
+    type: selectedMyGroup?.group?.type || group?.type || 'household',
+    min_members: selectedMyGroup?.group?.min_members || 1,
+    max_members: selectedMyGroup?.group?.max_members || 10,
+    pooled_points: selectedMyGroup?.group?.pooled_points || 0,
+    theme_id: selectedMyGroup?.group?.theme_id || 'default_dollhouse',
+    invite_code: selectedMyGroup?.group?.invite_code || '',
+    created_at: selectedMyGroup?.group?.created_at || new Date().toISOString(),
+  }));
+
+  const safeMembers = liveMembers.length > 0
+    ? liveMembers
+    : (activeBundle && activeBundle.group.id === activeGroupId && Array.isArray(activeBundle.members)
+        ? activeBundle.members
+        : (isInitialGroupActive ? (members || []) : []));
+
+  const safeCount = activeBundle?.memberCount ?? (isInitialGroupActive ? memberCount : selectedMyGroup?.memberCount ?? safeMembers.length);
+  const currentRole = activeBundle?.currentUserRole ?? (isInitialGroupActive ? currentUserRole : selectedMyGroup?.role ?? null);
+  const currentChallenge = activeBundle?.activeChallenge !== undefined
+    ? activeBundle.activeChallenge
+    : (isInitialGroupActive ? activeChallenge : null);
 
   const meta = GROUP_TYPE_META[safeGroup.type] ?? GROUP_TYPE_META['household'];
   const isFuturistic = meta.palette === 'futuristic';
@@ -225,8 +295,6 @@ export function GroupDetailClient({
       return (b.points || 0) - (a.points || 0);
     });
 
-  // Group Switcher calculations
-  const safeMyGroups = useMemo(() => (Array.isArray(myGroups) ? myGroups : []), [myGroups]);
   const currentGroupIndex = safeMyGroups.findIndex((g) => g.group.id === safeGroup.id);
   const hasMultipleGroups = safeMyGroups.length > 1;
 
@@ -241,16 +309,19 @@ export function GroupDetailClient({
   const handleSwitchGroup = useCallback((targetGroupId: string) => {
     if (!targetGroupId || targetGroupId === activeGroupId) return;
 
-    if (groupBundleCache.has(targetGroupId)) {
-      // 0ms instant switch!
-      setActiveGroupId(targetGroupId);
-      window.history.pushState(null, '', `/groups/${targetGroupId}`);
+    // Clear previous member state immediately to avoid rendering ghost members from group A in group B
+    const cached = groupBundleCache.get(targetGroupId);
+    setLiveMembers(cached?.members || []);
+    setActiveGroupId(targetGroupId);
 
+    // URL Reconciliation: replace URL router shallowly (/groups/[newGroupId]) without polluting browser history
+    router.replace(`/groups/${targetGroupId}`, { scroll: false });
+
+    if (cached) {
       // Silent background revalidation if cache is older than 30s
-      const cached = groupBundleCache.get(targetGroupId);
-      if (cached && Date.now() - cached.cachedAt > 30000) {
+      if (Date.now() - cached.cachedAt > 30000) {
         getGroupPageBundle(targetGroupId).then((res) => {
-          if (res.groupWithMembers) {
+          if (res.groupWithMembers && res.groupWithMembers.group.id === targetGroupId) {
             groupBundleCache.set(targetGroupId, {
               group: res.groupWithMembers.group,
               members: res.groupWithMembers.members,
@@ -260,7 +331,9 @@ export function GroupDetailClient({
               cachedAt: Date.now(),
               mapTheme: res.groupWithMembers.mapTheme,
             });
-            setActiveGroupId((curr) => (curr === targetGroupId ? targetGroupId : curr));
+            if (activeGroupIdRef.current === targetGroupId) {
+              setLiveMembers(res.groupWithMembers.members || []);
+            }
           }
         }).catch(() => {});
       }
@@ -268,7 +341,7 @@ export function GroupDetailClient({
       // Not yet in cache — fetch quickly and transition
       getGroupPageBundle(targetGroupId)
         .then((res) => {
-          if (res.groupWithMembers) {
+          if (res.groupWithMembers && res.groupWithMembers.group.id === targetGroupId) {
             groupBundleCache.set(targetGroupId, {
               group: res.groupWithMembers.group,
               members: res.groupWithMembers.members,
@@ -278,8 +351,9 @@ export function GroupDetailClient({
               cachedAt: Date.now(),
               mapTheme: res.groupWithMembers.mapTheme,
             });
-            setActiveGroupId(targetGroupId);
-            window.history.pushState(null, '', `/groups/${targetGroupId}`);
+            if (activeGroupIdRef.current === targetGroupId) {
+              setLiveMembers(res.groupWithMembers.members || []);
+            }
           } else {
             router.push(`/groups/${targetGroupId}`);
           }
@@ -323,13 +397,15 @@ export function GroupDetailClient({
     const handlePopState = () => {
       const parts = window.location.pathname.split('/');
       const id = parts[2];
-      if (id && groupBundleCache.has(id)) {
+      if (id && id !== activeGroupId) {
+        const cached = groupBundleCache.get(id);
+        setLiveMembers(cached?.members || []);
         setActiveGroupId(id);
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [activeGroupId]);
 
   // Keyboard navigation for jumping to previous/next group with arrow keys
   useEffect(() => {
@@ -450,7 +526,7 @@ export function GroupDetailClient({
             </div>
 
             {/* Admin Badge — Click to manage group */}
-            {currentRole === 'admin' && (
+            {currentRole === 'admin' && isBundleLoaded && (
               <button
                 onClick={() => setShowAdminModal(true)}
                 className="flex-shrink-0 flex items-center gap-1.5 text-xs font-800 px-3 py-1.5 rounded-2xl mt-1 transition-all hover:scale-105 active:scale-95 shadow-md border cursor-pointer"
@@ -468,23 +544,25 @@ export function GroupDetailClient({
           </div>
 
           {/* Interactive Invite Code Pill — highlighted when a vacant plot is tapped */}
-          <div
-            ref={invitePillRef}
-            className="pt-1 rounded-2xl transition-all duration-300"
-            style={inviteHighlight ? {
-              outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
-              outlineOffset: '4px',
-              boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
-            } : {}}
-          >
-            <InviteCodePill
-              code={safeGroup.invite_code}
-              groupName={safeGroup.name}
-              isFuturistic={isFuturistic}
-              accentColor={accentColor}
-              textColor={textSecondary}
-            />
-          </div>
+          {Boolean(safeGroup.invite_code && isBundleLoaded) && (
+            <div
+              ref={invitePillRef}
+              className="pt-1 rounded-2xl transition-all duration-300"
+              style={inviteHighlight ? {
+                outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
+                outlineOffset: '4px',
+                boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
+              } : {}}
+            >
+              <InviteCodePill
+                code={safeGroup.invite_code}
+                groupName={safeGroup.name}
+                isFuturistic={isFuturistic}
+                accentColor={accentColor}
+                textColor={textSecondary}
+              />
+            </div>
+          )}
         </div>
 
         {/* Anchor-based 2.5D Group Map with Habitat Renderers & Vibe Auras */}
@@ -492,7 +570,7 @@ export function GroupDetailClient({
           group={safeGroup}
           members={sortedMembers}
           currentUserId={currentUserId}
-          mapTheme={activeBundle.mapTheme || initialMapTheme}
+          mapTheme={activeBundle?.mapTheme || initialMapTheme}
           onSelectPeer={(id, name) => {
             if (id === currentUserId) {
               router.push('/profile');

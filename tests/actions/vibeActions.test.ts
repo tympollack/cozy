@@ -217,6 +217,41 @@ describe('Atmospheric Vibe Actions (vibeActions.ts)', () => {
     });
   });
 
+  it('updates vibe status to starlight and neutral', async () => {
+    const resStarlight = await updateVibeStatus('starlight');
+    expect(resStarlight.success).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith('update_vibe_status', {
+      p_user_id: 'user-vibe-1',
+      p_status: 'starlight',
+    });
+
+    const resNeutral = await updateVibeStatus('neutral');
+    expect(resNeutral.success).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith('update_vibe_status', {
+      p_user_id: 'user-vibe-1',
+      p_status: 'neutral',
+    });
+  });
+
+  it('updates vibe status to foggy and triggers soft waterfall', async () => {
+    const resFoggy = await updateVibeStatus('foggy', 'group-123');
+    expect(resFoggy.success).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith('update_vibe_status', {
+      p_user_id: 'user-vibe-1',
+      p_status: 'foggy',
+    });
+    expect(mockServiceRpc).toHaveBeenCalledWith('process_notification_waterfall', expect.objectContaining({
+      p_status: 'foggy',
+      p_severity: 1,
+    }));
+  });
+
+  it('rejects unrecognised vibe status keys', async () => {
+    const resInvalid = await updateVibeStatus('tornado' as any);
+    expect(resInvalid.success).toBe(false);
+    expect(resInvalid.error).toMatch(/Invalid vibe status/i);
+  });
+
   it('updates vibe status to raincloud and triggers process_notification_waterfall RPC for verified group', async () => {
     const res = await updateVibeStatus('raincloud', 'group-123');
     expect(res.success).toBe(true);

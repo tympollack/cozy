@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Coffee, Sparkles, MessageSquareHeart, Send, Heart } from 'lucide-react';
+import { X, Coffee, Sparkles, MessageSquareHeart, Send, Heart, Home } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { sendPeerSupport } from '@/app/actions/supportActions';
 import { useCozyStore } from '@/store/useCozyStore';
 import { ParticleBurst } from '@/components/ParticleBurst';
@@ -49,12 +50,18 @@ export function PeerSupportSheet({
   onClose,
   onBrewSent,
 }: PeerSupportSheetProps) {
+  const router = useRouter();
   useModalBackButton({ isOpen, onClose });
   const [activeTab, setActiveTab] = useState<'default' | 'sticker' | 'note'>('default');
   const [noteText, setNoteText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showLocalParticles, setShowLocalParticles] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  const handleVisitSpaces = () => {
+    onClose();
+    router.push(`/profile/${recipientId}`);
+  };
 
   const { addPoints } = useCozyStore();
   const currentVibe = vibeStatus || 'neutral';
@@ -193,13 +200,23 @@ export function PeerSupportSheet({
                   </div>
                 </div>
 
-                <button
-                  onClick={onClose}
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-200 hover:bg-white/10 transition-colors cursor-pointer"
-                  aria-label="Close"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleVisitSpaces}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-800 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/30 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                    title="Visit Dollhouse"
+                  >
+                    <Home size={13} />
+                    <span>Visit Dollhouse</span>
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-stone-400 hover:text-amber-200 hover:bg-white/10 transition-colors cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Action Pills Row */}
@@ -250,6 +267,15 @@ export function PeerSupportSheet({
                   <span className="truncate">💌 Note</span>
                 </motion.button>
               </div>
+
+              {/* View Spaces & Dollhouse Action Button */}
+              <button
+                onClick={handleVisitSpaces}
+                className="w-full mt-2.5 py-2 px-3 rounded-xl flex items-center justify-center gap-2 text-xs font-800 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <Home size={14} />
+                <span>View Spaces & Dollhouse →</span>
+              </button>
 
               {/* Sub-view: Comfort Sticker Picker */}
               <AnimatePresence>

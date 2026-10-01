@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useTransition, useRef } from 'react';
+import { useState, useCallback, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, Sparkles, X, Check } from 'lucide-react';
+import { Heart, MapPin, RefreshCw, GripVertical, Coffee, Mail, Sparkles, X, Check, Sun, Moon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ParticleBurst } from './ParticleBurst';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
@@ -12,6 +12,7 @@ import { calcStickerOpacity, calcReupCost } from '@/lib/stickerMath';
 import { useCozyStore } from '@/store/useCozyStore';
 import type { FeedPost, PostSticker } from '@/store/useCozyStore';
 import { sendPorchWarmth, type PorchItemType } from '@/app/actions/waterfallActions';
+import { getDefaultTimeMode, type CaptureMode } from '@/lib/photoTimeUtils';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -99,7 +100,23 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
 
-  const activeUrl = post.light_img_url || post.dark_img_url;
+  const hasDualCaptures = Boolean(post.light_img_url && post.dark_img_url);
+  const [viewMode, setViewMode] = useState<CaptureMode>(() => getDefaultTimeMode(post));
+  const [userToggled, setUserToggled] = useState(false);
+
+  // Synchronize viewMode with the circadian clock every minute unless user has explicitly toggled
+  useEffect(() => {
+    if (!hasDualCaptures || userToggled) return;
+    const interval = setInterval(() => {
+      const mode = getDefaultTimeMode(post);
+      setViewMode((prev) => (userToggled ? prev : mode));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [hasDualCaptures, userToggled, post]);
+
+  const activeUrl = viewMode === 'light'
+    ? (post.light_img_url || post.dark_img_url)
+    : (post.dark_img_url || post.light_img_url);
   const geohashDisplay = post.obfuscated_location_hash || 'Near You';
   const groupDisplay = post.claimed_by_user_id ? 'Camp Sanctuary' : 'Cozy Community';
 
@@ -166,32 +183,26 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
 
       {/* ── 2. MAIN VISUAL CANVAS (Light/Dark Reveal & Maker Pins) ─────── */}
       <div className="absolute inset-0 z-0">
-        {post.light_img_url && post.dark_img_url ? (
+        {hasDualCaptures ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={getOptimizedImageUrl(post.dark_img_url, 800)}
+            <motion.img
+              src={getOptimizedImageUrl(post.dark_img_url!, 800)}
               alt="Night time cozy space"
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
+              initial={false}
+              animate={{ opacity: viewMode === 'dark' ? 1 : 0 }}
+              transition={{ duration: 0.35, ease: 'easeInOut' }}
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={getOptimizedImageUrl(post.light_img_url, 800)}
+            <motion.img
+              src={getOptimizedImageUrl(post.light_img_url!, 800)}
               alt="Day time cozy space"
               className="absolute inset-0 w-full h-full object-cover"
-              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+              initial={false}
+              animate={{ opacity: viewMode === 'light' ? 1 : 0 }}
+              transition={{ duration: 0.35, ease: 'easeInOut' }}
             />
-            {/* Dual Reveal Slider Handle */}
-            <motion.div
-              onPan={handleDrag}
-              className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center group"
-              style={{ left: `${sliderPos}%`, translateX: '-50%', touchAction: 'none' }}
-            >
-              <div className="w-1 h-full bg-white/50 backdrop-blur-sm group-hover:bg-white/80 transition-colors shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
-              <div className="absolute w-8 h-12 bg-white/20 backdrop-blur-md border border-white/40 shadow-lg rounded-full flex items-center justify-center">
-                <GripVertical size={16} className="text-white drop-shadow-md" />
-              </div>
-            </motion.div>
           </>
         ) : activeUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -200,6 +211,34 @@ export function PostCard({ post, onCheer, currentUserId, style, className = '' }
             alt="Cozy space canvas"
             className="w-full h-full object-cover"
           />
+        )}
+
+        {/* Sun/Moon Toggle Pill for Dual Captures */}
+        {hasDualCaptures && (
+          <div className="absolute bottom-28 right-4 z-20 pointer-events-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setUserToggled(true);
+                setViewMode((prev) => (prev === 'light' ? 'dark' : 'light'));
+              }}
+              aria-label={`Switch to ${viewMode === 'light' ? 'evening' : 'daytime'} view`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-950/75 hover:bg-stone-900/95 backdrop-blur-md border border-amber-400/40 text-white shadow-xl transition-all active:scale-95 cursor-pointer"
+            >
+              {viewMode === 'light' ? (
+                <>
+                  <Sun size={13} className="text-amber-400 fill-amber-400" />
+                  <span className="text-[11px] font-800 text-amber-200">Day</span>
+                </>
+              ) : (
+                <>
+                  <Moon size={13} className="text-sky-300 fill-sky-300" />
+                  <span className="text-[11px] font-800 text-sky-200">Night</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
 
         {/* Shoppable / Maker Pins */}

@@ -15,6 +15,73 @@ import { scrubAndCompressImage, stripExifFromJpegBytes } from './exifScrubber';
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.82;
 
+export const CLOUD_SYNC_ERROR_MESSAGE =
+  'Cloud File Not Ready: This photo is currently syncing or stored in cloud-only mode. Please let OneDrive/iCloud finish downloading it locally, or select another photo.';
+
+/**
+ * Detects whether an error thrown during file reading / preview generation
+ * stems from an unhydrated or syncing cloud file (OneDrive 0x80070185, iCloud NotReadableError/AbortError).
+ */
+export function isCloudSyncError(error: unknown): boolean {
+  if (!error) return false;
+
+  if (typeof error === 'string') {
+    const lower = error.toLowerCase();
+    return (
+      lower.includes('0x80070185') ||
+      lower.includes('notreadableerror') ||
+      lower.includes('aborterror') ||
+      lower.includes('cloud') ||
+      lower.includes('not readable') ||
+      lower.includes('sync')
+    );
+  }
+
+  const err = error as Record<string, any>;
+  const name = String(err.name || '');
+  const message = String(err.message || '').toLowerCase();
+  const code = String(err.code || '');
+
+  if (name === 'NotReadableError' || name === 'AbortError') {
+    return true;
+  }
+
+  if (
+    message.includes('0x80070185') ||
+    message.includes('notreadableerror') ||
+    message.includes('aborterror') ||
+    message.includes('cloud') ||
+    message.includes('not readable') ||
+    message.includes('could not be read') ||
+    message.includes('operation was aborted') ||
+    message.includes('sync') ||
+    code.includes('0x80070185')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Safely probes a File object to ensure the OS has locally hydrated its bytes.
+ * Throws a NotReadableError or cloud hydration error if the file is cloud-only.
+ */
+export async function probeCloudFile(file: File): Promise<void> {
+  try {
+    // Attempt to slice and read the first 64 bytes
+    const slice = file.slice(0, 64);
+    await slice.arrayBuffer();
+  } catch (err) {
+    if (isCloudSyncError(err)) {
+      const cloudErr = new Error(CLOUD_SYNC_ERROR_MESSAGE);
+      cloudErr.name = 'NotReadableError';
+      throw cloudErr;
+    }
+    throw err;
+  }
+}
+
 /**
  * Fast binary extraction of embedded EXIF JPEG thumbnail (<2ms).
  * Useful for HEIC/HEIF images on Android/Chrome where native full HEIC decoding
@@ -255,6 +322,15 @@ export async function processImageFile(
         return scrubbedFile;
       }
     } catch (err) {
+      if (isCloudSyncError(err)) {
+        throw err;
+      }
+      // Check if the underlying file bytes cannot be read
+      try {
+        await file.slice(0, 64).arrayBuffer();
+      } catch (byteErr) {
+        throw byteErr;
+      }
       console.warn('[processImageFile] scrubAndCompressImage failed:', err);
     }
   }
@@ -280,22 +356,46 @@ export async function processImageFile(
         });
       }
     } catch (err) {
+      if (isCloudSyncError(err)) {
+        throw err;
+      }
+      try {
+        await file.slice(0, 64).arrayBuffer();
+      } catch (byteErr) {
+        throw byteErr;
+      }
       console.warn('[processImageFile] heic-to conversion failed, falling back to original file:', err);
     }
   }
 
-  // If HEIC could not be converted on client, pass through original file directly to server-side sharp
+  // If HEIC could not be converted on client, verify bytes are readable before passing through to server
   if (isHeic) {
+    try {
+      await file.slice(0, 64).arrayBuffer();
+    } catch (err) {
+      throw err;
+    }
     return file;
   }
 
   // 3. Binary EXIF scrub fallback: ensure zero GPS / camera serial data leaves browser
+  let buffer: ArrayBuffer;
   try {
-    const buffer = await file.arrayBuffer();
+    buffer = await file.arrayBuffer();
+  } catch (err) {
+    // If reading arrayBuffer fails, the file bytes are unreadable (e.g. cloud sync error or I/O failure).
+    // An unreadable file must explicitly fail so caller's error handling and camera rollback are triggered.
+    throw err;
+  }
+
+  try {
     const cleanBytes = stripExifFromJpegBytes(new Uint8Array(buffer));
     const outputName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
     return new File([cleanBytes as unknown as BlobPart], outputName, { type: file.type || 'image/jpeg' });
-  } catch {
+  } catch (err) {
+    if (isCloudSyncError(err)) {
+      throw err;
+    }
     return file;
   }
 }

@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, Unlink, Lock, Maximize2 } from 'lucide-react';
+import { Eye, Unlink, Lock, Maximize2, Sun, Moon } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { calcStickerOpacity } from '@/lib/stickerMath';
 import type { UserPost } from '@/store/useCozyStore';
 import type { ShellSlot } from '@/config/shellDefinitions';
 import { TIER_NAMES } from '@/config/shellDefinitions';
+import { getDefaultTimeMode, type CaptureMode } from '@/lib/photoTimeUtils';
 
 interface ShellNookProps {
   slot: ShellSlot;
@@ -29,9 +30,31 @@ export function ShellNook({
   onUnassignPost,
   onViewPost,
 }: ShellNookProps) {
-  const [imgError, setImgError] = useState(false);
-  const activeUrl = post ? post.light_img_url || post.dark_img_url : null;
-  const hasValidImage = !!activeUrl && !imgError;
+  const [imgErrors, setImgErrors] = useState<{ light: boolean; dark: boolean }>({ light: false, dark: false });
+
+  // Reset image failures and viewMode whenever a different post or new photo is assigned to this slot
+  useEffect(() => {
+    setImgErrors({ light: false, dark: false });
+    if (post) {
+      setViewMode(getDefaultTimeMode(post));
+    }
+  }, [post?.id, post?.light_img_url, post?.dark_img_url]);
+
+  const hasValidLight = Boolean(post?.light_img_url && !imgErrors.light);
+  const hasValidDark = Boolean(post?.dark_img_url && !imgErrors.dark);
+  const hasDualCaptures = hasValidLight && hasValidDark;
+  const hasAnyValidImage = hasValidLight || hasValidDark;
+
+  const [viewMode, setViewMode] = useState<CaptureMode>(() => getDefaultTimeMode(post));
+  const effectiveMode: CaptureMode = hasDualCaptures
+    ? viewMode
+    : hasValidLight
+    ? 'light'
+    : 'dark';
+
+  const activeUrl = post
+    ? (effectiveMode === 'light' ? post.light_img_url : post.dark_img_url)
+    : null;
 
   return (
     <div
@@ -66,15 +89,46 @@ export function ShellNook({
           onClick={() => onViewPost(post)}
         >
           {/* Photo */}
-          {hasValidImage ? (
-            <motion.img
-              layoutId={`nook-img-${post.id}`}
-              src={getOptimizedImageUrl(activeUrl, 500)}
-              alt={slot.label}
-              onError={() => setImgError(true)}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              loading="lazy"
-            />
+          {hasAnyValidImage ? (
+            hasDualCaptures ? (
+              <div
+                key={`nook-dual-${post.id}-${post.light_img_url}-${post.dark_img_url}`}
+                className="w-full h-full relative"
+              >
+                <motion.img
+                  src={getOptimizedImageUrl(post!.dark_img_url!, 500)}
+                  alt={slot.label}
+                  onError={() => setImgErrors((prev) => ({ ...prev, dark: true }))}
+                  initial={false}
+                  animate={{ opacity: effectiveMode === 'dark' ? 1 : 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+                <motion.img
+                  src={getOptimizedImageUrl(post!.light_img_url!, 500)}
+                  alt={slot.label}
+                  onError={() => setImgErrors((prev) => ({ ...prev, light: true }))}
+                  initial={false}
+                  animate={{ opacity: effectiveMode === 'light' ? 1 : 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+              </div>
+            ) : (
+              <motion.img
+                key={`nook-single-${post.id}-${activeUrl}`}
+                layoutId={`nook-img-${post!.id}`}
+                src={getOptimizedImageUrl(activeUrl!, 500)}
+                alt={slot.label}
+                onError={() => {
+                  setImgErrors((prev) => ({ ...prev, [effectiveMode]: true }));
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+            )
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gradient-to-br from-[#3b2d26] to-[#1f1713] text-center">
               <span className="text-2xl mb-0.5 filter drop-shadow">{slot.icon}</span>
@@ -137,11 +191,31 @@ export function ShellNook({
             )}
           </div>
 
-          {/* Bottom Footer: Cheer count + Expand indicator */}
+          {/* Bottom Footer: Cheer count + Expand indicator + Sun/Moon Toggle */}
           <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between z-20 pointer-events-none">
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-800 text-amber-950 bg-amber-300/95 border border-amber-200/80 shadow-md">
-              ♥ {post.cheer_count}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-800 text-amber-950 bg-amber-300/95 border border-amber-200/80 shadow-md">
+                ♥ {post.cheer_count}
+              </span>
+              {hasDualCaptures && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewMode((prev) => (prev === 'light' ? 'dark' : 'light'));
+                  }}
+                  className="pointer-events-auto px-1.5 py-0.5 rounded-full bg-black/70 hover:bg-black/90 border border-white/25 text-white flex items-center gap-1 shadow-md transition-transform active:scale-90 cursor-pointer"
+                  title={`Switch to ${effectiveMode === 'light' ? 'night' : 'day'} view`}
+                  aria-label={`Toggle light/dark view for ${slot.label}`}
+                >
+                  {effectiveMode === 'light' ? (
+                    <Sun size={9} className="text-amber-400 fill-amber-400" />
+                  ) : (
+                    <Moon size={9} className="text-sky-300 fill-sky-300" />
+                  )}
+                </button>
+              )}
+            </div>
             <span className="text-[9px] font-700 text-white/90 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
               <Maximize2 size={8} /> Expand
             </span>

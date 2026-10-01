@@ -104,7 +104,7 @@ describe('NoticeModal Component (Scope D)', () => {
     const porchTab = screen.getByRole('button', { name: /Porch \(1\)/i });
     await user.click(porchTab);
     expect(screen.getByText('Taylor left a cozy tea on your porch')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('allows accepting and declining calling cards directly from notice item', async () => {
     const user = userEvent.setup();

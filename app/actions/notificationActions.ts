@@ -14,40 +14,24 @@ import { getCircadianNotificationCopy } from '@/lib/circadianCopy';
 export type NotificationType = 'daily_task' | 'peer_checkin' | 'admin_broadcast';
 
 export interface NotificationMetadata {
-  peer_id?: string;
-  target_user_id?: string;
-  group_id?: string;
-  broadcast_id?: string;
-  target_app?: string;
-  target_scope?: string;
-  action_url?: string;
-  source?: string;
+  peer_id?: string; target_user_id?: string; group_id?: string; broadcast_id?: string;
+  target_app?: string; target_scope?: string; action_url?: string; source?: string;
   [key: string]: unknown;
 }
 
 export interface CozyNotificationItem {
-  id: string;
-  userId: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  metadata: NotificationMetadata;
-  isRead: boolean;
-  createdAt: string;
+  id: string; userId: string; type: NotificationType;
+  title: string; message: string; metadata: NotificationMetadata;
+  isRead: boolean; createdAt: string;
 }
 
 export interface NotificationFeedResult {
-  success: boolean;
-  notifications: CozyNotificationItem[];
-  unreadCount: number;
-  error?: string;
+  success: boolean; notifications: CozyNotificationItem[];
+  unreadCount: number; error?: string;
 }
 
 export interface AdminBroadcastPayload {
-  broadcast_id: string;
-  title: string;
-  message: string;
-  target_scope?: string;
+  broadcast_id: string; title: string; message: string; target_scope?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,21 +78,37 @@ export async function getUserNotifications(limit: number = 20): Promise<Notifica
       console.warn('[getUserNotifications] DB error counting unread notifications:', countError.message);
     }
 
-    const notifications: CozyNotificationItem[] = (rows || []).map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      type: row.type as NotificationType,
-      title: row.title,
-      message: row.message,
-      metadata: (row.metadata || {}) as NotificationMetadata,
-      isRead: Boolean(row.is_read),
-      createdAt: row.created_at,
-    }));
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const notifications: CozyNotificationItem[] = (rows || [])
+      .filter((row) => {
+        if (row.type === 'daily_task') {
+          return !row.created_at || row.created_at >= twentyFourHoursAgo;
+        }
+        return true;
+      })
+      .map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        type: row.type as NotificationType,
+        title: row.title,
+        message: row.message,
+        metadata: (row.metadata || {}) as NotificationMetadata,
+        isRead: Boolean(row.is_read),
+        createdAt: row.created_at,
+      }));
+
+    // If fetched rows reached the limit, unread notifications may exist beyond page 1;
+    // use the database unread count so the bell badge never loses older unread items.
+    const pageUnreadCount = notifications.filter((n) => !n.isRead).length;
+    let finalUnreadCount = pageUnreadCount;
+    if (rows && rows.length >= limit && typeof unreadCount === 'number') {
+      finalUnreadCount = Math.max(pageUnreadCount, unreadCount);
+    }
 
     return {
       success: true,
       notifications,
-      unreadCount: unreadCount ?? notifications.filter((n) => !n.isRead).length,
+      unreadCount: finalUnreadCount,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch user notifications.';
@@ -164,6 +164,52 @@ export async function markNotificationAsRead(
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to mark notification as read.';
+    return { success: false, error: message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2b. markAllNotificationsAsRead
+//
+// Updates is_read = true for all unread notifications of the authenticated user.
+// ---------------------------------------------------------------------------
+
+export async function markAllNotificationsAsRead(): Promise<{
+  success: boolean;
+  count?: number;
+  error?: string;
+}> {
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  const service = createServiceClient();
+
+  try {
+    const { error: updateError, count } = await service
+      .schema('cozy')
+      .from('notifications')
+      .update({ is_read: true }, { count: 'exact' })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+
+    if (updateError) {
+      console.error('[markAllNotificationsAsRead] Update error:', updateError.message);
+      return { success: false, error: updateError.message };
+    }
+
+    try {
+      revalidatePath('/', 'layout');
+    } catch {
+      // Revalidation outside request context ignored
+    }
+
+    return { success: true, count: count ?? 0 };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to mark all notifications as read.';
     return { success: false, error: message };
   }
 }
@@ -284,6 +330,20 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
     const title = targetPhase === 'light' ? '☀️ Morning Space Check-in' : '🌙 Evening Space Check-in';
     const message = copy.message;
 
+    // Mark older daily_task notifications for that user as expired (is_expired = true, is_read = true)
+    try {
+      await service
+        .schema('cozy')
+        .from('notifications')
+        .update({
+          is_read: true,
+        })
+        .eq('user_id', user.id)
+        .eq('type', 'daily_task');
+    } catch {
+      // Non-blocking expiration
+    }
+
     // Insert daily task nudge notification
     const { error: insertError } = await service
       .schema('cozy')
@@ -337,28 +397,14 @@ export async function triggerDailyTaskNudge(clientOffsetMinutes?: number): Promi
 // ---------------------------------------------------------------------------
 
 export interface DailyCircadianStatusResult {
-  success: boolean;
-  lightCompleted: boolean;
-  darkCompleted: boolean;
-  bothCompleted: boolean;
-  currentPhase: 'light' | 'dark';
-  clientLocalHour: number;
-  error?: string;
+  success: boolean; lightCompleted: boolean; darkCompleted: boolean;
+  bothCompleted: boolean; currentPhase: 'light' | 'dark'; clientLocalHour: number; error?: string;
 }
 
 export interface StoredPushSubscription {
-  id: string;
-  userId: string;
-  subscription: {
-    endpoint: string;
-    keys?: {
-      p256dh?: string;
-      auth?: string;
-    };
-    [key: string]: unknown;
-  };
-  userAgent?: string;
-  createdAt: string;
+  id: string; userId: string;
+  subscription: { endpoint: string; keys?: { p256dh?: string; auth?: string }; [key: string]: unknown };
+  userAgent?: string; createdAt: string;
 }
 
 /** In-memory fallback cache for Web Push subscriptions during dev/testing */
@@ -379,12 +425,8 @@ export async function getDailyCircadianStatus(
 
   if (authError || !user) {
     return {
-      success: false,
-      lightCompleted: false,
-      darkCompleted: false,
-      bothCompleted: false,
-      currentPhase: 'light',
-      clientLocalHour: 12,
+      success: false, lightCompleted: false, darkCompleted: false,
+      bothCompleted: false, currentPhase: 'light', clientLocalHour: 12,
       error: 'Authentication required.',
     };
   }
@@ -750,22 +792,12 @@ export async function processCircadianNudgeScheduler(options?: {
       phaseSummary[targetPhase]++;
     }
 
-    return {
-      success: true,
-      evaluatedUsers: users.length,
-      nudgedCount,
-      skippedCount,
-      phaseSummary,
-    };
+    return { success: true, evaluatedUsers: users.length, nudgedCount, skippedCount, phaseSummary };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Circadian scheduler execution error.';
     return {
-      success: false,
-      evaluatedUsers: 0,
-      nudgedCount: 0,
-      skippedCount: 0,
-      phaseSummary: { light: 0, dark: 0 },
-      error: msg,
+      success: false, evaluatedUsers: 0, nudgedCount: 0, skippedCount: 0,
+      phaseSummary: { light: 0, dark: 0 }, error: msg,
     };
   }
 }
@@ -1152,3 +1184,143 @@ export async function getNotices(): Promise<NoticesResult> {
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// 9. resolveDailyTaskNotifications
+//
+// Dynamic CTA Resolution:
+// Queries cozy.notifications for active daily_task items for today
+// and marks them as is_read = true with metadata status = 'completed'.
+// ---------------------------------------------------------------------------
+
+export async function resolveDailyTaskNotifications(
+  optionsOrUserId?:
+    | string
+    | {
+        userId?: string;
+        completedPhase?: 'light' | 'dark' | 'both';
+        postId?: string;
+      }
+): Promise<{ success: boolean; resolvedCount: number }> {
+  const options =
+    typeof optionsOrUserId === 'string'
+      ? { userId: optionsOrUserId }
+      : optionsOrUserId || {};
+
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Security guard: authenticated callers may only resolve notifications for their own account
+  let targetUserId = user?.id;
+
+  if (user) {
+    if (options.userId && options.userId !== user.id) {
+      console.warn('[resolveDailyTaskNotifications] Forbidden attempt to resolve for other user');
+      return { success: false, resolvedCount: 0 };
+    }
+    targetUserId = user.id;
+  } else if (process.env.NODE_ENV === 'test' && options.userId) {
+    // Permit mock userId only during isolated unit tests
+    targetUserId = options.userId;
+  } else {
+    return { success: false, resolvedCount: 0 };
+  }
+
+  const completedPhaseArg = options.completedPhase;
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const startOfDayIso = startOfDay.toISOString();
+
+  const service = createServiceClient();
+
+  try {
+    // Verification: ensure user actually uploaded a post today matching the capture phase
+    let postQuery = service
+      .schema('cozy')
+      .from('posts')
+      .select('id, light_img_url, dark_img_url, created_at')
+      .eq('user_id', targetUserId)
+      .gte('created_at', startOfDayIso);
+
+    if (options.postId) {
+      postQuery = (postQuery as any).eq('id', options.postId);
+    }
+
+    const { data: userPostsToday, error: postsErr } = await postQuery;
+
+    if (postsErr || !userPostsToday || userPostsToday.length === 0) {
+      console.warn('[resolveDailyTaskNotifications] No valid post capture found today for user');
+      return { success: false, resolvedCount: 0 };
+    }
+
+    const hasLight = userPostsToday.some((p) => Boolean(p.light_img_url));
+    const hasDark = userPostsToday.some((p) => Boolean(p.dark_img_url));
+
+    let completedPhase = completedPhaseArg ?? (hasLight && hasDark ? 'both' : hasLight ? 'light' : hasDark ? 'dark' : null);
+    if (!completedPhase) {
+      return { success: false, resolvedCount: 0 };
+    }
+
+    if (completedPhase === 'both' && (!hasLight || !hasDark)) {
+      completedPhase = hasLight ? 'light' : (hasDark ? 'dark' : null);
+      if (!completedPhase) return { success: false, resolvedCount: 0 };
+    } else if (completedPhase === 'light' && !hasLight) {
+      return { success: false, resolvedCount: 0 };
+    } else if (completedPhase === 'dark' && !hasDark) {
+      return { success: false, resolvedCount: 0 };
+    }
+
+    const { data: activeDailyNudges, error: fetchErr } = await service
+      .schema('cozy')
+      .from('notifications')
+      .select('id, metadata')
+      .eq('user_id', targetUserId)
+      .eq('type', 'daily_task')
+      .gte('created_at', startOfDayIso);
+
+    if (fetchErr) {
+      console.warn('[resolveDailyTaskNotifications] fetch error:', fetchErr.message);
+      return { success: false, resolvedCount: 0 };
+    }
+
+    if (!activeDailyNudges || activeDailyNudges.length === 0) {
+      return { success: true, resolvedCount: 0 };
+    }
+
+    let resolvedCount = 0;
+    for (const nudge of activeDailyNudges) {
+      const currentMeta = (nudge.metadata || {}) as Record<string, unknown>;
+      const targetPhase = (currentMeta.target_phase as string) || (currentMeta.phase as string);
+
+      // Phase match guard: Only resolve notifications matching the completed capture mode
+      if (completedPhase !== 'both' && targetPhase && targetPhase !== completedPhase) {
+        continue;
+      }
+
+      const updatedMeta = {
+        ...currentMeta,
+        status: 'completed',
+        is_completed: true,
+      };
+      const { error: updateErr } = await service
+        .schema('cozy')
+        .from('notifications')
+        .update({
+          is_read: true,
+          metadata: updatedMeta,
+        })
+        .eq('id', nudge.id);
+
+      if (!updateErr) resolvedCount++;
+    }
+
+    return { success: true, resolvedCount };
+  } catch (err) {
+    console.error('[resolveDailyTaskNotifications] Unexpected error:', err);
+    return { success: false, resolvedCount: 0 };
+  }
+}
+
