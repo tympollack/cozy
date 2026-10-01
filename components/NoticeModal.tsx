@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   X,
   Bell,
@@ -17,6 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
+import { ModalShell } from '@digitalcanopy/ui';
 import type { CozyNotice } from '@/app/actions/notificationActions';
 import { acceptCallingCard, declineCallingCard } from '@/app/actions/peerActions';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
@@ -95,74 +95,47 @@ export function NoticeModal({
     });
   };
 
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0"
-            onClick={onClose}
-            aria-hidden="true"
-          />
-
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className="w-full max-w-lg rounded-3xl cozy-glass border border-amber-900/15 dark:border-amber-500/25 shadow-2xl overflow-hidden z-10 flex flex-col max-h-[85vh] bg-stone-50 dark:bg-[#1a1410]"
-          >
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-amber-900/10 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-900 dark:text-amber-300 shadow-inner">
-                    <Bell size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-900 text-stone-900 dark:text-amber-50">Notices</h3>
-                    <p className="text-xs font-500 text-stone-600 dark:text-amber-200/80">
-                      Cheers, calling cards, notes & porch gifts
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {onRefresh && (
-                    <button
-                      onClick={onRefresh}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                      title="Refresh notices"
-                    >
-                      <RefreshCw size={15} />
-                    </button>
-                  )}
-                  {onClearAll && activeNotices.length > 0 && (
-                    <button
-                      onClick={onClearAll}
-                      className="px-2.5 py-1 rounded-xl text-[11px] font-700 text-stone-600 dark:text-amber-200/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center gap-1"
-                      title="Clear all"
-                    >
-                      <Trash2 size={12} /> Clear
-                    </button>
-                  )}
-                  <button
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-                    aria-label="Close notices modal"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Filter Tabs */}
-              <div className="grid grid-cols-5 gap-1 mt-4 p-1 rounded-2xl bg-amber-100/60 dark:bg-amber-950/40 border border-amber-900/10 dark:border-amber-500/20 text-xs font-800">
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Notices"
+      subtitle="Cheers, calling cards, notes & porch gifts"
+      icon={
+        <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-900 dark:text-amber-300 shadow-inner">
+          <Bell size={20} />
+        </div>
+      }
+      closeAriaLabel="Close notices modal"
+      headerExtra={
+        <div className="flex items-center gap-1.5">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              title="Refresh notices"
+            >
+              <RefreshCw size={15} />
+            </button>
+          )}
+          {onClearAll && activeNotices.length > 0 && (
+            <button
+              onClick={onClearAll}
+              className="px-2.5 py-1 rounded-xl text-[11px] font-700 text-stone-600 dark:text-amber-200/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center gap-1"
+              title="Clear all"
+            >
+              <Trash2 size={12} /> Clear
+            </button>
+          )}
+        </div>
+      }
+      className="w-full max-w-lg rounded-3xl cozy-glass border border-amber-900/15 dark:border-amber-500/25 shadow-2xl overflow-hidden bg-stone-50 dark:bg-[#1a1410]"
+      headerClassName="p-4 sm:p-5 border-b border-amber-900/10 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20"
+      bodyClassName="p-4 space-y-2.5 min-h-[220px]"
+      testID="notice-modal"
+    >
+      {/* Filter Tabs */}
+      <div className="grid grid-cols-5 gap-1 mb-3 p-1 rounded-2xl bg-amber-100/60 dark:bg-amber-950/40 border border-amber-900/10 dark:border-amber-500/20 text-xs font-800 shrink-0">
                 <button
                   onClick={() => setActiveTab('all')}
                   className={`py-1.5 rounded-xl transition-all ${
@@ -214,7 +187,6 @@ export function NoticeModal({
                   Porch ({porchGifts.length})
                 </button>
               </div>
-            </div>
 
             {/* Notice List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[220px]">
@@ -344,10 +316,6 @@ export function NoticeModal({
                 ))
               )}
             </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>,
-    document.body
+    </ModalShell>
   );
 }

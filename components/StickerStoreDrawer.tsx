@@ -4,6 +4,7 @@ import React, { useState, useEffect, useTransition, useSyncExternalStore } from 
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Star, Lock, ShoppingBag, CheckCircle, AlertCircle, RefreshCw, Layers, Check, Gift, Heart } from 'lucide-react';
+import { Skeleton } from '@digitalcanopy/ui';
 import { useCozyStore } from '@/store/useCozyStore';
 import { getStickerCatalog, purchaseSticker, type StoreSticker } from '@/app/actions/storeActions';
 import { ParticleBurst } from '@/components/ParticleBurst';
@@ -318,9 +319,9 @@ export function StickerStoreDrawer({ isOpen, onClose, onPurchased }: StickerStor
               {loading ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {[...Array(6)].map((_, i) => (
-                    <div
+                    <Skeleton
                       key={i}
-                      className="h-44 rounded-3xl bg-stone-200/60 dark:bg-[#281e19] animate-pulse"
+                      className="h-44 w-full rounded-3xl bg-stone-200/60 dark:bg-[#281e19]"
                     />
                   ))}
                 </div>
