@@ -124,7 +124,7 @@ export function AdminGroupModal({
     <ModalShell
       isOpen={true}
       onClose={onClose}
-      title="Group Admin Portal"
+      title={<span className="text-stone-900 dark:text-stone-100">Group Admin Portal</span>}
       icon={<Crown className="w-5 h-5 text-amber-500" />}
       className="w-full max-w-lg rounded-3xl p-6 cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-5 max-h-[85vh] flex flex-col"
       headerClassName="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3 flex-shrink-0"

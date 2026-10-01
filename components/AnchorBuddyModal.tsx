@@ -33,8 +33,8 @@ export function AnchorBuddyModal({ peers, onClose, onSuccess }: AnchorBuddyModal
     <ModalShell
       isOpen={true}
       onClose={onClose}
-      title="Raincloud Status"
-      subtitle="Serene Cascade Waterfall Engine"
+      title={<span className="text-stone-900 dark:text-stone-100">Raincloud Status</span>}
+      subtitle={<span className="text-stone-600 dark:text-stone-400">Serene Cascade Waterfall Engine</span>}
       icon={<span className="text-2xl">🌧️</span>}
       className="w-full max-w-md rounded-3xl cozy-glass border border-amber-500/30 shadow-2xl overflow-hidden bg-stone-50 dark:bg-[#1a1410]"
       headerClassName="p-4 sm:p-5 border-b border-amber-900/10 dark:border-amber-500/20"

@@ -9,11 +9,11 @@ const SCAN_DIRS = ['app', 'components', 'lib', 'hooks', 'store', 'worker'];
 // Files here are strictly capped at their legacy size and must NOT grow larger.
 // When refactored down below standard thresholds, files are removed from this list.
 const LEGACY_EXEMPTIONS = new Map([
-  ['app/actions/notificationActions.ts', 1330],
-  ['components/ProfileShell.tsx', 900],
-  ['app/actions/groupActions.ts', 790],
-  ['app/settings/page.tsx', 780],
-  ['app/camera/page.tsx', 780],
+  ['app/actions/notificationActions.ts', 1326],
+  ['components/ProfileShell.tsx', 896],
+  ['app/actions/groupActions.ts', 784],
+  ['app/settings/page.tsx', 774],
+  ['app/camera/page.tsx', 779],
 ]);
 
 const RULES = {

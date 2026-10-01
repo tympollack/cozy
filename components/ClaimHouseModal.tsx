@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Home,
   Users,
@@ -187,10 +187,15 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
     }
   };
 
+  const handleSafeClose = useCallback(() => {
+    if (isLoading) return;
+    onClose();
+  }, [isLoading, onClose]);
+
   return (
     <ModalShell
       isOpen={true}
-      onClose={onClose}
+      onClose={handleSafeClose}
       hideCloseButton={true}
       className="max-w-lg w-full cozy-glass rounded-3xl p-6 sm:p-8 shadow-2xl border border-amber-300/40 dark:border-amber-600/30 overflow-hidden bg-stone-50 dark:bg-[#1a1410]"
       bodyClassName="p-0 overflow-y-auto"

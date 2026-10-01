@@ -99,8 +99,8 @@ export function NoticeModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
-      title="Notices"
-      subtitle="Cheers, calling cards, notes & porch gifts"
+      title={<span className="text-stone-900 dark:text-stone-100">Notices</span>}
+      subtitle={<span className="text-stone-600 dark:text-stone-400">Cheers, calling cards, notes & porch gifts</span>}
       icon={
         <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-900 dark:text-amber-300 shadow-inner">
           <Bell size={20} />
@@ -131,11 +131,11 @@ export function NoticeModal({
       }
       className="w-full max-w-lg rounded-3xl cozy-glass border border-amber-900/15 dark:border-amber-500/25 shadow-2xl overflow-hidden bg-stone-50 dark:bg-[#1a1410]"
       headerClassName="p-4 sm:p-5 border-b border-amber-900/10 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/20"
-      bodyClassName="p-4 space-y-2.5 min-h-[220px]"
+      bodyClassName="p-4 flex flex-col min-h-[300px] overflow-hidden"
       testID="notice-modal"
     >
-      {/* Filter Tabs */}
-      <div className="grid grid-cols-5 gap-1 mb-3 p-1 rounded-2xl bg-amber-100/60 dark:bg-amber-950/40 border border-amber-900/10 dark:border-amber-500/20 text-xs font-800 shrink-0">
+      {/* Pinned Filter Tabs */}
+      <div className="shrink-0 mb-3 grid grid-cols-5 gap-1 p-1 rounded-2xl bg-amber-100/60 dark:bg-amber-950/40 border border-amber-900/10 dark:border-amber-500/20 text-xs font-800">
                 <button
                   onClick={() => setActiveTab('all')}
                   className={`py-1.5 rounded-xl transition-all ${

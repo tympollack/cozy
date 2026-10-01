@@ -216,10 +216,10 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
     .filter((tx) => tx.amount < 0)
     .reduce((acc, tx) => acc + Math.abs(tx.amount), 0);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     playWoodenClick();
     onClose();
-  };
+  }, [playWoodenClick, onClose]);
 
   if (!isClient) return null;
 
@@ -227,8 +227,8 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
     <ModalShell
       isOpen={isOpen}
       onClose={handleClose}
-      title="Cozy Chronicle & Cheer Ledger"
-      subtitle="A living chronicle of kindness shared, warm gifts received, and spaces adorned"
+      title={<span className="text-stone-900 dark:text-stone-100">Cozy Chronicle & Cheer Ledger</span>}
+      subtitle={<span className="text-stone-600 dark:text-stone-400">A living chronicle of kindness shared, warm gifts received, and spaces adorned</span>}
       icon={<History size={20} />}
       closeAriaLabel="Close transaction ledger"
       headerExtra={
@@ -259,7 +259,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
       className="w-full max-w-lg rounded-[32px] bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 shadow-2xl overflow-hidden border border-amber-900/15 dark:border-amber-500/30"
       headerClassName="px-6 pt-5 pb-3 border-b border-amber-900/10 dark:border-amber-500/20"
       footerClassName="px-6 py-3 border-t border-amber-900/10 dark:border-amber-500/20 bg-stone-50/80 dark:bg-[#1b1411]"
-      bodyClassName="p-0 overflow-y-auto"
+      bodyClassName="p-0 flex flex-col min-h-0 overflow-hidden"
       testID="transaction-history-modal"
     >
 
