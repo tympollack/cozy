@@ -51,6 +51,62 @@ function formatTimeAgo(isoString: string): string {
   }
 }
 
+/**
+ * Ensures an action URL is a valid, relative path within Cozy.
+ * Blocks external domains, protocol-relative URLs (//), backslash variations, encoded separators (%2f, %5c), and javascript: URIs.
+ */
+export function sanitizeInternalUrl(url?: unknown, fallback = '/camera'): string {
+  if (typeof url !== 'string') return fallback;
+  const trimmed = url.trim();
+
+  // Basic syntax check: must start with single '/' and not '//' or '/\' or '\\'
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.startsWith('/\\') || trimmed.includes('\\')) {
+    return fallback;
+  }
+
+  // Decode percent-encodings iteratively to guard against %2f (%2F) or %5c (%5C) bypasses
+  let decoded = trimmed;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+  } catch {
+    return fallback;
+  }
+
+  // After decoding, ensure it never turns into a protocol-relative '//', backslash path, or control characters
+  if (!decoded.startsWith('/') || decoded.startsWith('//') || decoded.startsWith('/\\') || decoded.includes('\\')) {
+    return fallback;
+  }
+
+  // Disallow control characters or newlines
+  if (/[\u0000-\u001F\u007F]/.test(decoded)) {
+    return fallback;
+  }
+
+  // Validate URL structure against a localhost dummy origin
+  try {
+    const parsed = new URL(trimmed, 'http://localhost');
+    if (parsed.origin !== 'http://localhost' || parsed.protocol !== 'http:' || parsed.host !== 'localhost') {
+      return fallback;
+    }
+    const decodedPath = decodeURIComponent(parsed.pathname);
+    if (!decodedPath.startsWith('/') || decodedPath.startsWith('//') || decodedPath.includes('\\')) {
+      return fallback;
+    }
+    // Only permit safe pathname, query, and fragment characters
+    if (/^\/[a-zA-Z0-9_.~%!$&'()*+,;=:@\/?#-]*$/.test(trimmed)) {
+      return trimmed;
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
 export function NotificationDrawer({
   isOpen,
   onClose,
@@ -481,7 +537,7 @@ export function NotificationDrawer({
                                         e.stopPropagation();
                                         handleMarkItemRead(item.id);
                                         onClose();
-                                        router.push(item.metadata?.action_url ? String(item.metadata.action_url) : '/camera');
+                                        router.push(sanitizeInternalUrl(item.metadata?.action_url, '/camera'));
                                       }}
                                       className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
                                     >
@@ -514,7 +570,7 @@ export function NotificationDrawer({
 
                                 {item.type === 'admin_broadcast' && item.metadata?.action_url && (
                                   <Link
-                                    href={String(item.metadata.action_url)}
+                                    href={sanitizeInternalUrl(item.metadata.action_url, '/')}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleMarkItemRead(item.id);

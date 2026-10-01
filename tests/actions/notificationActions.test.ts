@@ -395,6 +395,16 @@ describe('Notification Actions (notificationActions.ts)', () => {
   describe('resolveDailyTaskNotifications', () => {
     it('marks active daily_task notifications for today as completed and is_read = true', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockPostsDb = [
+        {
+          id: 'post-1',
+          user_id: 'user-me',
+          light_img_url: 'https://cdn.cozy.camp/light.jpg',
+          dark_img_url: 'https://cdn.cozy.camp/dark.jpg',
+          cheer_count: 0,
+          created_at: new Date().toISOString(),
+        },
+      ];
       mockNotificationsDb = [
         {
           id: 'notif-today-1',
@@ -417,6 +427,16 @@ describe('Notification Actions (notificationActions.ts)', () => {
 
     it('only completes daily tasks matching the uploaded completedPhase (e.g., light only)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockPostsDb = [
+        {
+          id: 'post-light-only',
+          user_id: 'user-me',
+          light_img_url: 'https://cdn.cozy.camp/light.jpg',
+          dark_img_url: '',
+          cheer_count: 0,
+          created_at: new Date().toISOString(),
+        },
+      ];
       mockNotificationsDb = [
         {
           id: 'notif-light',
@@ -450,6 +470,29 @@ describe('Notification Actions (notificationActions.ts)', () => {
       expect(mockNotificationsDb[0].metadata?.status).toBe('completed');
       expect(mockNotificationsDb[1].is_read).toBe(false);
       expect(mockNotificationsDb[1].metadata?.status).not.toBe('completed');
+    });
+
+    it('rejects task completion when caller has not uploaded a photo today', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-me' } }, error: null });
+      mockPostsDb = []; // Zero posts uploaded today
+      mockNotificationsDb = [
+        {
+          id: 'notif-light',
+          user_id: 'user-me',
+          type: 'daily_task',
+          title: 'Morning Sun Check-In',
+          message: 'Capture light photo',
+          metadata: { target_phase: 'light', action_url: '/camera' },
+          is_read: false,
+          created_at: new Date().toISOString(),
+        },
+      ];
+
+      // Malicious or unverified call attempting to resolve tasks without upload
+      const res = await resolveDailyTaskNotifications({ completedPhase: 'both' });
+      expect(res.success).toBe(false);
+      expect(res.resolvedCount).toBe(0);
+      expect(mockNotificationsDb[0].is_read).toBe(false);
     });
 
     it('rejects attempts to resolve notifications for another user', async () => {

@@ -228,7 +228,9 @@ export function GroupDetailClient({
     };
   }, [activeGroupId]);
 
-  // Retrieve active group data from cache (or fallback to props)
+  // Group Switcher calculations & fallback data
+  const safeMyGroups = useMemo(() => (Array.isArray(myGroups) ? myGroups : []), [myGroups]);
+
   // Retrieve active group data from cache (or fallback to props if matching activeGroupId)
   const isInitialGroupActive = group?.id === activeGroupId;
   const activeBundle = groupBundleCache.get(activeGroupId) || (isInitialGroupActive ? {
@@ -241,17 +243,20 @@ export function GroupDetailClient({
     mapTheme: initialMapTheme,
   } : undefined);
 
-  const safeGroup = activeBundle?.group || (isInitialGroupActive ? group : {
+  const selectedMyGroup = safeMyGroups.find((g) => g.group.id === activeGroupId);
+  const isBundleLoaded = Boolean(activeBundle || isInitialGroupActive);
+
+  const safeGroup: GroupRow = activeBundle?.group || (isInitialGroupActive ? group : (selectedMyGroup?.group ?? {
     id: activeGroupId,
-    name: 'Cozy Group',
-    type: 'household',
-    min_members: 1,
-    max_members: 10,
-    pooled_points: 0,
-    theme_id: 'default_dollhouse',
-    invite_code: '',
-    created_at: new Date().toISOString(),
-  });
+    name: selectedMyGroup?.group?.name || group?.name || 'Group',
+    type: selectedMyGroup?.group?.type || group?.type || 'household',
+    min_members: selectedMyGroup?.group?.min_members || 1,
+    max_members: selectedMyGroup?.group?.max_members || 10,
+    pooled_points: selectedMyGroup?.group?.pooled_points || 0,
+    theme_id: selectedMyGroup?.group?.theme_id || 'default_dollhouse',
+    invite_code: selectedMyGroup?.group?.invite_code || '',
+    created_at: selectedMyGroup?.group?.created_at || new Date().toISOString(),
+  }));
 
   const safeMembers = liveMembers.length > 0
     ? liveMembers
@@ -259,8 +264,8 @@ export function GroupDetailClient({
         ? activeBundle.members
         : (isInitialGroupActive ? (members || []) : []));
 
-  const safeCount = activeBundle?.memberCount ?? (isInitialGroupActive ? memberCount : safeMembers.length);
-  const currentRole = activeBundle?.currentUserRole ?? (isInitialGroupActive ? currentUserRole : null);
+  const safeCount = activeBundle?.memberCount ?? (isInitialGroupActive ? memberCount : selectedMyGroup?.memberCount ?? safeMembers.length);
+  const currentRole = activeBundle?.currentUserRole ?? (isInitialGroupActive ? currentUserRole : selectedMyGroup?.role ?? null);
   const currentChallenge = activeBundle?.activeChallenge !== undefined
     ? activeBundle.activeChallenge
     : (isInitialGroupActive ? activeChallenge : null);
@@ -290,8 +295,6 @@ export function GroupDetailClient({
       return (b.points || 0) - (a.points || 0);
     });
 
-  // Group Switcher calculations
-  const safeMyGroups = useMemo(() => (Array.isArray(myGroups) ? myGroups : []), [myGroups]);
   const currentGroupIndex = safeMyGroups.findIndex((g) => g.group.id === safeGroup.id);
   const hasMultipleGroups = safeMyGroups.length > 1;
 
@@ -311,11 +314,8 @@ export function GroupDetailClient({
     setLiveMembers(cached?.members || []);
     setActiveGroupId(targetGroupId);
 
-    // URL Reconciliation: push or replace URL router shallowly (/groups/[newGroupId]) so route params stay in sync
+    // URL Reconciliation: replace URL router shallowly (/groups/[newGroupId]) without polluting browser history
     router.replace(`/groups/${targetGroupId}`, { scroll: false });
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `/groups/${targetGroupId}`);
-    }
 
     if (cached) {
       // Silent background revalidation if cache is older than 30s
@@ -526,7 +526,7 @@ export function GroupDetailClient({
             </div>
 
             {/* Admin Badge — Click to manage group */}
-            {currentRole === 'admin' && (
+            {currentRole === 'admin' && isBundleLoaded && (
               <button
                 onClick={() => setShowAdminModal(true)}
                 className="flex-shrink-0 flex items-center gap-1.5 text-xs font-800 px-3 py-1.5 rounded-2xl mt-1 transition-all hover:scale-105 active:scale-95 shadow-md border cursor-pointer"
@@ -544,23 +544,25 @@ export function GroupDetailClient({
           </div>
 
           {/* Interactive Invite Code Pill — highlighted when a vacant plot is tapped */}
-          <div
-            ref={invitePillRef}
-            className="pt-1 rounded-2xl transition-all duration-300"
-            style={inviteHighlight ? {
-              outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
-              outlineOffset: '4px',
-              boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
-            } : {}}
-          >
-            <InviteCodePill
-              code={safeGroup.invite_code}
-              groupName={safeGroup.name}
-              isFuturistic={isFuturistic}
-              accentColor={accentColor}
-              textColor={textSecondary}
-            />
-          </div>
+          {Boolean(safeGroup.invite_code && isBundleLoaded) && (
+            <div
+              ref={invitePillRef}
+              className="pt-1 rounded-2xl transition-all duration-300"
+              style={inviteHighlight ? {
+                outline: `2px solid ${isFuturistic ? 'rgba(0,220,255,0.70)' : 'rgba(240,192,96,0.75)'}`,
+                outlineOffset: '4px',
+                boxShadow: isFuturistic ? '0 0 16px 4px rgba(0,220,255,0.30)' : '0 0 16px 4px rgba(240,192,96,0.35)',
+              } : {}}
+            >
+              <InviteCodePill
+                code={safeGroup.invite_code}
+                groupName={safeGroup.name}
+                isFuturistic={isFuturistic}
+                accentColor={accentColor}
+                textColor={textSecondary}
+              />
+            </div>
+          )}
         </div>
 
         {/* Anchor-based 2.5D Group Map with Habitat Renderers & Vibe Auras */}

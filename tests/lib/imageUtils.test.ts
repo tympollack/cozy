@@ -27,6 +27,25 @@ describe('Client-Side Image Utilities (imageUtils)', () => {
       expect(result).toBeDefined();
       expect(result.name).toBe('photo.jpg');
     });
+
+    it('explicitly rethrows errors when file byte reading fails rather than silently swallowing', async () => {
+      const corruptedFile = new File(['fake-corrupted-bytes'], 'broken.jpg', { type: 'image/jpeg' });
+      const readErr = new Error('0x80070185: The cloud operation was unsuccessful');
+      vi.spyOn(corruptedFile, 'arrayBuffer').mockRejectedValue(readErr);
+
+      await expect(processImageFile(corruptedFile)).rejects.toThrow('0x80070185');
+    });
+
+    it('explicitly rethrows errors when HEIC byte probing fails', async () => {
+      const corruptedHeic = new File(['fake-corrupted-heic'], 'broken.heic', { type: 'image/heic' });
+      const readErr = new Error('The requested file could not be read');
+      readErr.name = 'NotReadableError';
+      vi.spyOn(corruptedHeic, 'slice').mockReturnValue({
+        arrayBuffer: vi.fn().mockRejectedValue(readErr),
+      } as unknown as Blob);
+
+      await expect(processImageFile(corruptedHeic)).rejects.toThrow();
+    });
   });
 
   describe('getPreviewUrlFromFile', () => {

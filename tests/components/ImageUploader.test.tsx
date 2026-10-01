@@ -181,5 +181,96 @@ describe('ImageUploader & Cloud Sync Handling', () => {
       // Valid preview remains visible and was not wiped out
       expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
     });
+
+    it('restores empty slot and keeps share button disabled if cloud error occurs during processing on initial selection', async () => {
+      vi.spyOn(offlineStore, 'useOfflineSync').mockReturnValue({
+        isOnline: true,
+        queuedCount: 0,
+        isSyncing: false,
+        lastSyncResult: null,
+        refreshCount: vi.fn(),
+        syncNow: vi.fn(),
+      });
+
+      render(<CameraPage />);
+      const galleryInput = document.getElementById('gallery-input-light') as HTMLInputElement;
+
+      const cloudFile = new File(['mock-bytes'], 'cloud-fail.jpg', { type: 'image/jpeg' });
+      // Probe succeeds, but background image processing throws cloud sync error
+      const imageUtils = await import('@/lib/imageUtils');
+      vi.spyOn(imageUtils, 'processImageFile').mockRejectedValueOnce(
+        new DOMException('The cloud operation was unsuccessful', 'NotReadableError')
+      );
+
+      fireEvent.change(galleryInput, { target: { files: [cloudFile] } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cloud-sync-toast')).toBeInTheDocument();
+      });
+
+      // Submit button remains disabled because slot was restored to empty
+      const submitButton = screen.getByRole('button', { name: /Share my space/i });
+      expect(submitButton).toBeDisabled();
+    });
+
+    it('does not allow an older slow or failing file selection to roll back a newer valid selection', async () => {
+      vi.spyOn(offlineStore, 'useOfflineSync').mockReturnValue({
+        isOnline: true,
+        queuedCount: 0,
+        isSyncing: false,
+        lastSyncResult: null,
+        refreshCount: vi.fn(),
+        syncNow: vi.fn(),
+      });
+
+      render(<CameraPage />);
+      const galleryInput = document.getElementById('gallery-input-light') as HTMLInputElement;
+
+      let rejectSlowFile!: (reason?: any) => void;
+      let onSlowProcessingStarted!: () => void;
+      const slowProcessingStarted = new Promise<void>((resolve) => {
+        onSlowProcessingStarted = resolve;
+      });
+      const slowProcessingPromise = new Promise<File>((_, reject) => {
+        rejectSlowFile = reject;
+      });
+
+      const imageUtils = await import('@/lib/imageUtils');
+      vi.spyOn(imageUtils, 'processImageFile').mockImplementation(async (file: File) => {
+        if (file.name === 'slow-fail.jpg') {
+          onSlowProcessingStarted();
+          return slowProcessingPromise;
+        }
+        return file;
+      });
+
+      const slowFile = new File(['slow-bytes'], 'slow-fail.jpg', { type: 'image/jpeg' });
+      const fastValidFile = new File(['fast-bytes'], 'fast-valid.jpg', { type: 'image/jpeg' });
+
+      // 1. User initiates slow file selection
+      fireEvent.change(galleryInput, { target: { files: [slowFile] } });
+
+      // Wait until slow file has entered background processing
+      await slowProcessingStarted;
+
+      // 2. While slow file is processing, user selects a second, valid file
+      fireEvent.change(galleryInput, { target: { files: [fastValidFile] } });
+
+      // Fast file resolves and preview appears
+      await waitFor(() => {
+        expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
+      });
+
+      // 3. The older slow selection now fails
+      rejectSlowFile(new DOMException('The cloud operation was unsuccessful', 'NotReadableError'));
+
+      // Allow event loop to process rejection
+      await new Promise((r) => setTimeout(r, 50));
+
+      // The newer valid photo must NOT be rolled back or discarded!
+      expect(screen.getByTestId('camera-preview-light')).toBeInTheDocument();
+      const submitButton = screen.getByRole('button', { name: /Share my space/i });
+      expect(submitButton).not.toBeDisabled();
+    });
   });
 });

@@ -1199,6 +1199,7 @@ export async function resolveDailyTaskNotifications(
     | {
         userId?: string;
         completedPhase?: 'light' | 'dark' | 'both';
+        postId?: string;
       }
 ): Promise<{ success: boolean; resolvedCount: number }> {
   const options =
@@ -1227,7 +1228,7 @@ export async function resolveDailyTaskNotifications(
     return { success: false, resolvedCount: 0 };
   }
 
-  const completedPhase = options.completedPhase ?? 'both';
+  const completedPhaseArg = options.completedPhase;
 
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -1236,6 +1237,42 @@ export async function resolveDailyTaskNotifications(
   const service = createServiceClient();
 
   try {
+    // Verification: ensure user actually uploaded a post today matching the capture phase
+    let postQuery = service
+      .schema('cozy')
+      .from('posts')
+      .select('id, light_img_url, dark_img_url, created_at')
+      .eq('user_id', targetUserId)
+      .gte('created_at', startOfDayIso);
+
+    if (options.postId) {
+      postQuery = (postQuery as any).eq('id', options.postId);
+    }
+
+    const { data: userPostsToday, error: postsErr } = await postQuery;
+
+    if (postsErr || !userPostsToday || userPostsToday.length === 0) {
+      console.warn('[resolveDailyTaskNotifications] No valid post capture found today for user');
+      return { success: false, resolvedCount: 0 };
+    }
+
+    const hasLight = userPostsToday.some((p) => Boolean(p.light_img_url));
+    const hasDark = userPostsToday.some((p) => Boolean(p.dark_img_url));
+
+    let completedPhase = completedPhaseArg ?? (hasLight && hasDark ? 'both' : hasLight ? 'light' : hasDark ? 'dark' : null);
+    if (!completedPhase) {
+      return { success: false, resolvedCount: 0 };
+    }
+
+    if (completedPhase === 'both' && (!hasLight || !hasDark)) {
+      completedPhase = hasLight ? 'light' : (hasDark ? 'dark' : null);
+      if (!completedPhase) return { success: false, resolvedCount: 0 };
+    } else if (completedPhase === 'light' && !hasLight) {
+      return { success: false, resolvedCount: 0 };
+    } else if (completedPhase === 'dark' && !hasDark) {
+      return { success: false, resolvedCount: 0 };
+    }
+
     const { data: activeDailyNudges, error: fetchErr } = await service
       .schema('cozy')
       .from('notifications')

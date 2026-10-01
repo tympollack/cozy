@@ -155,7 +155,7 @@ export default async function PeerProfilePage({ params }: PeerProfilePageProps) 
             initialMilestoneTokens={milestoneTokens}
             themesUnlocked={themesUnlocked}
             posts={posts}
-            isOwner={false}
+            isOwner={isOwner}
             recipientId={id}
             currentUserId={user?.id ?? null}
             peerStatus={peerStatus}

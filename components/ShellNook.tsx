@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, Unlink, Lock, Maximize2, Sun, Moon } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
@@ -30,13 +30,31 @@ export function ShellNook({
   onUnassignPost,
   onViewPost,
 }: ShellNookProps) {
-  const [imgError, setImgError] = useState(false);
-  const hasDualCaptures = Boolean(post?.light_img_url && post?.dark_img_url);
+  const [imgErrors, setImgErrors] = useState<{ light: boolean; dark: boolean }>({ light: false, dark: false });
+
+  // Reset image failures and viewMode whenever a different post or new photo is assigned to this slot
+  useEffect(() => {
+    setImgErrors({ light: false, dark: false });
+    if (post) {
+      setViewMode(getDefaultTimeMode(post));
+    }
+  }, [post?.id, post?.light_img_url, post?.dark_img_url]);
+
+  const hasValidLight = Boolean(post?.light_img_url && !imgErrors.light);
+  const hasValidDark = Boolean(post?.dark_img_url && !imgErrors.dark);
+  const hasDualCaptures = hasValidLight && hasValidDark;
+  const hasAnyValidImage = hasValidLight || hasValidDark;
+
   const [viewMode, setViewMode] = useState<CaptureMode>(() => getDefaultTimeMode(post));
+  const effectiveMode: CaptureMode = hasDualCaptures
+    ? viewMode
+    : hasValidLight
+    ? 'light'
+    : 'dark';
+
   const activeUrl = post
-    ? (viewMode === 'light' ? post.light_img_url || post.dark_img_url : post.dark_img_url || post.light_img_url)
+    ? (effectiveMode === 'light' ? post.light_img_url : post.dark_img_url)
     : null;
-  const hasValidImage = !!activeUrl && !imgError;
 
   return (
     <div
@@ -71,15 +89,18 @@ export function ShellNook({
           onClick={() => onViewPost(post)}
         >
           {/* Photo */}
-          {hasValidImage ? (
+          {hasAnyValidImage ? (
             hasDualCaptures ? (
-              <div className="w-full h-full relative">
+              <div
+                key={`nook-dual-${post.id}-${post.light_img_url}-${post.dark_img_url}`}
+                className="w-full h-full relative"
+              >
                 <motion.img
                   src={getOptimizedImageUrl(post!.dark_img_url!, 500)}
                   alt={slot.label}
-                  onError={() => setImgError(true)}
+                  onError={() => setImgErrors((prev) => ({ ...prev, dark: true }))}
                   initial={false}
-                  animate={{ opacity: viewMode === 'dark' ? 1 : 0 }}
+                  animate={{ opacity: effectiveMode === 'dark' ? 1 : 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
@@ -87,9 +108,9 @@ export function ShellNook({
                 <motion.img
                   src={getOptimizedImageUrl(post!.light_img_url!, 500)}
                   alt={slot.label}
-                  onError={() => setImgError(true)}
+                  onError={() => setImgErrors((prev) => ({ ...prev, light: true }))}
                   initial={false}
-                  animate={{ opacity: viewMode === 'light' ? 1 : 0 }}
+                  animate={{ opacity: effectiveMode === 'light' ? 1 : 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
@@ -97,10 +118,13 @@ export function ShellNook({
               </div>
             ) : (
               <motion.img
+                key={`nook-single-${post.id}-${activeUrl}`}
                 layoutId={`nook-img-${post!.id}`}
                 src={getOptimizedImageUrl(activeUrl!, 500)}
                 alt={slot.label}
-                onError={() => setImgError(true)}
+                onError={() => {
+                  setImgErrors((prev) => ({ ...prev, [effectiveMode]: true }));
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 loading="lazy"
               />
@@ -181,10 +205,10 @@ export function ShellNook({
                     setViewMode((prev) => (prev === 'light' ? 'dark' : 'light'));
                   }}
                   className="pointer-events-auto px-1.5 py-0.5 rounded-full bg-black/70 hover:bg-black/90 border border-white/25 text-white flex items-center gap-1 shadow-md transition-transform active:scale-90 cursor-pointer"
-                  title={`Switch to ${viewMode === 'light' ? 'night' : 'day'} view`}
+                  title={`Switch to ${effectiveMode === 'light' ? 'night' : 'day'} view`}
                   aria-label={`Toggle light/dark view for ${slot.label}`}
                 >
-                  {viewMode === 'light' ? (
+                  {effectiveMode === 'light' ? (
                     <Sun size={9} className="text-amber-400 fill-amber-400" />
                   ) : (
                     <Moon size={9} className="text-sky-300 fill-sky-300" />

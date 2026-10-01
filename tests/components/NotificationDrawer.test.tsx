@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NotificationDrawer } from '@/components/NotificationDrawer';
+import { NotificationDrawer, sanitizeInternalUrl } from '@/components/NotificationDrawer';
 import type { CozyNotificationItem } from '@/app/actions/notificationActions';
 
 const mockPush = vi.fn();
@@ -403,5 +403,75 @@ describe('NotificationDrawer Component', () => {
 
     expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Upload Room/i })).not.toBeInTheDocument();
+  });
+
+  it('sanitizes external, protocol-relative, and malicious URLs on daily task CTA click', async () => {
+    const user = userEvent.setup();
+    const maliciousNotification: CozyNotificationItem = {
+      id: 'n-malicious-1',
+      userId: 'u1',
+      type: 'daily_task',
+      title: 'Phishing Daily Reset',
+      message: 'Click here to capture',
+      metadata: { action_url: 'https://evil.example.com/exploit' },
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+        notifications={[maliciousNotification]}
+        unreadCount={1}
+      />
+    );
+
+    const ctaButton = screen.getByRole('button', { name: /Upload Room/i });
+    await user.click(ctaButton);
+
+    // Unsafe external link must be discarded and replaced with safe fallback '/camera'
+    expect(mockPush).toHaveBeenCalledWith('/camera');
+  });
+
+  it('navigates to legitimate internal paths when valid action_url is provided', async () => {
+    const user = userEvent.setup();
+    const legitimateNotification: CozyNotificationItem = {
+      id: 'n-valid-1',
+      userId: 'u1',
+      type: 'daily_task',
+      title: 'Valid Daily Reset',
+      message: 'Click here to capture',
+      metadata: { action_url: '/camera?mode=dark' },
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <NotificationDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+        notifications={[legitimateNotification]}
+        unreadCount={1}
+      />
+    );
+
+    const ctaButton = screen.getByRole('button', { name: /Upload Room/i });
+    await user.click(ctaButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/camera?mode=dark');
+  });
+
+  it('rejects encoded separator bypass attempts (%2f, %5c, double encoded)', () => {
+    expect(sanitizeInternalUrl('/%2fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%2Fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%252fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%5cevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%5Cevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/\\evil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('//evil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('javascript:alert(1)')).toBe('/camera');
+    expect(sanitizeInternalUrl('/camera')).toBe('/camera');
+    expect(sanitizeInternalUrl('/camera?mode=dark#room')).toBe('/camera?mode=dark#room');
   });
 });
