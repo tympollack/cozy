@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ShellNook } from '@/components/ShellNook';
 import { PostCard } from '@/components/PostCard';
@@ -85,6 +85,57 @@ describe('Time-Aware Default & Interactive Light/Dark View Toggle', () => {
       // Title should have inverted
       const toggledTitle = toggleBtn.getAttribute('title');
       expect(toggledTitle).not.toBe(initialTitle);
+    });
+
+    it('resets image error state when post is replaced or updated', () => {
+      const singlePost: UserPost = {
+        ...mockDualPost,
+        id: 'post-single-1',
+        dark_img_url: '',
+        light_img_url: 'https://cdn.cozy.space/broken.jpg',
+      };
+
+      const { rerender } = render(
+        <ShellNook
+          slot={mockSlot}
+          post={singlePost}
+          isOwner={true}
+          onSelectEmptySlot={vi.fn()}
+          onUnassignPost={vi.fn()}
+          onViewPost={vi.fn()}
+        />
+      );
+
+      const initialImg = screen.getByAltText(mockSlot.label);
+      expect(initialImg).toBeInTheDocument();
+
+      // Trigger image error on current post
+      fireEvent.error(initialImg);
+
+      // Now fallback text should be present since image errored
+      expect(screen.queryByAltText(mockSlot.label)).not.toBeInTheDocument();
+
+      // Re-assign or replace with a new valid post
+      const replacementPost: UserPost = {
+        ...mockDualPost,
+        id: 'post-replacement-2',
+        dark_img_url: '',
+        light_img_url: 'https://cdn.cozy.space/valid.jpg',
+      };
+
+      rerender(
+        <ShellNook
+          slot={mockSlot}
+          post={replacementPost}
+          isOwner={true}
+          onSelectEmptySlot={vi.fn()}
+          onUnassignPost={vi.fn()}
+          onViewPost={vi.fn()}
+        />
+      );
+
+      // New image should be rendered and not blocked by previous error state
+      expect(screen.getByAltText(mockSlot.label)).toBeInTheDocument();
     });
   });
 

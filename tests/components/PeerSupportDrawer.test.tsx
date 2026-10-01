@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PeerSupportDrawer } from '@/components/PeerSupportDrawer';
 import { useCozyStore } from '@/store/useCozyStore';
@@ -120,7 +120,9 @@ describe('PeerSupportDrawer Component', () => {
     await user.click(noteTab);
 
     const textarea = screen.getByPlaceholderText(/e\.g\. Thinking of you today!/i);
-    await user.type(textarea, 'Thinking of you today! Have a wonderful relaxing afternoon. 💛');
+    fireEvent.change(textarea, {
+      target: { value: 'Thinking of you today! Have a wonderful relaxing afternoon. 💛' },
+    });
 
     const deliverButton = screen.getByRole('button', { name: /Deliver Private Note/i });
     await user.click(deliverButton);

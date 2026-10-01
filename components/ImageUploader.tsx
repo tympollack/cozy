@@ -4,72 +4,9 @@ import React, { useRef, useState, useCallback, useId } from 'react';
 import { AlertCircle, X, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const CLOUD_SYNC_ERROR_MESSAGE =
-  'Cloud File Not Ready: This photo is currently syncing or stored in cloud-only mode. Please let OneDrive/iCloud finish downloading it locally, or select another photo.';
+import { CLOUD_SYNC_ERROR_MESSAGE, isCloudSyncError, probeCloudFile } from '@/lib/imageUtils';
+export { CLOUD_SYNC_ERROR_MESSAGE, isCloudSyncError, probeCloudFile };
 
-/**
- * Detects whether an error thrown during file reading / preview generation
- * stems from an unhydrated or syncing cloud file (OneDrive 0x80070185, iCloud NotReadableError/AbortError).
- */
-export function isCloudSyncError(error: unknown): boolean {
-  if (!error) return false;
-
-  if (typeof error === 'string') {
-    const lower = error.toLowerCase();
-    return (
-      lower.includes('0x80070185') ||
-      lower.includes('notreadableerror') ||
-      lower.includes('aborterror') ||
-      lower.includes('cloud') ||
-      lower.includes('not readable') ||
-      lower.includes('sync')
-    );
-  }
-
-  const err = error as Record<string, any>;
-  const name = String(err.name || '');
-  const message = String(err.message || '').toLowerCase();
-  const code = String(err.code || '');
-
-  if (name === 'NotReadableError' || name === 'AbortError') {
-    return true;
-  }
-
-  if (
-    message.includes('0x80070185') ||
-    message.includes('notreadableerror') ||
-    message.includes('aborterror') ||
-    message.includes('cloud') ||
-    message.includes('not readable') ||
-    message.includes('could not be read') ||
-    message.includes('operation was aborted') ||
-    message.includes('syncing') ||
-    code.includes('0x80070185')
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Safely probes a File object to ensure the OS has locally hydrated its bytes.
- * Throws a NotReadableError or cloud hydration error if the file is cloud-only.
- */
-export async function probeCloudFile(file: File): Promise<void> {
-  try {
-    // Attempt to slice and read the first 64 bytes
-    const slice = file.slice(0, 64);
-    await slice.arrayBuffer();
-  } catch (err) {
-    if (isCloudSyncError(err)) {
-      const cloudErr = new Error(CLOUD_SYNC_ERROR_MESSAGE);
-      cloudErr.name = 'NotReadableError';
-      throw cloudErr;
-    }
-    throw err;
-  }
-}
 
 export interface ImageUploaderProps {
   id?: string;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, Unlink, Lock, Maximize2, Sun, Moon } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
@@ -31,6 +31,15 @@ export function ShellNook({
   onViewPost,
 }: ShellNookProps) {
   const [imgErrors, setImgErrors] = useState<{ light: boolean; dark: boolean }>({ light: false, dark: false });
+
+  // Reset image failures and viewMode whenever a different post or new photo is assigned to this slot
+  useEffect(() => {
+    setImgErrors({ light: false, dark: false });
+    if (post) {
+      setViewMode(getDefaultTimeMode(post));
+    }
+  }, [post?.id, post?.light_img_url, post?.dark_img_url]);
+
   const hasValidLight = Boolean(post?.light_img_url && !imgErrors.light);
   const hasValidDark = Boolean(post?.dark_img_url && !imgErrors.dark);
   const hasDualCaptures = hasValidLight && hasValidDark;
@@ -82,7 +91,10 @@ export function ShellNook({
           {/* Photo */}
           {hasAnyValidImage ? (
             hasDualCaptures ? (
-              <div className="w-full h-full relative">
+              <div
+                key={`nook-dual-${post.id}-${post.light_img_url}-${post.dark_img_url}`}
+                className="w-full h-full relative"
+              >
                 <motion.img
                   src={getOptimizedImageUrl(post!.dark_img_url!, 500)}
                   alt={slot.label}
@@ -106,6 +118,7 @@ export function ShellNook({
               </div>
             ) : (
               <motion.img
+                key={`nook-single-${post.id}-${activeUrl}`}
                 layoutId={`nook-img-${post!.id}`}
                 src={getOptimizedImageUrl(activeUrl!, 500)}
                 alt={slot.label}

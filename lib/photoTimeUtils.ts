@@ -18,7 +18,7 @@ export function getDefaultTimeMode(
   post?: DualCapturePost | null,
   overrideHour?: number
 ): CaptureMode {
-  if (!post) return 'light';
+  if (!post || (!post.light_img_url && !post.dark_img_url)) return 'light';
 
   const hour = overrideHour !== undefined ? overrideHour : new Date().getHours();
   const isDaytime = hour >= 6 && hour < 18;

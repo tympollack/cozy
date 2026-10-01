@@ -226,8 +226,15 @@ export async function scrubAndCompressImage(
   }
 
   // 2. Binary fallback if canvas is not available (Node / SSR or unsupported codec)
+  let buffer: ArrayBuffer;
   try {
-    const buffer = await file.arrayBuffer();
+    buffer = await file.arrayBuffer();
+  } catch (err) {
+    // If reading arrayBuffer fails, the file bytes are unreadable (e.g. cloud sync error or I/O failure)
+    throw err;
+  }
+
+  try {
     const cleanBytes = stripExifFromJpegBytes(new Uint8Array(buffer));
     return new File([cleanBytes as unknown as BlobPart], cleanName, { type: file.type || 'image/jpeg' });
   } catch {

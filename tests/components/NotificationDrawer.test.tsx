@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NotificationDrawer } from '@/components/NotificationDrawer';
+import { NotificationDrawer, sanitizeInternalUrl } from '@/components/NotificationDrawer';
 import type { CozyNotificationItem } from '@/app/actions/notificationActions';
 
 const mockPush = vi.fn();
@@ -460,5 +460,18 @@ describe('NotificationDrawer Component', () => {
     await user.click(ctaButton);
 
     expect(mockPush).toHaveBeenCalledWith('/camera?mode=dark');
+  });
+
+  it('rejects encoded separator bypass attempts (%2f, %5c, double encoded)', () => {
+    expect(sanitizeInternalUrl('/%2fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%2Fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%252fevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%5cevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/%5Cevil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('/\\evil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('//evil.com')).toBe('/camera');
+    expect(sanitizeInternalUrl('javascript:alert(1)')).toBe('/camera');
+    expect(sanitizeInternalUrl('/camera')).toBe('/camera');
+    expect(sanitizeInternalUrl('/camera?mode=dark#room')).toBe('/camera?mode=dark#room');
   });
 });

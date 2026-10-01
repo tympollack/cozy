@@ -78,12 +78,14 @@ export default function CameraPage() {
   lightSlotRef.current = lightSlot;
   const darkSlotRef = useRef(darkSlot);
   darkSlotRef.current = darkSlot;
+  const fileGenerationRef = useRef<Record<Mode, number>>({ light: 0, dark: 0 });
 
   // --- File selection ---
   const handleFileChange = useCallback(
     async (mode: Mode, file: File | null, inputElement?: HTMLInputElement | null) => {
       if (!file) return;
       playCameraShutter();
+      const currentGen = ++fileGenerationRef.current[mode];
       const previousSlot = mode === 'light' ? lightSlotRef.current : darkSlotRef.current;
       const setter = mode === 'light' ? setLightSlot : setDarkSlot;
       const filterToApply = mode === 'light' ? lightFilter : darkFilter;
@@ -97,36 +99,58 @@ export default function CameraPage() {
       try {
         await probeCloudFile(file);
       } catch (err) {
+        if (fileGenerationRef.current[mode] !== currentGen) return;
         if (isCloudSyncError(err)) {
           setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
-          if (inputElement) inputElement.value = '';
-          resetFileInputs();
-          setIsProcessingFile(false);
-          return;
+        } else {
+          console.error('File probe read error:', err);
         }
+        if (inputElement) inputElement.value = '';
+        resetFileInputs();
+        setIsProcessingFile(false);
+        return;
       }
+
+      if (fileGenerationRef.current[mode] !== currentGen) return;
 
       let newlyCreatedPreview: string | null = null;
 
       // 1. Instant preview URL (handles Android HEIC via EXIF thumbnail extraction)
       try {
         newlyCreatedPreview = await getPreviewUrlFromFile(file);
-        setter({ file, preview: newlyCreatedPreview });
-      } catch (err) {
-        if (isCloudSyncError(err)) {
-          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
-          if (inputElement) inputElement.value = '';
-          resetFileInputs();
-          setIsProcessingFile(false);
+        if (fileGenerationRef.current[mode] === currentGen) {
+          setter({ file, preview: newlyCreatedPreview });
+        } else {
+          if (newlyCreatedPreview && newlyCreatedPreview.startsWith('blob:')) {
+            try { URL.revokeObjectURL(newlyCreatedPreview); } catch {}
+          }
           return;
         }
-        console.error('Instant preview error:', err);
+      } catch (err) {
+        if (fileGenerationRef.current[mode] !== currentGen) return;
+        if (isCloudSyncError(err)) {
+          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+        } else {
+          console.error('Instant preview error:', err);
+        }
+        if (inputElement) inputElement.value = '';
+        resetFileInputs();
+        setIsProcessingFile(false);
+        return;
       }
+
+      if (fileGenerationRef.current[mode] !== currentGen) return;
 
       // 2. Background image processing, EXIF scrubbing & compression (<100ms)
       setIsProcessingFile(true);
       try {
         const processedFile = await processImageFile(file, { filterCss });
+        if (fileGenerationRef.current[mode] !== currentGen) {
+          if (newlyCreatedPreview && newlyCreatedPreview.startsWith('blob:') && newlyCreatedPreview !== previousSlot.preview) {
+            try { URL.revokeObjectURL(newlyCreatedPreview); } catch {}
+          }
+          return;
+        }
         if (processedFile !== file) {
           const processedPreview = URL.createObjectURL(processedFile);
           setter({ file: processedFile, preview: processedPreview });
@@ -139,18 +163,22 @@ export default function CameraPage() {
             URL.revokeObjectURL(newlyCreatedPreview);
           } catch {}
         }
-        // Restore prior valid photo slot (or EMPTY_SLOT if none existed)
-        setter(previousSlot);
+        // Restore prior valid photo slot only if this invocation is still the latest generation!
+        if (fileGenerationRef.current[mode] === currentGen) {
+          setter(previousSlot);
 
-        if (isCloudSyncError(err)) {
-          setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
-          if (inputElement) inputElement.value = '';
-          resetFileInputs();
-        } else {
-          console.error('Image processing error:', err);
+          if (isCloudSyncError(err)) {
+            setCloudSyncToast(CLOUD_SYNC_ERROR_MESSAGE);
+            if (inputElement) inputElement.value = '';
+            resetFileInputs();
+          } else {
+            console.error('Image processing error:', err);
+          }
         }
       } finally {
-        setIsProcessingFile(false);
+        if (fileGenerationRef.current[mode] === currentGen) {
+          setIsProcessingFile(false);
+        }
       }
     },
     [lightFilter, darkFilter, resetFileInputs]
