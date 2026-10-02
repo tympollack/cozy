@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Home,
   Users,
@@ -23,6 +23,7 @@ import {
   triggerPostcard,
 } from '@/app/actions/claimActions';
 import { joinGroup } from '@/app/actions/groupActions';
+import { ModalShell } from '@digitalcanopy/ui';
 import { useCozyStore } from '@/store/useCozyStore';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
 
@@ -186,9 +187,20 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
     }
   };
 
+  const handleSafeClose = useCallback(() => {
+    if (isLoading) return;
+    onClose();
+  }, [isLoading, onClose]);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-xl bg-black/60 overflow-y-auto">
-      <div className="cozy-glass rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-amber-300/40 dark:border-amber-600/30 flex flex-col relative my-auto">
+    <ModalShell
+      isOpen={true}
+      onClose={handleSafeClose}
+      hideCloseButton={true}
+      className="max-w-lg w-full cozy-glass rounded-3xl p-6 sm:p-8 shadow-2xl border border-amber-300/40 dark:border-amber-600/30 overflow-hidden bg-stone-50 dark:bg-[#1a1410]"
+      bodyClassName="p-0 overflow-y-auto"
+      testID="claim-house-modal"
+    >
         {/* Navigation Tabs */}
         <div className="flex items-center justify-between border-b border-amber-200/40 dark:border-stone-700 pb-3 mb-5">
           <div className="flex items-center gap-2">
@@ -502,8 +514,8 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
             Close
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
+
 
