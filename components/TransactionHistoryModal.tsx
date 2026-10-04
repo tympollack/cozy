@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useTransition, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { ModalShell, Skeleton } from '@digitalcanopy/ui';
 import {
-  X, History, Star, ArrowUpRight, ArrowDownLeft,
+  History, Star, ArrowUpRight, ArrowDownLeft,
   Sparkles, Coffee, Heart, Camera, Coins, RefreshCw,
   ShoppingBag, CheckCircle2, ChevronRight, Trophy, Mail, Gift
 } from 'lucide-react';
@@ -216,70 +216,52 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
     .filter((tx) => tx.amount < 0)
     .reduce((acc, tx) => acc + Math.abs(tx.amount), 0);
 
+  const handleClose = useCallback(() => {
+    playWoodenClick();
+    onClose();
+  }, [playWoodenClick, onClose]);
+
   if (!isClient) return null;
 
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            aria-hidden="true"
-          />
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={<span className="text-stone-900 dark:text-stone-100">Cozy Chronicle & Cheer Ledger</span>}
+      subtitle={<span className="text-stone-600 dark:text-stone-400">A living chronicle of kindness shared, warm gifts received, and spaces adorned</span>}
+      icon={<History size={20} />}
+      closeAriaLabel="Close transaction ledger"
+      headerExtra={
+        <button
+          onClick={handleRefresh}
+          disabled={loading || isPending}
+          aria-label="Refresh transaction ledger"
+          className="p-2 rounded-full text-stone-600 dark:text-amber-200 hover:bg-stone-200/60 dark:hover:bg-[#342821] transition-all cursor-pointer disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={isPending ? 'animate-spin' : ''} />
+        </button>
+      }
+      footer={
+        <div className="w-full flex items-center justify-between text-[11px] text-stone-500 dark:text-amber-200/60">
+          <span className="flex items-center gap-1">
+            <CheckCircle2 size={13} className="text-emerald-600" />
+            Ledger secured in PostgreSQL
+          </span>
 
-          {/* Modal Card */}
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Point Transaction Ledger"
-            initial={{ opacity: 0, scale: 0.94, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 16 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className="relative w-full max-w-lg max-h-[85dvh] flex flex-col rounded-[32px]
-              bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 shadow-2xl overflow-hidden border border-amber-900/15 dark:border-amber-500/30"
+          <button
+            onClick={handleClose}
+            className="font-700 text-stone-800 dark:text-amber-200 hover:underline cursor-pointer"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-amber-900/10 dark:border-amber-500/20">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-600/40 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
-                  <History size={20} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-900 text-stone-900 dark:text-amber-50 flex items-center gap-1.5 leading-tight">
-                    Cozy Chronicle & Cheer Ledger
-                  </h2>
-                  <p className="text-xs font-500 text-stone-600 dark:text-amber-200/70">
-                    A living chronicle of kindness shared, warm gifts received, and spaces adorned
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleRefresh}
-                  disabled={loading || isPending}
-                  aria-label="Refresh transaction ledger"
-                  className="p-2 rounded-full text-stone-600 dark:text-amber-200 hover:bg-stone-200/60 dark:hover:bg-[#342821] transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw size={16} className={isPending ? 'animate-spin' : ''} />
-                </button>
-
-                <button
-                  onClick={() => { playWoodenClick(); onClose(); }}
-                  aria-label="Close transaction ledger"
-                  className="p-2 rounded-full text-stone-600 dark:text-amber-200 hover:bg-stone-200/60 dark:hover:bg-[#342821] transition-all cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
+            Close
+          </button>
+        </div>
+      }
+      className="w-full max-w-lg rounded-[32px] bg-[#faf7f2] dark:bg-[#1c1613] text-stone-900 dark:text-amber-50 shadow-2xl overflow-hidden border border-amber-900/15 dark:border-amber-500/30"
+      headerClassName="px-6 pt-5 pb-3 border-b border-amber-900/10 dark:border-amber-500/20"
+      footerClassName="px-6 py-3 border-t border-amber-900/10 dark:border-amber-500/20 bg-stone-50/80 dark:bg-[#1b1411]"
+      bodyClassName="p-0 flex flex-col min-h-0 overflow-hidden"
+      testID="transaction-history-modal"
+    >
 
             {/* Odometer Balance Card */}
             <div className="px-6 pt-4 pb-2">
@@ -353,9 +335,9 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
               {loading ? (
                 <div className="space-y-2.5 py-2">
                   {[...Array(5)].map((_, i) => (
-                    <div
+                    <Skeleton
                       key={i}
-                      className="h-16 rounded-2xl bg-stone-200/60 dark:bg-[#281e19] animate-pulse"
+                      className="h-16 w-full rounded-2xl bg-stone-200/60 dark:bg-[#281e19]"
                     />
                   ))}
                 </div>
@@ -456,25 +438,7 @@ export function TransactionHistoryModal({ isOpen, onClose }: TransactionHistoryM
                 </>
               )}
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-amber-900/10 dark:border-amber-500/20 bg-stone-50/80 dark:bg-[#1b1411] flex items-center justify-between text-[11px] text-stone-500 dark:text-amber-200/60">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 size={13} className="text-emerald-600" />
-                Ledger secured in PostgreSQL
-              </span>
-
-              <button
-                onClick={onClose}
-                className="font-700 text-stone-800 dark:text-amber-200 hover:underline cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>,
-    document.body
+    </ModalShell>
   );
 }
+

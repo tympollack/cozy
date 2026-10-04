@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { motion } from 'framer-motion';
+import { ModalShell } from '@digitalcanopy/ui';
 import {
-  X,
   Shield,
   Crown,
   UserCheck,
@@ -121,33 +121,15 @@ export function AdminGroupModal({
   };
 
   return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
+    <ModalShell
+      isOpen={true}
+      onClose={onClose}
+      title={<span className="text-stone-900 dark:text-stone-100">Group Admin Portal</span>}
+      icon={<Crown className="w-5 h-5 text-amber-500" />}
+      className="w-full max-w-lg rounded-3xl p-6 cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-5 max-h-[85vh] flex flex-col"
+      headerClassName="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3 flex-shrink-0"
+      bodyClassName="space-y-4 overflow-y-auto min-h-0"
     >
-      <motion.div
-        className="w-full max-w-lg rounded-3xl p-6 cozy-glass border border-amber-300/40 dark:border-amber-600/30 shadow-2xl space-y-5 max-h-[85vh] flex flex-col"
-        initial={{ scale: 0.95, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.95, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-amber-500/20 pb-3 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-amber-500" />
-            <h2 className="text-lg font-900 text-stone-900 dark:text-amber-50">Group Admin Portal</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-stone-700 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
-        </div>
 
         {/* Status Alerts */}
         {error && (
@@ -386,7 +368,7 @@ export function AdminGroupModal({
             })}
           </div>
         )}
-      </motion.div>
-    </motion.div>
+    </ModalShell>
   );
 }
+
