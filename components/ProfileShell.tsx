@@ -37,6 +37,7 @@ import type { PeerStatus, PendingCard } from '@/app/actions/peerActions';
 import type { PorchItem } from '@/app/actions/waterfallActions';
 import { ITEM_EMOJIS } from './PorchHoldingPen';
 import { playCozyChime } from '@/lib/audio/cheerSound';
+import { DollhouseStage } from '@/src/components/dollhouse';
 
 interface ProfileShellProps {
   initialShellType: string;
@@ -82,6 +83,7 @@ export function ProfileShell({
   const [expandedPost, setExpandedPost] = useState<{ post: UserPost; slot: ShellSlot } | null>(null);
   const [lightboxMode, setLightboxMode] = useState<CaptureMode>('light');
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'nooks' | 'dollhouse'>('nooks');
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
   const [porchCheerParticles, setPorchCheerParticles] = useState<Array<{ id: number; x: number; y: number; char: string }>>([]);
@@ -250,6 +252,19 @@ export function ProfileShell({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle: Photo Nooks vs 2.5D Dollhouse */}
+            <button
+              onClick={() => setViewMode((prev) => (prev === 'nooks' ? 'dollhouse' : 'nooks'))}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-800
+                bg-amber-100/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200
+                border border-amber-900/15 dark:border-amber-500/30 shadow-xs
+                hover:bg-amber-200/80 dark:hover:bg-amber-900/70 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title={viewMode === 'nooks' ? 'Switch to 2.5D Dollhouse view' : 'Switch to photo nooks grid'}
+              aria-label={viewMode === 'nooks' ? 'Switch to 2.5D Dollhouse Room' : 'Switch to Photo Nooks'}
+            >
+              <span>{viewMode === 'nooks' ? '🏡 2.5D Room' : '📷 Photo Nooks'}</span>
+            </button>
+
             {/* Token balance */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
               bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-xs font-900 text-amber-950 dark:text-amber-200 shadow-xs"
@@ -517,39 +532,57 @@ export function ProfileShell({
             )}
           </div>
 
-          {/* Render Active Shell Nooks */}
-          {activeSlots.map((slot) => {
-            const assignedPost = slottedPostMap.get(slot.id);
-            return (
-              <ShellNook
-                key={slot.id}
-                slot={slot}
-                post={assignedPost}
-                isOwner={isOwner}
-                isLocked={false}
-                onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
-                onUnassignPost={handleUnassignPost}
-                onViewPost={(p) => {
-                  setExpandedPost({ post: p, slot });
-                  setLightboxMode(getDefaultTimeMode(p));
-                  onPostSelect?.(p);
-                }}
+          {/* Render Active Shell Nooks or 2.5D Dollhouse Interior Stage */}
+          {viewMode === 'dollhouse' ? (
+            <div className="col-span-full w-full py-2">
+              <DollhouseStage
+                theme={
+                  shellType === 'campsite'
+                    ? 'campsite'
+                    : shellType === 'castle'
+                    ? 'castle'
+                    : shellType === 'modern'
+                    ? 'modern'
+                    : 'cottage'
+                }
               />
-            );
-          })}
+            </div>
+          ) : (
+            <>
+              {activeSlots.map((slot) => {
+                const assignedPost = slottedPostMap.get(slot.id);
+                return (
+                  <ShellNook
+                    key={slot.id}
+                    slot={slot}
+                    post={assignedPost}
+                    isOwner={isOwner}
+                    isLocked={false}
+                    onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
+                    onUnassignPost={handleUnassignPost}
+                    onViewPost={(p) => {
+                      setExpandedPost({ post: p, slot });
+                      setLightboxMode(getDefaultTimeMode(p));
+                      onPostSelect?.(p);
+                    }}
+                  />
+                );
+              })}
 
-          {/* Render Locked Slot Placeholders */}
-          {lockedSlots.map((slot) => (
-            <ShellNook
-              key={slot.id}
-              slot={slot}
-              isOwner={isOwner}
-              isLocked
-              onSelectEmptySlot={() => {}}
-              onUnassignPost={() => {}}
-              onViewPost={() => {}}
-            />
-          ))}
+              {/* Render Locked Slot Placeholders */}
+              {lockedSlots.map((slot) => (
+                <ShellNook
+                  key={slot.id}
+                  slot={slot}
+                  isOwner={isOwner}
+                  isLocked
+                  onSelectEmptySlot={() => {}}
+                  onUnassignPost={() => {}}
+                  onViewPost={() => {}}
+                />
+              ))}
+            </>
+          )}
         </div>
 
         {/* ── Expanded Post Lightbox Modal (Shared Element Zoom) ─────────── */}

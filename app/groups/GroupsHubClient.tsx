@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Plus,
   Key,
@@ -367,6 +368,13 @@ export function GroupsHubClient({ initialGroups }: GroupsHubClientProps) {
           <Key size={15} />
           Join
         </motion.button>
+
+        <Link
+          href="/village"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-800 transition-all border border-emerald-600/30 text-emerald-800 dark:text-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/40 backdrop-blur-md hover:scale-104 active:scale-96 shadow-xs"
+        >
+          <span>🏡 2.5D Village</span>
+        </Link>
       </div>
 
       {/* Group cards */}
