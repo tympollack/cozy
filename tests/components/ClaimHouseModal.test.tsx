@@ -203,6 +203,12 @@ describe('ClaimHouseModal Component (TASK-COZY-ONBOARD-CLAIM)', () => {
     const joinBtns = screen.getAllByRole('button', { name: /^Join$/i });
     await user.click(joinBtns[0]);
 
+    // Verify all other join buttons and custom code button are disabled to prevent overlapping joins
+    joinBtns.forEach((btn) => {
+      expect(btn).toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: /Join with Code/i })).toBeDisabled();
+
     const closeHeaderBtn = screen.getByLabelText('Close claim modal');
     expect(closeHeaderBtn).toBeDisabled();
 

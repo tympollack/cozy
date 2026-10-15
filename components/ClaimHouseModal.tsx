@@ -53,6 +53,8 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
   // Advanced postal verification state (legacy fallback)
   const [postalStep, setPostalStep] = useState<1 | 2 | 3>(1);
 
+  const isBusy = isLoading || Boolean(joiningVillageId);
+
   useEffect(() => {
     // Load village suggestions based on friendly vibe
     getVillageSuggestions(vibeStatus)
@@ -64,6 +66,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   // --- One-Tap Plot Claim ---
   const handleOneTapClaim = async () => {
+    if (isBusy) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -84,6 +87,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   // --- Village Joining ---
   const handleJoinVillage = async (village: SuggestedVillage) => {
+    if (isBusy) return;
     setJoiningVillageId(village.id);
     setInviteError('');
     try {
@@ -103,7 +107,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   const handleJoinCustomCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customInviteCode.trim()) return;
+    if (isBusy || !customInviteCode.trim()) return;
 
     setIsLoading(true);
     setInviteError('');
@@ -184,8 +188,6 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
       setIsLoading(false);
     }
   };
-
-  const isBusy = isLoading || Boolean(joiningVillageId);
 
   const handleSafeClose = useCallback(() => {
     if (isBusy) return;
@@ -369,9 +371,9 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
                     <button
                       type="button"
-                      disabled={isCurrentGroup || isJoining}
+                      disabled={isCurrentGroup || isBusy}
                       onClick={() => handleJoinVillage(village)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-900 transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-900 transition-all flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                         isCurrentGroup
                           ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                           : 'bg-amber-600 hover:bg-amber-500 text-white shadow-xs'
@@ -408,7 +410,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
                 />
                 <button
                   type="submit"
-                  disabled={isLoading || !customInviteCode.trim()}
+                  disabled={isBusy || !customInviteCode.trim()}
                   className="px-4 py-2 bg-stone-800 dark:bg-amber-600 hover:opacity-90 text-white rounded-xl text-xs font-800 cursor-pointer disabled:opacity-50 shrink-0"
                 >
                   Join with Code
