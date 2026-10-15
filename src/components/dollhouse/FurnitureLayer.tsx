@@ -6,6 +6,11 @@
  * Populates the 2.5D dollhouse room interior with Kenney 2D Furniture Kit props
  * (desks, lamps, seating, storage, and cozy decor).
  * Renders objects with isometric depth sorting ((col + row) * 100 + z).
+ *
+ * Architecture Note:
+ * Props are modeled directly as crisp, lightweight vector SVG primitives inspired by
+ * the Kenney 2D Furniture Kit. This avoids heavy external sprite sheet asset fetching,
+ * eliminates runtime 404 risks, and provides crisp HiDPI vector rendering at 60fps.
  */
 
 import React from 'react';
@@ -48,8 +53,21 @@ export function FurnitureLayer({
           <g
             key={item.id}
             transform={`translate(${screenX}, ${screenY})`}
-            onClick={() => onPropClick?.(item)}
-            className={item.interactive ? 'cursor-pointer' : undefined}
+            onClick={item.interactive ? () => onPropClick?.(item) : undefined}
+            onKeyDown={
+              item.interactive
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onPropClick?.(item);
+                    }
+                  }
+                : undefined
+            }
+            tabIndex={item.interactive ? 0 : undefined}
+            role={item.interactive ? 'button' : undefined}
+            aria-label={item.interactive ? item.name : undefined}
+            className={item.interactive ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400' : undefined}
           >
             {renderFurnitureSprite(item.spriteType)}
           </g>

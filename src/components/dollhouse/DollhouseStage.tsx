@@ -12,9 +12,11 @@
  *   - Standard 2:1 dimetric projection (tileWidth: 72, tileHeight: 36).
  *   - Cutaway architecture: Back-left and back-right walls rendered at full height;
  *     front walls cut away for direct, unobscured interior visibility.
+ *   - Primitives: Room partitions, furniture props, and floor tiles are implemented
+ *     as scalable inline vector SVG elements to avoid raster pixelation and asset bundle latency.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { motion } from 'framer-motion';
 import type { DollhouseStageProps, FurnitureProp, DollhouseRoomTheme } from './types';
 import { FurnitureLayer } from './FurnitureLayer';
@@ -199,6 +201,11 @@ export function DollhouseStage({
       ? 'modern'
       : 'cottage';
 
+  const stageId = useId();
+  const sanitizedId = stageId.replace(/:/g, '');
+  const floorAmbientId = `floor-ambient-${sanitizedId}`;
+  const wallPlanksId = `wall-planks-${sanitizedId}`;
+
   const palette = THEME_PALETTES[effectiveTheme];
 
   // Isometric Grid Origin (top center of the floor diamond)
@@ -237,8 +244,12 @@ export function DollhouseStage({
       aria-label="2.5D Dollhouse Interior Stage"
     >
       {/* ── Layer 1: Ambient Weather Auras & Particles ── */}
-      {showWeatherAuras && (
-        <WeatherAuraOverlay vibeStatus={vibeStatus} nightMode={nightMode} />
+      {(showWeatherAuras || nightMode) && (
+        <WeatherAuraOverlay
+          vibeStatus={vibeStatus}
+          nightMode={nightMode}
+          showWeather={showWeatherAuras}
+        />
       )}
 
       {/* ── Layer 2: Vector Isometric Dollhouse Room SVG ── */}
@@ -249,11 +260,11 @@ export function DollhouseStage({
       >
         <defs>
           {/* Wall texture pattern */}
-          <pattern id="wall-planks" width="16" height="32" patternUnits="userSpaceOnUse">
+          <pattern id={wallPlanksId} width="16" height="32" patternUnits="userSpaceOnUse">
             <line x1="0" y1="0" x2="0" y2="32" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
           </pattern>
           {/* Floor gloss gradient */}
-          <radialGradient id="floor-ambient" cx="50%" cy="50%" r="50%">
+          <radialGradient id={floorAmbientId} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={palette.ambientLight} />
             <stop offset="100%" stopColor="transparent" />
           </radialGradient>
@@ -345,7 +356,7 @@ export function DollhouseStage({
           {/* Ambient Lighting Overlay on the floor */}
           <polygon
             points={`${originX},${originY} ${wallRightFloor.x},${wallRightFloor.y} ${floorBottom.x},${floorBottom.y} ${wallLeftFloor.x},${wallLeftFloor.y}`}
-            fill="url(#floor-ambient)"
+            fill={`url(#${floorAmbientId})`}
             pointerEvents="none"
           />
         </g>

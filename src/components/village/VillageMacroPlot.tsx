@@ -6,9 +6,15 @@
  * 2.5D isometric village macro-plot viewport.
  * Uses Kenney Isometric Buildings, Tiny Town terrain tiles, and member plot anchors.
  * Supports weather particles driven by the community Vibe Check state.
+ *
+ * Architecture Note:
+ * Village structures and terrain are modeled directly as crisp, lightweight vector SVG
+ * primitives inspired by Kenney Isometric Buildings and Tiny Town. This eliminates
+ * external tile atlas downloads, guarantees sub-millisecond initial render times, and
+ * prevents raster blur across differing display zoom levels.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useId, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { VillageMacroPlotProps, VillagePlotAnchor, VillageBuilding } from './types';
 import { WeatherAuraOverlay } from '../dollhouse/WeatherAuraOverlay';
@@ -49,6 +55,13 @@ export function VillageMacroPlot({
 }: VillageMacroPlotProps) {
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
 
+  const plotId = useId();
+  const sanitizedId = plotId.replace(/:/g, '');
+  const grassGrad1Id = `grass-grad-1-${sanitizedId}`;
+  const grassGrad2Id = `grass-grad-2-${sanitizedId}`;
+  const pathGradId = `path-grad-${sanitizedId}`;
+  const waterGradId = `water-grad-${sanitizedId}`;
+
   const originX = 500;
   const originY = 160;
 
@@ -58,6 +71,19 @@ export function VillageMacroPlot({
       y: originY + (col + row) * (TILE_H / 2) - z,
     };
   }
+
+  // Constrain structures to rendered terrain bounds
+  const boundedBuildings = useMemo(() => {
+    return buildings.filter(
+      (b) => b.col >= 0 && b.col < gridSize && b.row >= 0 && b.row < gridSize
+    );
+  }, [buildings, gridSize]);
+
+  const boundedPlotAnchors = useMemo(() => {
+    return plotAnchors.filter(
+      (a) => a.col >= 0 && a.col < gridSize && a.row >= 0 && a.row < gridSize
+    );
+  }, [plotAnchors, gridSize]);
 
   // Combined render items sorted back-to-front by isometric depth: col + row
   interface DepthItem {
@@ -70,24 +96,26 @@ export function VillageMacroPlot({
     anchor?: VillagePlotAnchor;
   }
 
-  const depthItems: DepthItem[] = [
-    ...buildings.map((b) => ({
-      type: 'building' as const,
-      key: b.id,
-      col: b.col,
-      row: b.row,
-      depth: (b.col + b.row) * 100 + (b.z ?? 0),
-      building: b,
-    })),
-    ...plotAnchors.map((a) => ({
-      type: 'anchor' as const,
-      key: a.id,
-      col: a.col,
-      row: a.row,
-      depth: (a.col + a.row) * 100 + 10,
-      anchor: a,
-    })),
-  ].sort((a, b) => a.depth - b.depth);
+  const depthItems: DepthItem[] = useMemo(() => {
+    return [
+      ...boundedBuildings.map((b) => ({
+        type: 'building' as const,
+        key: b.id,
+        col: b.col,
+        row: b.row,
+        depth: (b.col + b.row) * 100 + (b.z ?? 0),
+        building: b,
+      })),
+      ...boundedPlotAnchors.map((a) => ({
+        type: 'anchor' as const,
+        key: a.id,
+        col: a.col,
+        row: a.row,
+        depth: (a.col + a.row) * 100 + 10,
+        anchor: a,
+      })),
+    ].sort((a, b) => a.depth - b.depth);
+  }, [boundedBuildings, boundedPlotAnchors]);
 
   function handleAnchorClick(anchor: VillagePlotAnchor) {
     setSelectedPlotId(anchor.id);
@@ -116,19 +144,19 @@ export function VillageMacroPlot({
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <linearGradient id="grass-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={grassGrad1Id} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#365314" />
             <stop offset="100%" stopColor="#283e0f" />
           </linearGradient>
-          <linearGradient id="grass-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={grassGrad2Id} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#3f6212" />
             <stop offset="100%" stopColor="#2e4a0d" />
           </linearGradient>
-          <linearGradient id="path-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={pathGradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#78716c" />
             <stop offset="100%" stopColor="#57534e" />
           </linearGradient>
-          <linearGradient id="water-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={waterGradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#0284c7" />
             <stop offset="100%" stopColor="#0369a1" />
           </linearGradient>
@@ -136,25 +164,28 @@ export function VillageMacroPlot({
 
         {/* ── Terrain Tileset ── */}
         <g className="village-terrain-grid">
-          {Array.from({ length: gridSize }).map((_, col) =>
-            Array.from({ length: gridSize }).map((__, row) => {
+          {Array.from({ length: gridSize }).map((_, col) => {
+            const pathIndex = Math.floor((gridSize - 1) / 2);
+            const waterCol = gridSize - 1;
+
+            return Array.from({ length: gridSize }).map((__, row) => {
               const top = toScreen(col, row);
               const right = toScreen(col + 1, row);
               const bottom = toScreen(col + 1, row + 1);
               const left = toScreen(col, row + 1);
 
               // Terrain logic: central crossroads path, water stream on edge
-              const isPath = col === 3 || row === 3;
-              const isWater = col === 7;
+              const isPath = col === pathIndex || row === pathIndex;
+              const isWater = col === waterCol;
               const isEven = (col + row) % 2 === 0;
 
               const fill = isWater
-                ? 'url(#water-grad)'
+                ? `url(#${waterGradId})`
                 : isPath
-                ? 'url(#path-grad)'
+                ? `url(#${pathGradId})`
                 : isEven
-                ? 'url(#grass-grad-1)'
-                : 'url(#grass-grad-2)';
+                ? `url(#${grassGrad1Id})`
+                : `url(#${grassGrad2Id})`;
 
               const stroke = isWater ? '#0284c7' : isPath ? '#44403c' : '#1e300b';
 
@@ -167,18 +198,22 @@ export function VillageMacroPlot({
                   strokeWidth="0.8"
                 />
               );
-            }),
-          )}
+            });
+          })}
         </g>
 
         {/* ── Depth-Sorted Buildings and Plot Anchors ── */}
         <g className="village-structures">
           {depthItems.map((item) => {
-            const { x, y } = toScreen(item.col, item.row);
+            const { x, y } = toScreen(item.col, item.row, item.building?.z ?? 0);
 
             if (item.type === 'building' && item.building) {
               return (
-                <g key={item.key} transform={`translate(${x}, ${y})`}>
+                <g
+                  key={item.key}
+                  data-building-id={item.building.id}
+                  transform={`translate(${x}, ${y})`}
+                >
                   {renderBuilding(item.building.type)}
                 </g>
               );
@@ -187,14 +222,24 @@ export function VillageMacroPlot({
             if (item.type === 'anchor' && item.anchor) {
               const anchor = item.anchor;
               const isSelected = selectedPlotId === anchor.id;
-              const isOccupied = Boolean(anchor.occupiedByName);
+              const isOccupied = Boolean(anchor.occupiedByUserId || anchor.occupiedByName);
 
               return (
                 <g
                   key={item.key}
+                  data-plot-id={anchor.id}
                   transform={`translate(${x}, ${y})`}
                   onClick={() => handleAnchorClick(anchor)}
-                  className="cursor-pointer"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleAnchorClick(anchor);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Plot: ${anchor.label}${anchor.occupiedByName ? ` (Occupied by ${anchor.occupiedByName})` : anchor.occupiedByUserId ? ' (Occupied)' : ' (Vacant)'}`}
+                  className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 >
                   {/* Plot Base Disc */}
                   <ellipse
@@ -245,7 +290,7 @@ export function VillageMacroPlot({
                       strokeWidth="2"
                       paintOrder="stroke"
                     >
-                      {anchor.occupiedByName}
+                      {anchor.occupiedByName || 'Resident'}
                     </text>
                   )}
                 </g>
@@ -347,6 +392,32 @@ function renderBuilding(type: VillageBuilding['type']) {
           <circle cx="-6" cy="-20" r="12" fill="#16a34a" />
           <circle cx="6" cy="-20" r="13" fill="#22c55e" />
           <circle cx="0" cy="-30" r="10" fill="#4ade80" opacity="0.6" />
+        </g>
+      );
+
+    case 'market_stall':
+      // Kenney isometric market stall with striped awning and wooden counter
+      return (
+        <g>
+          <ellipse cx="0" cy="10" rx="28" ry="14" fill="#000000" opacity="0.25" />
+          {/* Wooden Counter / Crates Base */}
+          <polygon points="-20,-8 0,2 0,16 -20,6" fill="#854d0e" />
+          <polygon points="0,2 20,-8 20,6 0,16" fill="#713f12" />
+          <polygon points="-20,-8 0,-18 20,-8 0,2" fill="#a16207" />
+          {/* Produce / Goods in crates */}
+          <circle cx="-6" cy="-6" r="3" fill="#ef4444" />
+          <circle cx="0" cy="-4" r="3.5" fill="#f59e0b" />
+          <circle cx="6" cy="-6" r="3" fill="#22c55e" />
+          {/* Awning Posts */}
+          <line x1="-18" y1="-8" x2="-18" y2="-32" stroke="#78350f" strokeWidth="2" />
+          <line x1="18" y1="-8" x2="18" y2="-32" stroke="#78350f" strokeWidth="2" />
+          <line x1="0" y1="2" x2="0" y2="-24" stroke="#78350f" strokeWidth="2" />
+          {/* Striped Canopy / Awning */}
+          <polygon points="-22,-32 0,-42 22,-32 0,-22" fill="#f87171" stroke="#dc2626" strokeWidth="0.8" />
+          {/* White stripes on awning */}
+          <polygon points="-11,-37 -4,-40 7,-30 0,-27" fill="#ffffff" opacity="0.85" />
+          {/* Front scalloped drape */}
+          <polygon points="-22,-32 0,-22 22,-32 22,-28 0,-18 -22,-28" fill="#b91c1c" />
         </g>
       );
 

@@ -20,11 +20,13 @@ import type { VibeStatus } from '@/types/vibe';
 interface WeatherAuraOverlayProps {
   vibeStatus?: VibeStatus;
   nightMode?: boolean;
+  showWeather?: boolean;
 }
 
 export function WeatherAuraOverlay({
   vibeStatus = 'neutral',
   nightMode = false,
+  showWeather = true,
 }: WeatherAuraOverlayProps) {
   // Deterministic particle set for animations
   const particles = useMemo(() => {
@@ -43,7 +45,8 @@ export function WeatherAuraOverlay({
       className="absolute inset-0 pointer-events-none overflow-hidden z-20"
       aria-hidden="true"
     >
-      <AnimatePresence>
+      {showWeather && (
+        <AnimatePresence>
         {/* ── 1. SUNSHINE: Golden Sunbeams & Amber Warmth ── */}
         {vibeStatus === 'sunshine' && (
           <motion.div
@@ -361,10 +364,14 @@ export function WeatherAuraOverlay({
           </motion.div>
         )}
       </AnimatePresence>
+      )}
 
       {/* Night mode vignette if active */}
       {nightMode && (
-        <div className="absolute inset-0 bg-indigo-950/30 mix-blend-multiply pointer-events-none" />
+        <div
+          data-testid="dollhouse-night-vignette"
+          className="absolute inset-0 bg-indigo-950/30 mix-blend-multiply pointer-events-none"
+        />
       )}
     </div>
   );
