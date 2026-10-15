@@ -25,6 +25,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['tests/**/*.test.ts'],
+          exclude: ['tests/lib/soundscape.test.ts'],
           environment: 'node',
           globals: true,
           setupFiles: ['./tests/setup.ts'],
@@ -36,7 +37,7 @@ export default defineConfig({
         ...sharedConfig,
         test: {
           name: 'dom',
-          include: ['tests/**/*.test.tsx'],
+          include: ['tests/**/*.test.tsx', 'tests/lib/soundscape.test.ts'],
           environment: 'jsdom',
           globals: true,
           setupFiles: ['./tests/setup.ts'],
