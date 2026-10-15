@@ -10,7 +10,7 @@ const SCAN_DIRS = ['app', 'components', 'lib', 'hooks', 'store', 'worker'];
 // When refactored down below standard thresholds, files are removed from this list.
 const LEGACY_EXEMPTIONS = new Map([
   ['app/actions/notificationActions.ts', 1326],
-  ['components/ProfileShell.tsx', 896],
+  ['components/ProfileShell.tsx', 765],
   ['app/actions/groupActions.ts', 784],
   ['app/settings/page.tsx', 774],
   ['app/camera/page.tsx', 779],

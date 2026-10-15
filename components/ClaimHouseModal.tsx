@@ -53,8 +53,6 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
   // Advanced postal verification state (legacy fallback)
   const [postalStep, setPostalStep] = useState<1 | 2 | 3>(1);
 
-  useModalBackButton({ isOpen: true, onClose });
-
   useEffect(() => {
     // Load village suggestions based on friendly vibe
     getVillageSuggestions(vibeStatus)
@@ -187,10 +185,18 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
     }
   };
 
+  const isBusy = isLoading || Boolean(joiningVillageId);
+
   const handleSafeClose = useCallback(() => {
-    if (isLoading) return;
+    if (isBusy) return;
     onClose();
-  }, [isLoading, onClose]);
+  }, [isBusy, onClose]);
+
+  useModalBackButton({
+    isOpen: true,
+    onClose: handleSafeClose,
+    onConfirmClose: () => !isBusy,
+  });
 
   return (
     <ModalShell
@@ -233,9 +239,10 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
+            disabled={isBusy}
             aria-label="Close claim modal"
-            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-sm font-700 cursor-pointer"
+            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-sm font-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ✕
           </button>
@@ -494,7 +501,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
                 </p>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleSafeClose}
                   className="w-full py-3 px-5 bg-emerald-600 text-white font-900 rounded-2xl text-xs cursor-pointer"
                 >
                   Done
@@ -508,8 +515,9 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
         <div className="mt-5 text-center">
           <button
             type="button"
-            onClick={onClose}
-            className="text-xs font-700 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors cursor-pointer"
+            onClick={handleSafeClose}
+            disabled={isBusy}
+            className="text-xs font-700 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Close
           </button>
