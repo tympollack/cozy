@@ -30,6 +30,7 @@ export interface VillagePlotAnchor {
   occupiedByName?: string;
   avatarUrl?: string;
   vibeStatus?: VibeStatus;
+  shellType?: string;
 }
 
 export interface VillageBuilding {

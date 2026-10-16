@@ -3,6 +3,8 @@
 import { createServerClient } from '@/lib/supabase';
 import type { UserPost } from '@/store/useCozyStore';
 
+import type { VibeStatus } from '@/types/vibe';
+
 export interface UserPostsPayload {
   posts: UserPost[];
   error?: string;
@@ -16,6 +18,7 @@ export interface UserProfilePayload {
   themesUnlocked: boolean;
   isOwner: boolean;
   userId: string | null;
+  vibeStatus?: VibeStatus;
   error?: string;
 }
 
@@ -109,6 +112,15 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
     };
   }
 
+  const { data: userRow } = await supabase
+    .schema('cozy')
+    .from('users')
+    .select('vibe_status')
+    .eq('id', activeUserId)
+    .maybeSingle();
+
+  const vibeStatus = (userRow?.vibe_status as VibeStatus) || undefined;
+
   return {
     posts: (postsData ?? []) as UserPost[],
     shellType,
@@ -117,6 +129,7 @@ export async function getUserProfileData(targetUserId?: string): Promise<UserPro
     themesUnlocked,
     isOwner,
     userId: activeUserId,
+    vibeStatus,
   };
 }
 
