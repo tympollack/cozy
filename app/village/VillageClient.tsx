@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { VillageMacroPlot } from '@/src/components/village/VillageMacroPlot';
 import { DollhouseStage } from '@/src/components/dollhouse/DollhouseStage';
@@ -28,26 +28,54 @@ const PLOT_TEMPLATES = [
   { id: 'plot-9', col: 5, row: 6, label: 'Whispering Pines' },
   { id: 'plot-10', col: 3, row: 6, label: 'Brookside Corner' },
   { id: 'plot-11', col: 6, row: 3, label: 'Starlight Terrace' },
+  { id: 'plot-12', col: 0, row: 3, label: 'West Gate Plot' },
+  { id: 'plot-13', col: 0, row: 4, label: 'Fern Glade' },
+  { id: 'plot-14', col: 2, row: 2, label: 'Bramble Nook' },
+  { id: 'plot-15', col: 4, row: 2, label: 'Sunrise Terrace' },
+  { id: 'plot-16', col: 2, row: 5, label: 'Mossy Way' },
+  { id: 'plot-17', col: 5, row: 5, label: 'South Path Plot' },
+  { id: 'plot-18', col: 7, row: 3, label: 'East Hill' },
+  { id: 'plot-19', col: 7, row: 4, label: 'Forest Edge' },
+  { id: 'plot-20', col: 3, row: 1, label: 'North Gate' },
+  { id: 'plot-21', col: 3, row: 5, label: 'Central Green' },
+  { id: 'plot-22', col: 1, row: 3, label: 'Shady Grove' },
+  { id: 'plot-23', col: 5, row: 3, label: 'Sunny Banks' },
 ];
+
+export const PLOTS_PER_PAGE = 12;
+
+function getPlotTemplate(idx: number): { id: string; col: number; row: number; label: string } {
+  if (idx < PLOT_TEMPLATES.length) {
+    return PLOT_TEMPLATES[idx];
+  }
+  const page = Math.floor(idx / PLOTS_PER_PAGE);
+  const baseTmpl = PLOT_TEMPLATES[idx % PLOTS_PER_PAGE];
+  return {
+    id: `plot-${idx}`,
+    col: baseTmpl.col,
+    row: baseTmpl.row,
+    label: `${baseTmpl.label} (${page + 1})`,
+  };
+}
 
 export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: VillageClientProps) {
   const [nightMode, setNightMode] = useState(false);
   const [customRoomTheme, setCustomRoomTheme] = useState<DollhouseRoomTheme | null>(null);
+  const [plotPage, setPlotPage] = useState(0);
 
-  const plotAnchors = useMemo<VillagePlotAnchor[]>(() => {
+  const allPlotAnchors = useMemo<VillagePlotAnchor[]>(() => {
     if (!initialGroup) return [];
     const members = initialGroup.members;
     const maxCapacity = initialGroup.group.max_members || 8;
-    const totalSlots = Math.min(
-      PLOT_TEMPLATES.length,
-      Math.max(members.length, maxCapacity)
-    );
+    const totalSlots = Math.max(members.length, Math.min(24, maxCapacity));
 
-    return PLOT_TEMPLATES.slice(0, totalSlots).map((tmpl, idx) => {
+    const anchors: VillagePlotAnchor[] = [];
+    for (let idx = 0; idx < totalSlots; idx++) {
+      const tmpl = getPlotTemplate(idx);
       const member = members[idx];
       if (member) {
         const isYou = member.user_id === currentUserId;
-        return {
+        anchors.push({
           id: `plot-${member.user_id}`,
           label: isYou ? `${tmpl.label} (You)` : `${tmpl.label} (${member.display_name})`,
           col: tmpl.col,
@@ -57,26 +85,48 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
           avatarUrl: member.avatar_url || undefined,
           vibeStatus: member.vibe_status || 'sunshine',
           shellType: member.shell_type || 'cottage',
-        };
+        });
+      } else if (idx < maxCapacity) {
+        // Render vacant anchors only where there is actual available capacity
+        anchors.push({
+          id: tmpl.id,
+          label: `${tmpl.label} (Vacant)`,
+          col: tmpl.col,
+          row: tmpl.row,
+        });
       }
-      return {
-        id: tmpl.id,
-        label: `${tmpl.label} (Vacant)`,
-        col: tmpl.col,
-        row: tmpl.row,
-      };
-    });
+    }
+    return anchors;
   }, [initialGroup, currentUserId]);
+
+  const totalPages = Math.max(1, Math.ceil(allPlotAnchors.length / PLOTS_PER_PAGE));
+
+  const visiblePlotAnchors = useMemo(() => {
+    const start = plotPage * PLOTS_PER_PAGE;
+    return allPlotAnchors.slice(start, start + PLOTS_PER_PAGE);
+  }, [allPlotAnchors, plotPage]);
 
   const [selectedPlot, setSelectedPlot] = useState<VillagePlotAnchor | null>(() => {
     if (!initialGroup) return null;
     return (
-      plotAnchors.find((p) => p.occupiedByUserId === currentUserId) ||
-      plotAnchors.find((p) => Boolean(p.occupiedByUserId)) ||
-      plotAnchors[0] ||
+      allPlotAnchors.find((p) => p.occupiedByUserId === currentUserId) ||
+      allPlotAnchors.find((p) => Boolean(p.occupiedByUserId)) ||
+      allPlotAnchors[0] ||
       null
     );
   });
+
+  // Re-synchronize selectedPlot when active group or members change
+  useEffect(() => {
+    if (!initialGroup) {
+      setSelectedPlot(null);
+      return;
+    }
+    const you = allPlotAnchors.find((p) => p.occupiedByUserId === currentUserId);
+    const firstOccupied = allPlotAnchors.find((p) => Boolean(p.occupiedByUserId));
+    setSelectedPlot(you || firstOccupied || allPlotAnchors[0] || null);
+    setPlotPage(0);
+  }, [initialGroup?.group.id, allPlotAnchors, currentUserId]);
 
   if (!initialGroup) {
     return (
@@ -183,10 +233,34 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
 
         {/* 2.5D Isometric Village Macro-Plot */}
         <div className="space-y-2">
-          <h2 className="text-sm font-800 text-stone-800 dark:text-amber-100 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-amber-500" />
-            <span>{initialGroup.group.name} — Macro-Plot Viewport</span>
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-800 text-stone-800 dark:text-amber-100 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-amber-500" />
+              <span>{initialGroup.group.name} — Macro-Plot Viewport</span>
+            </h2>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-600 dark:text-amber-200">
+                <button
+                  onClick={() => setPlotPage((p) => Math.max(0, p - 1))}
+                  disabled={plotPage === 0}
+                  className="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-stone-900 border border-amber-900/15 dark:border-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-100 dark:hover:bg-stone-800"
+                >
+                  ←
+                </button>
+                <span>
+                  Plots {plotPage * PLOTS_PER_PAGE + 1}–
+                  {Math.min((plotPage + 1) * PLOTS_PER_PAGE, allPlotAnchors.length)} of {allPlotAnchors.length}
+                </span>
+                <button
+                  onClick={() => setPlotPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={plotPage >= totalPages - 1}
+                  className="px-2 py-0.5 rounded-lg bg-white/80 dark:bg-stone-900 border border-amber-900/15 dark:border-amber-500/25 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-100 dark:hover:bg-stone-800"
+                >
+                  →
+                </button>
+              </div>
+            )}
+          </div>
           <VillageMacroPlot
             villageName={initialGroup.group.name}
             vibeStatus={
@@ -194,32 +268,45 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
               initialGroup.members[0]?.vibe_status ||
               'sunshine'
             }
-            plotAnchors={plotAnchors}
+            plotAnchors={visiblePlotAnchors}
             onSelectPlot={(plot) => {
               setSelectedPlot(plot);
               setCustomRoomTheme(null);
             }}
           />
 
-          {/* Resident Plot Selection Strip */}
+          {/* Comprehensive Resident Plot Selection Strip */}
           <div className="flex items-center gap-2 overflow-x-auto py-2">
             <span className="text-xs font-800 text-stone-600 dark:text-amber-200 shrink-0">Residents:</span>
-            {plotAnchors.map((plot) => (
-              <button
-                key={plot.id}
-                onClick={() => {
-                  setSelectedPlot(plot);
-                  setCustomRoomTheme(null);
-                }}
-                className={`px-2.5 py-1 rounded-xl text-xs font-800 shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
-                  selectedPlot?.id === plot.id
-                    ? 'bg-amber-500 text-stone-950 shadow-xs'
-                    : 'bg-white/80 dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-amber-100'
-                }`}
-              >
-                <span>{plot.occupiedByName ? (plot.occupiedByName === 'You' ? '👤 You' : `🏡 ${plot.occupiedByName}`) : '🌱 Vacant'}</span>
-              </button>
-            ))}
+            {allPlotAnchors.map((plot, pIdx) => {
+              const isSelected = selectedPlot?.id === plot.id;
+              return (
+                <button
+                  key={plot.id}
+                  onClick={() => {
+                    setSelectedPlot(plot);
+                    setCustomRoomTheme(null);
+                    const targetPage = Math.floor(pIdx / PLOTS_PER_PAGE);
+                    if (targetPage !== plotPage) {
+                      setPlotPage(targetPage);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-800 shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-500 text-stone-950 shadow-xs ring-2 ring-amber-400'
+                      : 'bg-white/80 dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-amber-100'
+                  }`}
+                >
+                  <span>
+                    {plot.occupiedByName
+                      ? plot.occupiedByName === 'You'
+                        ? '👤 You'
+                        : `🏡 ${plot.occupiedByName}`
+                      : '🌱 Vacant'}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

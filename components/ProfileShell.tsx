@@ -79,6 +79,8 @@ export function ProfileShell({
 }: ProfileShellProps) {
   const pathname = usePathname();
   const { setExpansionTier, setMilestoneTokens, setThemesUnlocked } = useCozyStore();
+  const storeVibe = useCozyStore((s) => s.vibeStatus);
+  const effectiveVibe = vibeStatus || (isOwner ? storeVibe : undefined);
 
   const [shellType, setShellType] = useState(initialShellType);
   const [expansionTier, setLocalExpansionTier] = useState(initialExpansionTier);
@@ -540,7 +542,7 @@ export function ProfileShell({
             <div className="col-span-full w-full py-2">
               <DollhouseStage
                 theme={shellType}
-                vibeStatus={vibeStatus}
+                vibeStatus={effectiveVibe}
               />
             </div>
           ) : (
