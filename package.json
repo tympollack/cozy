@@ -10,6 +10,9 @@
     "lint": "eslint && node scripts/lint-filesize.mjs",
     "lint:filesize": "node scripts/lint-filesize.mjs",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:dom": "vitest run --project dom",
+    "test:changed": "vitest run --changed",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
