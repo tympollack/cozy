@@ -32,6 +32,7 @@ export default async function ProfilePage() {
     milestoneTokens,
     themesUnlocked,
     isOwner,
+    vibeStatus,
     error,
   } = await getUserProfileData(user.id);
 
@@ -91,6 +92,7 @@ export default async function ProfilePage() {
                 posts={posts}
                 isOwner={isOwner}
                 porchItems={porchDigest.items}
+                vibeStatus={vibeStatus}
               />
             </div>
 

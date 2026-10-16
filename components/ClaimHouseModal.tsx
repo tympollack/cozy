@@ -53,7 +53,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
   // Advanced postal verification state (legacy fallback)
   const [postalStep, setPostalStep] = useState<1 | 2 | 3>(1);
 
-  useModalBackButton({ isOpen: true, onClose });
+  const isBusy = isLoading || Boolean(joiningVillageId);
 
   useEffect(() => {
     // Load village suggestions based on friendly vibe
@@ -66,6 +66,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   // --- One-Tap Plot Claim ---
   const handleOneTapClaim = async () => {
+    if (isBusy) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -86,6 +87,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   // --- Village Joining ---
   const handleJoinVillage = async (village: SuggestedVillage) => {
+    if (isBusy) return;
     setJoiningVillageId(village.id);
     setInviteError('');
     try {
@@ -105,7 +107,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
   const handleJoinCustomCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customInviteCode.trim()) return;
+    if (isBusy || !customInviteCode.trim()) return;
 
     setIsLoading(true);
     setInviteError('');
@@ -188,9 +190,15 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
   };
 
   const handleSafeClose = useCallback(() => {
-    if (isLoading) return;
+    if (isBusy) return;
     onClose();
-  }, [isLoading, onClose]);
+  }, [isBusy, onClose]);
+
+  useModalBackButton({
+    isOpen: true,
+    onClose: handleSafeClose,
+    onConfirmClose: () => !isBusy,
+  });
 
   return (
     <ModalShell
@@ -233,9 +241,10 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleSafeClose}
+            disabled={isBusy}
             aria-label="Close claim modal"
-            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-sm font-700 cursor-pointer"
+            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-sm font-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ✕
           </button>
@@ -362,9 +371,9 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
 
                     <button
                       type="button"
-                      disabled={isCurrentGroup || isJoining}
+                      disabled={isCurrentGroup || isBusy}
                       onClick={() => handleJoinVillage(village)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-900 transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-900 transition-all flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                         isCurrentGroup
                           ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                           : 'bg-amber-600 hover:bg-amber-500 text-white shadow-xs'
@@ -401,7 +410,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
                 />
                 <button
                   type="submit"
-                  disabled={isLoading || !customInviteCode.trim()}
+                  disabled={isBusy || !customInviteCode.trim()}
                   className="px-4 py-2 bg-stone-800 dark:bg-amber-600 hover:opacity-90 text-white rounded-xl text-xs font-800 cursor-pointer disabled:opacity-50 shrink-0"
                 >
                   Join with Code
@@ -494,7 +503,7 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
                 </p>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleSafeClose}
                   className="w-full py-3 px-5 bg-emerald-600 text-white font-900 rounded-2xl text-xs cursor-pointer"
                 >
                   Done
@@ -508,8 +517,9 @@ export function ClaimHouseModal({ postId, onClose, onClaimSuccess }: ClaimHouseM
         <div className="mt-5 text-center">
           <button
             type="button"
-            onClick={onClose}
-            className="text-xs font-700 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors cursor-pointer"
+            onClick={handleSafeClose}
+            disabled={isBusy}
+            className="text-xs font-700 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Close
           </button>

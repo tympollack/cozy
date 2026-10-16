@@ -6,11 +6,10 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Check, ArrowRight, LayoutGrid,
-  Lock, Coins, Camera, Plus, Sun, Moon,
+  Lock, Coins, Camera, Plus,
 } from 'lucide-react';
 import { getOptimizedImageUrl } from '@/lib/cloudflare';
 import { useModalBackButton } from '@/hooks/useModalBackButton';
-import { getDefaultTimeMode, type CaptureMode } from '@/lib/photoTimeUtils';
 import {
   SHELL_DEFINITIONS,
   getShellDefinition,
@@ -24,6 +23,7 @@ import {
 } from '@/config/shellDefinitions';
 import { ShellNook } from './ShellNook';
 import { TierUnlockOverlay } from './TierUnlockOverlay';
+import { ProfileShellLightbox } from './ProfileShellLightbox';
 import {
   updateUserShell,
   assignPostToSlot,
@@ -37,6 +37,8 @@ import type { PeerStatus, PendingCard } from '@/app/actions/peerActions';
 import type { PorchItem } from '@/app/actions/waterfallActions';
 import { ITEM_EMOJIS } from './PorchHoldingPen';
 import { playCozyChime } from '@/lib/audio/cheerSound';
+import { DollhouseStage } from '@/src/components/dollhouse';
+import type { VibeStatus } from '@/types/vibe';
 
 interface ProfileShellProps {
   initialShellType: string;
@@ -56,6 +58,8 @@ interface ProfileShellProps {
   currentUserId?: string | null;
   /** Received porch items resting on the wooden porch deck. */
   porchItems?: PorchItem[];
+  /** Owner's daily vibe check status for ambient room aura */
+  vibeStatus?: VibeStatus;
 }
 
 export function ProfileShell({
@@ -71,6 +75,7 @@ export function ProfileShell({
   recipientId = '',
   currentUserId = null,
   porchItems = [],
+  vibeStatus,
 }: ProfileShellProps) {
   const pathname = usePathname();
   const { setExpansionTier, setMilestoneTokens, setThemesUnlocked } = useCozyStore();
@@ -80,8 +85,8 @@ export function ProfileShell({
   const [milestoneTokens, setLocalMilestoneTokens] = useState(initialMilestoneTokens);
   const [selectedSlotForAssignment, setSelectedSlotForAssignment] = useState<ShellSlot | null>(null);
   const [expandedPost, setExpandedPost] = useState<{ post: UserPost; slot: ShellSlot } | null>(null);
-  const [lightboxMode, setLightboxMode] = useState<CaptureMode>('light');
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'nooks' | 'dollhouse'>('nooks');
   const [isPending, startTransition] = useTransition();
   const [unlockedTier, setUnlockedTier] = useState<number | null>(null); // celebration trigger
   const [porchCheerParticles, setPorchCheerParticles] = useState<Array<{ id: number; x: number; y: number; char: string }>>([]);
@@ -250,6 +255,19 @@ export function ProfileShell({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle: Photo Nooks vs 2.5D Dollhouse */}
+            <button
+              onClick={() => setViewMode((prev) => (prev === 'nooks' ? 'dollhouse' : 'nooks'))}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-800
+                bg-amber-100/80 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200
+                border border-amber-900/15 dark:border-amber-500/30 shadow-xs
+                hover:bg-amber-200/80 dark:hover:bg-amber-900/70 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title={viewMode === 'nooks' ? 'Switch to 2.5D Dollhouse view' : 'Switch to photo nooks grid'}
+              aria-label={viewMode === 'nooks' ? 'Switch to 2.5D Dollhouse Room' : 'Switch to Photo Nooks'}
+            >
+              <span>{viewMode === 'nooks' ? '🏡 2.5D Room' : '📷 Photo Nooks'}</span>
+            </button>
+
             {/* Token balance */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
               bg-amber-100/90 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-xs font-900 text-amber-950 dark:text-amber-200 shadow-xs"
@@ -517,213 +535,59 @@ export function ProfileShell({
             )}
           </div>
 
-          {/* Render Active Shell Nooks */}
-          {activeSlots.map((slot) => {
-            const assignedPost = slottedPostMap.get(slot.id);
-            return (
-              <ShellNook
-                key={slot.id}
-                slot={slot}
-                post={assignedPost}
-                isOwner={isOwner}
-                isLocked={false}
-                onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
-                onUnassignPost={handleUnassignPost}
-                onViewPost={(p) => {
-                  setExpandedPost({ post: p, slot });
-                  setLightboxMode(getDefaultTimeMode(p));
-                  onPostSelect?.(p);
-                }}
+          {/* Render Active Shell Nooks or 2.5D Dollhouse Interior Stage */}
+          {viewMode === 'dollhouse' ? (
+            <div className="col-span-full w-full py-2">
+              <DollhouseStage
+                theme={shellType}
+                vibeStatus={vibeStatus}
               />
-            );
-          })}
+            </div>
+          ) : (
+            <>
+              {activeSlots.map((slot) => {
+                const assignedPost = slottedPostMap.get(slot.id);
+                return (
+                  <ShellNook
+                    key={slot.id}
+                    slot={slot}
+                    post={assignedPost}
+                    isOwner={isOwner}
+                    isLocked={false}
+                    onSelectEmptySlot={(s) => setSelectedSlotForAssignment(s)}
+                    onUnassignPost={handleUnassignPost}
+                    onViewPost={(p) => {
+                      setExpandedPost({ post: p, slot });
+                      onPostSelect?.(p);
+                    }}
+                  />
+                );
+              })}
 
-          {/* Render Locked Slot Placeholders */}
-          {lockedSlots.map((slot) => (
-            <ShellNook
-              key={slot.id}
-              slot={slot}
-              isOwner={isOwner}
-              isLocked
-              onSelectEmptySlot={() => {}}
-              onUnassignPost={() => {}}
-              onViewPost={() => {}}
-            />
-          ))}
+              {/* Render Locked Slot Placeholders */}
+              {lockedSlots.map((slot) => (
+                <ShellNook
+                  key={slot.id}
+                  slot={slot}
+                  isOwner={isOwner}
+                  isLocked
+                  onSelectEmptySlot={() => {}}
+                  onUnassignPost={() => {}}
+                  onViewPost={() => {}}
+                />
+              ))}
+            </>
+          )}
         </div>
 
         {/* ── Expanded Post Lightbox Modal (Shared Element Zoom) ─────────── */}
-        <AnimatePresence>
-          {expandedPost && (
-            <motion.div
-              key="lightbox-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
-              onClick={() => setExpandedPost(null)}
-            >
-              <motion.div
-                layoutId={`nook-frame-${expandedPost.post.id}`}
-                transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.75 }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-lg rounded-3xl overflow-hidden bg-white dark:bg-[#1f1713] border border-amber-300/40 shadow-2xl flex flex-col max-h-[90vh]"
-              >
-                {/* Lightbox Header */}
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                  transition={{ delay: 0.08, duration: 0.18 }}
-                  className="flex items-center justify-between px-5 py-3.5 bg-amber-50/90 dark:bg-[#281e19] border-b border-amber-200/50 dark:border-amber-600/30"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{expandedPost.slot.icon}</span>
-                    <div>
-                      <h3 className="text-sm font-800 text-stone-900 dark:text-amber-100">
-                        {expandedPost.slot.label}
-                      </h3>
-                      <p className="text-[11px] font-500 text-stone-600 dark:text-amber-300/70">
-                        {isOwner ? `Featured in your ${currentShell.name}` : `Featured in ${currentShell.name}`}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setExpandedPost(null)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 dark:text-amber-200 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
-                </motion.div>
-
-                {/* Expanded Photo Container */}
-                <div className="relative flex-1 min-h-[260px] max-h-[55vh] bg-stone-950 flex items-center justify-center overflow-hidden">
-                  {expandedPost.post.light_img_url && expandedPost.post.dark_img_url ? (
-                    <>
-                      <motion.img
-                        src={getOptimizedImageUrl(expandedPost.post.dark_img_url, 1000)}
-                        alt={expandedPost.slot.label}
-                        className="w-full h-full object-contain max-h-[55vh]"
-                        initial={false}
-                        animate={{ opacity: lightboxMode === 'dark' ? 1 : 0 }}
-                        transition={{ duration: 0.35, ease: 'easeInOut' }}
-                      />
-                      <motion.img
-                        src={getOptimizedImageUrl(expandedPost.post.light_img_url, 1000)}
-                        alt={expandedPost.slot.label}
-                        className="absolute inset-0 w-full h-full object-contain max-h-[55vh]"
-                        initial={false}
-                        animate={{ opacity: lightboxMode === 'light' ? 1 : 0 }}
-                        transition={{ duration: 0.35, ease: 'easeInOut' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setLightboxMode((m) => (m === 'light' ? 'dark' : 'light'))}
-                        aria-label={`Switch to ${lightboxMode === 'light' ? 'evening' : 'daytime'} view`}
-                        className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md border border-white/30 text-white shadow-xl transition-all active:scale-95 cursor-pointer"
-                      >
-                        {lightboxMode === 'light' ? (
-                          <>
-                            <Sun size={13} className="text-amber-400 fill-amber-400" />
-                            <span className="text-[11px] font-800 text-amber-200">Day View</span>
-                          </>
-                        ) : (
-                          <>
-                            <Moon size={13} className="text-sky-300 fill-sky-300" />
-                            <span className="text-[11px] font-800 text-sky-200">Night View</span>
-                          </>
-                        )}
-                      </button>
-                    </>
-                  ) : expandedPost.post.light_img_url || expandedPost.post.dark_img_url ? (
-                    <motion.img
-                      layoutId={`nook-img-${expandedPost.post.id}`}
-                      src={getOptimizedImageUrl(
-                        expandedPost.post.light_img_url || expandedPost.post.dark_img_url || '',
-                        1000
-                      )}
-                      alt={expandedPost.slot.label}
-                      className="w-full h-full object-contain max-h-[55vh]"
-                    />
-                  ) : (
-                    <div className="text-center py-16 text-amber-200 space-y-2">
-                      <span className="text-5xl">{expandedPost.slot.icon}</span>
-                      <p className="text-sm font-700">{expandedPost.slot.label}</p>
-                    </div>
-                  )}
-
-                  {/* Stickers layer */}
-                  {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                      transition={{ delay: 0.1 }}
-                      className="absolute inset-0 pointer-events-none"
-                    >
-                      {expandedPost.post.stickers.map((st) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={st.id}
-                          src={st.sticker_url}
-                          alt="Sticker"
-                          className="absolute w-8 h-8 object-contain drop-shadow-md"
-                          style={{
-                            left: `${st.x_percent}%`,
-                            top: `${st.y_percent}%`,
-                            transform: `translate(-50%, -50%) rotate(${st.rotation_degrees}deg)`,
-                          }}
-                        />
-                      ))}
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Lightbox Footer Actions */}
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                  transition={{ delay: 0.08, duration: 0.18 }}
-                  className="px-5 py-4 bg-amber-50/95 dark:bg-[#241a15] border-t border-amber-200/50 dark:border-amber-600/30 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/post/${expandedPost.post.id}`}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-900 bg-amber-500 hover:bg-amber-600 active:scale-95 text-amber-950 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles size={13} />
-                      <span>Decorate Space ✨</span>
-                    </Link>
-
-                    <span className="px-3 py-1.5 rounded-full text-xs font-900 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-600/40 text-stone-900 dark:text-amber-200 shadow-xs flex items-center gap-1">
-                      ♥ {expandedPost.post.cheer_count}
-                    </span>
-                    {expandedPost.post.stickers && expandedPost.post.stickers.length > 0 && (
-                      <span className="text-xs font-600 text-stone-600 dark:text-amber-200/80">
-                        {expandedPost.post.stickers.length} sticker{expandedPost.post.stickers.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        const postId = expandedPost.post.id;
-                        setExpandedPost(null);
-                        handleUnassignPost(postId);
-                      }}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-300 dark:border-red-700/40 transition-colors cursor-pointer"
-                    >
-                      Unsnap Space
-                    </button>
-                  )}
-                </motion.div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ProfileShellLightbox
+          expandedPost={expandedPost}
+          currentShellName={currentShell.name}
+          isOwner={isOwner}
+          onClose={() => setExpandedPost(null)}
+          onUnassignPost={handleUnassignPost}
+        />
 
         {/* ── Assign Post Picker Modal ────────────────────────────────────── */}
         <AnimatePresence>
