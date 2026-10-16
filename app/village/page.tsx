@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
+import { getMyGroups, getGroupWithMembers } from '@/app/actions/groupActions';
 import { VillageClient } from './VillageClient';
 
 export const metadata: Metadata = {
@@ -18,5 +19,17 @@ export default async function VillagePage() {
     redirect('/login?next=/village');
   }
 
-  return <VillageClient currentUserId={user.id} />;
+  const myGroups = await getMyGroups();
+  let initialGroup = null;
+  if (myGroups.length > 0) {
+    initialGroup = await getGroupWithMembers(myGroups[0].group.id);
+  }
+
+  return (
+    <VillageClient
+      currentUserId={user.id}
+      initialGroup={initialGroup}
+      userGroups={myGroups.map((g) => ({ id: g.group.id, name: g.group.name }))}
+    />
+  );
 }

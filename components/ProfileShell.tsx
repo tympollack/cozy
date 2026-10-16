@@ -38,6 +38,7 @@ import type { PorchItem } from '@/app/actions/waterfallActions';
 import { ITEM_EMOJIS } from './PorchHoldingPen';
 import { playCozyChime } from '@/lib/audio/cheerSound';
 import { DollhouseStage } from '@/src/components/dollhouse';
+import type { VibeStatus } from '@/types/vibe';
 
 interface ProfileShellProps {
   initialShellType: string;
@@ -57,6 +58,8 @@ interface ProfileShellProps {
   currentUserId?: string | null;
   /** Received porch items resting on the wooden porch deck. */
   porchItems?: PorchItem[];
+  /** Owner's daily vibe check status for ambient room aura */
+  vibeStatus?: VibeStatus;
 }
 
 export function ProfileShell({
@@ -72,6 +75,7 @@ export function ProfileShell({
   recipientId = '',
   currentUserId = null,
   porchItems = [],
+  vibeStatus,
 }: ProfileShellProps) {
   const pathname = usePathname();
   const { setExpansionTier, setMilestoneTokens, setThemesUnlocked } = useCozyStore();
@@ -535,15 +539,8 @@ export function ProfileShell({
           {viewMode === 'dollhouse' ? (
             <div className="col-span-full w-full py-2">
               <DollhouseStage
-                theme={
-                  shellType === 'campsite'
-                    ? 'campsite'
-                    : shellType === 'castle'
-                    ? 'castle'
-                    : shellType === 'modern'
-                    ? 'modern'
-                    : 'cottage'
-                }
+                theme={shellType}
+                vibeStatus={vibeStatus}
               />
             </div>
           ) : (

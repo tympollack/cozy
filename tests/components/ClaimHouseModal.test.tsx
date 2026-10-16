@@ -183,6 +183,12 @@ describe('ClaimHouseModal Component (TASK-COZY-ONBOARD-CLAIM)', () => {
     });
 
     expect(closeHeaderBtn).not.toBeDisabled();
+
+    // Hardware back button triggered after completion should close modal
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('blocks hardware back and close controls while joining a village', async () => {
@@ -223,5 +229,11 @@ describe('ClaimHouseModal Component (TASK-COZY-ONBOARD-CLAIM)', () => {
     });
 
     expect(closeHeaderBtn).not.toBeDisabled();
+
+    // Hardware back button triggered after completion should close modal
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 });
