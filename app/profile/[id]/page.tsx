@@ -160,6 +160,7 @@ export default async function PeerProfilePage({ params }: PeerProfilePageProps) 
             currentUserId={user?.id ?? null}
             peerStatus={peerStatus}
             porchItems={porchDigest.items}
+            vibeStatus={peerVibe}
           />
         </div>
 

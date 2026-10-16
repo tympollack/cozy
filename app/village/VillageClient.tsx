@@ -22,6 +22,12 @@ const PLOT_TEMPLATES = [
   { id: 'plot-3', col: 6, row: 4, label: 'Riverside Plot' },
   { id: 'plot-4', col: 4, row: 6, label: 'Windmill View' },
   { id: 'plot-5', col: 2, row: 6, label: 'Garden Edge' },
+  { id: 'plot-6', col: 4, row: 1, label: 'Blossom Ridge' },
+  { id: 'plot-7', col: 1, row: 5, label: 'Clover Patch' },
+  { id: 'plot-8', col: 6, row: 2, label: 'Orchard Corner' },
+  { id: 'plot-9', col: 5, row: 6, label: 'Whispering Pines' },
+  { id: 'plot-10', col: 3, row: 6, label: 'Brookside Corner' },
+  { id: 'plot-11', col: 6, row: 3, label: 'Starlight Terrace' },
 ];
 
 export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: VillageClientProps) {
@@ -30,8 +36,15 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
 
   const plotAnchors = useMemo<VillagePlotAnchor[]>(() => {
     if (!initialGroup) return [];
-    return PLOT_TEMPLATES.map((tmpl, idx) => {
-      const member = initialGroup.members[idx];
+    const members = initialGroup.members;
+    const maxCapacity = initialGroup.group.max_members || 8;
+    const totalSlots = Math.min(
+      PLOT_TEMPLATES.length,
+      Math.max(members.length, maxCapacity)
+    );
+
+    return PLOT_TEMPLATES.slice(0, totalSlots).map((tmpl, idx) => {
+      const member = members[idx];
       if (member) {
         const isYou = member.user_id === currentUserId;
         return {
@@ -118,7 +131,7 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
     <div className="min-h-screen cozy-page-bg px-4 py-6 pb-20">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Navigation & Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <Link
             href="/groups"
             className="inline-flex items-center gap-1.5 text-xs font-800 text-stone-700 dark:text-amber-200 hover:text-amber-600 transition-colors"
@@ -126,6 +139,26 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
             <ArrowLeft size={16} />
             <span>Back to Groups</span>
           </Link>
+
+          {/* Multi-Village Selector */}
+          {userGroups.length > 1 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-bold text-stone-500 dark:text-stone-400">Village:</span>
+              {userGroups.map((g) => (
+                <Link
+                  key={g.id}
+                  href={`/village?groupId=${g.id}`}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-800 transition-all ${
+                    initialGroup.group.id === g.id
+                      ? 'bg-amber-500 text-stone-950 shadow-xs'
+                      : 'bg-white/80 dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-amber-100'
+                  }`}
+                >
+                  {g.name}
+                </Link>
+              ))}
+            </div>
+          )}
 
           <button
             onClick={() => setNightMode((prev) => !prev)}
@@ -167,6 +200,27 @@ export function VillageClient({ currentUserId, initialGroup, userGroups = [] }: 
               setCustomRoomTheme(null);
             }}
           />
+
+          {/* Resident Plot Selection Strip */}
+          <div className="flex items-center gap-2 overflow-x-auto py-2">
+            <span className="text-xs font-800 text-stone-600 dark:text-amber-200 shrink-0">Residents:</span>
+            {plotAnchors.map((plot) => (
+              <button
+                key={plot.id}
+                onClick={() => {
+                  setSelectedPlot(plot);
+                  setCustomRoomTheme(null);
+                }}
+                className={`px-2.5 py-1 rounded-xl text-xs font-800 shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+                  selectedPlot?.id === plot.id
+                    ? 'bg-amber-500 text-stone-950 shadow-xs'
+                    : 'bg-white/80 dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-amber-100'
+                }`}
+              >
+                <span>{plot.occupiedByName ? (plot.occupiedByName === 'You' ? '👤 You' : `🏡 ${plot.occupiedByName}`) : '🌱 Vacant'}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 2.5D Dollhouse Interior Stage */}

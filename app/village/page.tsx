@@ -9,7 +9,11 @@ export const metadata: Metadata = {
   description: 'Explore the 2.5D isometric village macro-plot and cozy dollhouse interiors.',
 };
 
-export default async function VillagePage() {
+interface VillagePageProps {
+  searchParams?: Promise<{ groupId?: string }>;
+}
+
+export default async function VillagePage({ searchParams }: VillagePageProps) {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -20,9 +24,20 @@ export default async function VillagePage() {
   }
 
   const myGroups = await getMyGroups();
+  const params = searchParams ? await searchParams : {};
+  const requestedGroupId = params?.groupId;
+
+  let selectedGroupEntry = myGroups[0] ?? null;
+  if (requestedGroupId) {
+    const found = myGroups.find((g) => g.group.id === requestedGroupId);
+    if (found) {
+      selectedGroupEntry = found;
+    }
+  }
+
   let initialGroup = null;
-  if (myGroups.length > 0) {
-    initialGroup = await getGroupWithMembers(myGroups[0].group.id);
+  if (selectedGroupEntry) {
+    initialGroup = await getGroupWithMembers(selectedGroupEntry.group.id);
   }
 
   return (

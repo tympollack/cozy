@@ -57,7 +57,7 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
   const currentUserId = currentUser?.id ?? null;
 
   // 3. Fetch profile data, peer status, and (for owners) pending cards — in parallel
-  const { posts, shellType, expansionTier, milestoneTokens, themesUnlocked, isOwner, error } = await getUserProfileData(targetUserId);
+  const { posts, shellType, expansionTier, milestoneTokens, themesUnlocked, isOwner, vibeStatus, error } = await getUserProfileData(targetUserId);
   const currentShellDef = getShellDefinition(shellType);
 
   const { getPeerStatus, getPendingCallingCards } = await import(
@@ -132,6 +132,7 @@ export default async function UserProfileRoute({ params }: UsernamePageProps) {
               pendingCards={pendingCards}
               recipientId={targetUserId}
               currentUserId={currentUserId}
+              vibeStatus={vibeStatus}
             />
 
             {/* Unassigned / Archive Spaces Drawer */}
