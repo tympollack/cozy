@@ -16,6 +16,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import type { FurnitureProp } from './types';
+import { resolveDollhouseFurnitureAsset } from '@/lib/assetManifest';
 
 interface FurnitureLayerProps {
   furniture: FurnitureProp[];
@@ -48,10 +49,13 @@ export function FurnitureLayer({
         // Isometric screen coordinates (center of tile)
         const screenX = originX + (col - row) * (tileWidth / 2);
         const screenY = originY + (col + row) * (tileHeight / 2) - z;
+        const resolvedAsset = resolveDollhouseFurnitureAsset(item.spriteType);
 
         return (
           <g
             key={item.id}
+            data-asset-key={resolvedAsset.assetKey}
+            data-cdn-url={resolvedAsset.cdnUrl}
             transform={`translate(${screenX}, ${screenY})`}
             onClick={item.interactive ? () => onPropClick?.(item) : undefined}
             onKeyDown={
