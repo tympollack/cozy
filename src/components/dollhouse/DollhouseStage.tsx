@@ -16,11 +16,17 @@
  *     as scalable inline vector SVG elements to avoid raster pixelation and asset bundle latency.
  */
 
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { DollhouseStageProps, FurnitureProp, DollhouseRoomTheme } from './types';
 import { FurnitureLayer } from './FurnitureLayer';
 import { WeatherAuraOverlay } from './WeatherAuraOverlay';
+import {
+  getCozyAtlasSummary,
+  hydrateCozyAssetCatalog,
+  resolveVillageTileAsset,
+  subscribeCozyAssetSwaps,
+} from '@/lib/assetManifest';
 
 const GRID_SIZE = 5;
 const TILE_WIDTH = 72;
@@ -190,6 +196,17 @@ export function DollhouseStage({
   nightMode = false,
 }: DollhouseStageProps) {
   const [selectedPropId, setSelectedPropId] = useState<string | null>(null);
+  const [, setAssetRevision] = useState(0);
+
+  useEffect(() => {
+    void hydrateCozyAssetCatalog();
+    return subscribeCozyAssetSwaps(() => {
+      setAssetRevision((rev) => rev + 1);
+    });
+  }, []);
+
+  const atlasSummary = getCozyAtlasSummary();
+  const floorAsset = resolveVillageTileAsset('grass_meadow');
 
   // Normalise theme name
   const effectiveTheme: DollhouseRoomTheme =
@@ -242,6 +259,9 @@ export function DollhouseStage({
       style={{ background: palette.bgGradient }}
       role="region"
       aria-label="2.5D Dollhouse Interior Stage"
+      data-asset-scope="cozy"
+      data-cdn-atlas={atlasSummary.isometricAtlasUrl}
+      data-floor-cdn-url={floorAsset.cdnUrl}
     >
       {/* ── Layer 1: Ambient Weather Auras & Particles ── */}
       {(showWeatherAuras || nightMode) && (

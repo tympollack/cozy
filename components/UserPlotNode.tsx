@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { GroupMemberWithVibe } from '@/components/GroupMapView';
+import { resolveHabitatSpriteSource, subscribeCozyAssetSwaps } from '@/lib/assetManifest';
 
 // ---------------------------------------------------------------------------
 // Plot size tokens
@@ -31,17 +32,11 @@ const SIZE_TOKENS: Record<PlotSize, SizeTokens> = {
 //   2. Add one entry here keyed by shell_type id — nothing else changes.
 // ---------------------------------------------------------------------------
 
-const HABITAT_IMAGE_REGISTRY: Record<string, string> = {
-  default_dollhouse: '/images/habitats/cottage.jpg',
-  cozy_campsite:     '/images/habitats/campsite.jpg',
-  stone_castle:      '/images/habitats/castle.jpg',
-};
-
-const FUTURISTIC_HABITAT_IMAGE = '/images/habitats/orbital_pod.jpg';
-
-function resolveHabitatImage(shellType: string | null | undefined, isFuturistic: boolean): string {
-  if (isFuturistic) return FUTURISTIC_HABITAT_IMAGE;
-  return HABITAT_IMAGE_REGISTRY[shellType ?? ''] ?? HABITAT_IMAGE_REGISTRY.default_dollhouse;
+function resolveHabitatImage(shellType: string | null | undefined, isFuturistic: boolean): {
+  cdnUrl: string;
+  fallbackUrl: string;
+} {
+  return resolveHabitatSpriteSource(shellType, isFuturistic);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,12 +145,12 @@ if (typeof window !== 'undefined') {
 }
 
 /** Returns a processed (white-removed) data URL and a boolean indicating if it is ready. */
-function useProcessedSprite(src: string): { dataUrl: string | null; isReady: boolean } {
-  const cached = spriteCache.get(src);
+function useProcessedSprite(src: string, fallbackSrc?: string): { dataUrl: string | null; isReady: boolean } {
+  const cached = spriteCache.get(src) ?? (fallbackSrc ? spriteCache.get(fallbackSrc) : undefined);
   const [dataUrl, setDataUrl] = useState<string | null>(cached ?? null);
 
   useEffect(() => {
-    const existing = spriteCache.get(src);
+    const existing = spriteCache.get(src) ?? (fallbackSrc ? spriteCache.get(fallbackSrc) : undefined);
     if (existing) {
       setDataUrl(existing);
       return;
@@ -165,24 +160,37 @@ function useProcessedSprite(src: string): { dataUrl: string | null; isReady: boo
     setDataUrl(null);
 
     let active = true;
-    const img = new window.Image();
-    img.onload = () => {
-      try {
-        const processed = stripWhiteBackground(img);
-        spriteCache.set(src, processed);
-        if (active) {
-          setDataUrl(processed);
+    const loadAndProcess = (targetSrc: string, allowFallback: boolean) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const processed = stripWhiteBackground(img);
+          spriteCache.set(targetSrc, processed);
+          if (active) {
+            setDataUrl(processed);
+          }
+        } catch (err) {
+          console.error('[useProcessedSprite] error processing sprite:', err);
+          if (allowFallback && fallbackSrc && fallbackSrc !== targetSrc) {
+            loadAndProcess(fallbackSrc, false);
+          }
         }
-      } catch (err) {
-        console.error('[useProcessedSprite] error processing sprite:', err);
-      }
+      };
+      img.onerror = () => {
+        if (allowFallback && fallbackSrc && fallbackSrc !== targetSrc) {
+          loadAndProcess(fallbackSrc, false);
+        }
+      };
+      img.src = targetSrc;
     };
-    img.src = src;
+
+    loadAndProcess(src, Boolean(fallbackSrc));
 
     return () => {
       active = false;
     };
-  }, [src]);
+  }, [src, fallbackSrc]);
 
   const activeDataUrl = cached ?? dataUrl;
   return {
@@ -231,8 +239,10 @@ function HabitatSprite({
   shellType: string | null | undefined; isFuturistic: boolean; isRaincloud: boolean;
   spriteSize: number; avatarBadgeSize: number; avatarUrl: string | null; initials: string;
 }) {
-  const src = resolveHabitatImage(shellType, isFuturistic);
-  const { dataUrl, isReady } = useProcessedSprite(src);
+  const [, setSwapTick] = useState(0);
+  useEffect(() => subscribeCozyAssetSwaps(() => setSwapTick((n) => n + 1)), []);
+  const { cdnUrl, fallbackUrl } = resolveHabitatImage(shellType, isFuturistic);
+  const { dataUrl, isReady } = useProcessedSprite(cdnUrl, fallbackUrl);
 
   const badgeBorder = isRaincloud ? '#64748b' : isFuturistic ? '#00dcff' : '#f0c060';
   const badgeBg     = isRaincloud ? '#1e293b' : isFuturistic ? '#0f1d36' : '#fef3c7';
@@ -244,7 +254,7 @@ function HabitatSprite({
       {isReady && dataUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          key={src}
+          key={cdnUrl}
           src={dataUrl}
           alt={shellType ?? 'habitat'}
           width={spriteSize}

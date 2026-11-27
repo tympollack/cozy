@@ -14,10 +14,17 @@
  * prevents raster blur across differing display zoom levels.
  */
 
-import React, { useState, useId, useMemo } from 'react';
+import React, { useState, useId, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { VillageMacroPlotProps, VillagePlotAnchor, VillageBuilding } from './types';
 import { WeatherAuraOverlay } from '../dollhouse/WeatherAuraOverlay';
+import {
+  getCozyAtlasSummary,
+  hydrateCozyAssetCatalog,
+  resolveVillageBuildingAsset,
+  resolveVillageTileAsset,
+  subscribeCozyAssetSwaps,
+} from '@/lib/assetManifest';
 
 const DEFAULT_GRID_SIZE = 8;
 const TILE_W = 80;
@@ -54,6 +61,16 @@ export function VillageMacroPlot({
   className = '',
 }: VillageMacroPlotProps) {
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
+  const [, setAssetRevision] = useState(0);
+
+  useEffect(() => {
+    void hydrateCozyAssetCatalog();
+    return subscribeCozyAssetSwaps(() => {
+      setAssetRevision((rev) => rev + 1);
+    });
+  }, []);
+
+  const atlasSummary = getCozyAtlasSummary();
 
   const plotId = useId();
   const sanitizedId = plotId.replace(/:/g, '');
@@ -127,6 +144,8 @@ export function VillageMacroPlot({
       className={`relative w-full aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border-4 border-amber-950/20 select-none bg-gradient-to-b from-[#1c2e22] via-[#16241b] to-[#0d1610] ${className}`}
       role="region"
       aria-label="2.5D Village Macro-Plot Stage"
+      data-asset-scope="cozy"
+      data-cdn-atlas={atlasSummary.isometricAtlasUrl}
     >
       {/* Header bar */}
       <div className="absolute top-4 left-5 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-md border border-white/20 text-xs font-bold text-emerald-200">
@@ -188,10 +207,13 @@ export function VillageMacroPlot({
                 : `url(#${grassGrad2Id})`;
 
               const stroke = isWater ? '#0284c7' : isPath ? '#44403c' : '#1e300b';
+              const tileType = isWater ? 'water_stream' : isPath ? 'cobblestone_path' : 'grass_meadow';
+              const tileAsset = resolveVillageTileAsset(tileType);
 
               return (
                 <polygon
                   key={`v-tile-${col}-${row}`}
+                  data-tile-key={tileAsset.assetKey}
                   points={`${top.x},${top.y} ${right.x},${right.y} ${bottom.x},${bottom.y} ${left.x},${left.y}`}
                   fill={fill}
                   stroke={stroke}
@@ -208,10 +230,13 @@ export function VillageMacroPlot({
             const { x, y } = toScreen(item.col, item.row, item.building?.z ?? 0);
 
             if (item.type === 'building' && item.building) {
+              const buildingAsset = resolveVillageBuildingAsset(item.building.type);
               return (
                 <g
                   key={item.key}
                   data-building-id={item.building.id}
+                  data-asset-key={buildingAsset.assetKey}
+                  data-cdn-url={buildingAsset.cdnUrl}
                   transform={`translate(${x}, ${y})`}
                 >
                   {renderBuilding(item.building.type)}
